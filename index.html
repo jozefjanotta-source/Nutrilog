@@ -121,6 +121,9 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .micro-item .mi-tgt{font-size:11px;color:var(--text3);margin-top:2px}
 .micro-item .bar{height:4px;border-radius:2px;background:var(--surface2);margin-top:6px;overflow:hidden}
 .micro-item .bar-fill{height:100%;border-radius:2px}
+.copy-btn{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius-sm);padding:7px 12px;font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap}
+.copy-btn:active{background:var(--surface2)}
+.copy-btn.accent{background:var(--accent-light);color:var(--accent-text);border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -134,6 +137,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     <button class="date-btn" onclick="changeDay(1)">&#8594;</button>
   </div>
   <div class="summary" id="summary"></div>
+  <div id="copy-bar" style="display:none;margin:0 16px 10px;gap:8px;flex-wrap:wrap"></div>
   <div class="remain-row">
     <div class="ring-wrap"><canvas id="ring-canvas"></canvas><div class="ring-center"><div class="rc-val" id="ring-val">0</div><div class="rc-lbl" id="ring-lbl">left</div></div></div>
     <div class="remain-macros" id="remain-macros"></div>
@@ -760,10 +764,54 @@ function renderMicroStrip(totals){
   }).join('')+'</div>';
 }
 
+function renderCopyBar(){
+  const bar = document.getElementById('copy-bar');
+  // Find last 7 days that have entries, excluding current date
+  const candidates = [];
+  for(let i=1;i<=30;i++){
+    const d = new Date(state.currentDate+'T12:00:00');
+    d.setDate(d.getDate()-i);
+    const iso = d.toISOString().slice(0,10);
+    if(state.log[iso]&&state.log[iso].length>0) candidates.push(iso);
+    if(candidates.length>=5) break;
+  }
+  if(!candidates.length){bar.style.display='none';return;}
+  bar.style.display='flex';
+  bar.innerHTML = '<span style="font-size:12px;color:var(--text3);align-self:center;flex-shrink:0">Copy from:</span>' +
+    candidates.map(d=>`<button class="copy-btn" onclick="copyDayEntries('${d}')">${dayLabel(d)}</button>`).join('') +
+    (state.log[state.currentDate]&&state.log[state.currentDate].length?
+      '<button class="copy-btn accent" onclick="copyMeal()">Copy meal...</button>':'');
+}
+
+function copyDayEntries(fromDate){
+  const entries = (state.log[fromDate]||[]).map(e=>({...e}));
+  if(!entries.length) return;
+  if(!state.log[state.currentDate]) state.log[state.currentDate]=[];
+  state.log[state.currentDate].push(...entries);
+  persist('log');
+  renderLog();
+}
+
+function copyMeal(){
+  const entries = state.log[state.currentDate]||[];
+  if(!entries.length) return;
+  const meals = [...new Set(entries.map(e=>e.meal))];
+  const meal = meals.length===1 ? meals[0] : prompt('Which meal to copy? ('+meals.join(', ')+')');
+  if(!meal) return;
+  // Show date picker popup
+  const target = prompt('Copy "'+meal+'" to which date? (YYYY-MM-DD)', todayISO());
+  if(!target||!target.match(/^\d{4}-\d{2}-\d{2}$/)) return;
+  const toCopy = entries.filter(e=>e.meal===meal).map(e=>({...e}));
+  if(!state.log[target]) state.log[target]=[];
+  state.log[target].push(...toCopy);
+  persist('log');
+  alert('Copied '+toCopy.length+' items to '+dayLabel(target));
+}
+
 function renderLog(){
   document.getElementById('date-label').textContent=dayLabel(state.currentDate);
   const totals=getTotals(state.currentDate);
-  renderSummaryCards(totals);renderRing(totals);renderMealBars(state.currentDate);renderMicroStrip(totals);
+  renderSummaryCards(totals);renderRing(totals);renderMealBars(state.currentDate);renderMicroStrip(totals);renderCopyBar();
   const entries=state.log[state.currentDate]||[];
   const meals=['Breakfast','Lunch','Dinner','Snack'];let html='';
   meals.forEach(meal=>{
