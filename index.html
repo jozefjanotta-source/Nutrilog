@@ -124,7 +124,6 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 </style>
 </head>
 <body>
-<div id="debug" style="background:#c0392b;color:#fff;padding:10px 16px;font-size:13px;display:none"></div>
 <div class="header"><div class="app-title">Nutri<span>Log</span></div></div>
 <div class="scroll-content">
 
@@ -680,27 +679,14 @@ function importData(){
   }catch(e){msg.style.display='block';msg.style.color='var(--danger)';msg.textContent='Invalid code - make sure you copied the full export.';}
 }
 
-function showDebug(msg){
-  const d=document.getElementById('debug');
-  if(d){d.style.display='block';d.textContent='DEBUG: '+msg;}
-}
 function initApp(){
   try{
-    showDebug('starting init...');
-    VIEWS.forEach(id=>{
-      const el=document.getElementById('view-'+id);
-      if(!el){showDebug('missing element: view-'+id);return;}
-      el.style.display='none';
-    });
-    showDebug('views hidden, setting date...');
+    VIEWS.forEach(id=>document.getElementById('view-'+id).style.display='none');
     document.getElementById('w-date').value=todayISO();
-    showDebug('loading targets...');
     loadTargetsForm();
-    showDebug('switching to log view...');
     switchView('log');
-    showDebug('done - if you see this tell Claude');
   }catch(e){
-    showDebug('ERROR: '+e.message+' at '+e.stack);
+    document.body.innerHTML='<div style="padding:32px;font-family:system-ui;color:#c0392b"><b>Error:</b> '+e.message+'</div>';
   }
 }
 if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',initApp);}else{initApp();}
