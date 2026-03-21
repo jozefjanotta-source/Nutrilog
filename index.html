@@ -250,7 +250,7 @@
   <!-- TARGETS VIEW -->
   <div id="view-targets" class="page">
     <div class="section-hd">Daily targets</div>
-    <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
+    <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:16px">
       <div class="target-grid">
         <div class="form-field"><label>Calories (kcal)</label><input type="number" id="t-cal"></div>
         <div class="form-field"><label>Protein (g)</label><input type="number" id="t-prot"></div>
@@ -260,6 +260,19 @@
       </div>
       <button class="btn btn-primary" onclick="saveTargets()">Save</button>
       <div class="save-msg" id="save-msg">Saved ✓</div>
+    </div>
+    <div class="section-hd">Sync between devices</div>
+    <div style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius);padding:14px">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6">Export copies all your data (log, custom foods, targets) to clipboard. On the other device, paste it into the Import box and tap Import.</p>
+      <button class="btn btn-primary" onclick="exportData()" style="margin-bottom:10px">Export — copy to clipboard</button>
+      <div id="export-msg" style="display:none;font-size:13px;color:var(--accent);margin-bottom:12px">Copied to clipboard ✓ — paste it on your other device.</div>
+      <div style="height:0.5px;background:var(--border);margin:12px 0"></div>
+      <div class="form-field" style="margin-bottom:10px">
+        <label>Paste export code here</label>
+        <textarea id="import-input" rows="3" style="width:100%;padding:9px 10px;border-radius:var(--radius-sm);border:0.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px;font-family:monospace;resize:vertical;outline:none;margin-top:5px" placeholder="Paste code from other device…"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="importData()">Import</button>
+      <div id="import-msg" style="display:none;font-size:13px;margin-top:8px"></div>
     </div>
   </div>
 </div>
@@ -724,6 +737,46 @@ function saveTargets() {
   persist('targets');
   const m = document.getElementById('save-msg'); m.style.display='block';
   setTimeout(()=>m.style.display='none', 2000);
+}
+
+// ─── EXPORT / IMPORT ──────────────────────────────────────────────────────────
+function exportData() {
+  const payload = JSON.stringify({
+    v: 1,
+    targets: state.targets,
+    log: state.log,
+    customFoods: state.customFoods
+  });
+  const encoded = btoa(unescape(encodeURIComponent(payload)));
+  navigator.clipboard.writeText(encoded).then(() => {
+    const msg = document.getElementById('export-msg');
+    msg.style.display = 'block';
+    setTimeout(() => msg.style.display = 'none', 4000);
+  }).catch(() => {
+    prompt('Copy this code manually:', encoded);
+  });
+}
+
+function importData() {
+  const raw = document.getElementById('import-input').value.trim();
+  const msg = document.getElementById('import-msg');
+  if (!raw) { msg.style.display='block'; msg.style.color='var(--danger)'; msg.textContent='Please paste an export code first.'; return; }
+  try {
+    const payload = JSON.parse(decodeURIComponent(escape(atob(raw))));
+    if (!payload.v || !payload.targets) throw new Error('invalid');
+    state.targets = payload.targets;
+    state.log = payload.log || {};
+    state.customFoods = payload.customFoods || [];
+    persist('targets'); persist('log'); persist('customFoods');
+    document.getElementById('import-input').value = '';
+    msg.style.display='block'; msg.style.color='var(--accent)';
+    msg.textContent = 'Imported successfully ✓ — all data updated.';
+    setTimeout(() => msg.style.display='none', 4000);
+    loadTargetsForm();
+  } catch(e) {
+    msg.style.display='block'; msg.style.color='var(--danger)';
+    msg.textContent = 'Invalid code — make sure you copied the full export.';
+  }
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
