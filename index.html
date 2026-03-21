@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="NutriLog">
 <title>NutriLog</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" onerror="window.Chart=null"><\/script>
 <style>
 :root{--bg:#f7f7f5;--surface:#fff;--surface2:#f2f1ef;--border:rgba(0,0,0,.10);--border2:rgba(0,0,0,.18);--text:#1a1a18;--text2:#6b6b65;--text3:#9e9e97;--accent:#2d6a4f;--accent-light:#e8f5f0;--accent-text:#1b4332;--warn:#b5590a;--danger:#c0392b;--info:#1a5fa8;--info-light:#e8f0fb;--radius:12px;--radius-sm:8px;--shadow:0 1px 4px rgba(0,0,0,.07);--tab-h:58px;--safe-bottom:env(safe-area-inset-bottom,0px)}
 @media(prefers-color-scheme:dark){:root{--bg:#141412;--surface:#1e1e1c;--surface2:#2a2a27;--border:rgba(255,255,255,.10);--border2:rgba(255,255,255,.18);--text:#f0efe9;--text2:#9a9a92;--text3:#606058;--accent:#52b788;--accent-light:#1a2e24;--accent-text:#b7e4c7;--warn:#f4a261;--danger:#e57373;--info:#74b3f0;--info-light:#0e1e30}}
@@ -471,9 +471,11 @@ function renderRing(totals){
   document.getElementById('ring-lbl').textContent=over?'over':'left';
   document.getElementById('ring-val').style.color=over?'var(--danger)':'var(--accent)';
   const color=over?'#e57373':'#52b788';
-  const ctx=document.getElementById('ring-canvas').getContext('2d');
-  if(ringChart)ringChart.destroy();
-  ringChart=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[pct,100-pct],backgroundColor:[color,'rgba(128,128,128,0.15)'],borderWidth:0,borderRadius:4}]},options:{cutout:'72%',plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:400}}});
+  try{
+    const ctx=document.getElementById('ring-canvas').getContext('2d');
+    if(ringChart)ringChart.destroy();
+    ringChart=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[pct,100-pct],backgroundColor:[color,'rgba(128,128,128,0.15)'],borderWidth:0,borderRadius:4}]},options:{cutout:'72%',plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:400}}});
+  }catch(e){}
   const macros=[{lbl:'Protein',val:fmt(totals.prot),tgt:t.prot,over:totals.prot>t.prot},{lbl:'Carbs',val:fmt(totals.carb),tgt:t.carb,over:totals.carb>t.carb},{lbl:'Fat',val:fmt(totals.fat),tgt:t.fat,over:totals.fat>t.fat},{lbl:'Fiber',val:fmt(totals.fiber),tgt:t.fiber,over:totals.fiber>t.fiber}];
   document.getElementById('remain-macros').innerHTML=macros.map(m=>`<div class="rm-item"><div class="rm-lbl">${m.lbl}</div><div class="rm-val ${m.over?'over':''}">${m.val}${m.tgt?' / '+m.tgt:''}g</div></div>`).join('');
 }
@@ -546,6 +548,7 @@ function renderSummaryPage(){
   const gc=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
   const tc=isDark?'#606058':'#9e9e97';
   const bo={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:10},maxRotation:45}},y:{grid:{color:gc},ticks:{color:tc,font:{size:10}}}}};
+  if(typeof Chart==='undefined'||!Chart){document.getElementById('chart-cal').parentElement.innerHTML='<p style="color:var(--text3);font-size:13px;padding:20px 0;text-align:center">Charts unavailable offline</p>';return;}
   if(chartCal)chartCal.destroy();
   chartCal=new Chart(document.getElementById('chart-cal').getContext('2d'),{type:'bar',data:{labels,datasets:[{data:calData,backgroundColor:calData.map(v=>v>state.targets.cal?'rgba(192,57,43,0.7)':'rgba(45,106,79,0.7)'),borderRadius:4}]},options:{...bo,plugins:{...bo.plugins,tooltip:{callbacks:{label:ctx=>`${ctx.raw} kcal`}}},scales:{...bo.scales,y:{...bo.scales.y,suggestedMax:state.targets.cal*1.2}}}});
   if(chartMacro)chartMacro.destroy();
@@ -676,10 +679,17 @@ function importData(){
   }catch(e){msg.style.display='block';msg.style.color='var(--danger)';msg.textContent='Invalid code - make sure you copied the full export.';}
 }
 
-VIEWS.forEach(id=>document.getElementById('view-'+id).style.display='none');
-document.getElementById('w-date').value=todayISO();
-loadTargetsForm();
-switchView('log');
+function initApp(){
+  try{
+    VIEWS.forEach(id=>document.getElementById('view-'+id).style.display='none');
+    document.getElementById('w-date').value=todayISO();
+    loadTargetsForm();
+    switchView('log');
+  }catch(e){
+    document.body.innerHTML='<div style="padding:32px;font-family:system-ui;color:#c0392b"><b>Error loading app:</b><br>'+e.message+'</div>';
+  }
+}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',initApp);}else{initApp();}
 <\/script>
 </body>
 </html>
