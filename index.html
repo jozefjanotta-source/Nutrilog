@@ -266,6 +266,10 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
   </div>
   <div class="weekly-grid" id="avg-grid"></div>
   <div class="chart-card" style="margin:0 0 14px">
+    <div class="chart-title">Weekly averages</div>
+    <div class="chart-wrap"><canvas id="chart-weekly-avg"></canvas></div>
+  </div>
+  <div class="chart-card" style="margin:0 0 14px">
     <div class="chart-title">Calories per day</div>
     <div class="chart-wrap"><canvas id="chart-cal"></canvas></div>
   </div>
@@ -521,7 +525,7 @@ const state={
 };
 function persist(k){lsSet(SK[k],state[k])}
 
-let chartCal=null,chartMacro=null,chartWeight=null,ringChart=null,dashCalChart=null;
+let chartCal=null,chartMacro=null,chartWeight=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null;
 
 const VIEWS=['dash','log','add','summary','custom','targets'];
 function switchView(v){
@@ -934,7 +938,65 @@ function renderSummaryPage(){
       options:{...bo,plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{mode:'index',intersect:false}},scales:{x:{...bo.scales.x,stacked:true},y:{...bo.scales.y,stacked:true}}}
     });
   }catch(e){}
+  renderWeeklyAvgChart();
   renderWeightChart(labels,dates);renderWeightList();
+}
+
+function renderWeeklyAvgChart(){
+  // Build last 8 complete weeks of data
+  const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+  const gc=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
+  const tc=isDark?'#606058':'#9e9e97';
+  const weekLabels=[];
+  const weekCalAvg=[];
+  const weekProtAvg=[];
+  const weekCarbAvg=[];
+  const weekFatAvg=[];
+  // Go back up to 8 weeks
+  for(let w=7;w>=0;w--){
+    const weekDates=[];
+    for(let d=6;d>=0;d--){
+      const dt=new Date();
+      dt.setDate(dt.getDate()-(w*7+d));
+      weekDates.push(dt.toISOString().slice(0,10));
+    }
+    const logged=weekDates.filter(d=>(state.log[d]||[]).length>0);
+    if(!logged.length) continue;
+    const totals=logged.map(d=>getTotals(d));
+    const avgCal=Math.round(totals.reduce((a,t)=>a+t.cal,0)/logged.length);
+    const avgProt=Math.round(totals.reduce((a,t)=>a+t.prot,0)/logged.length);
+    const avgCarb=Math.round(totals.reduce((a,t)=>a+t.carb,0)/logged.length);
+    const avgFat=Math.round(totals.reduce((a,t)=>a+t.fat,0)/logged.length);
+    // Label: start date of week
+    const startDt=new Date(weekDates[0]+'T12:00:00');
+    weekLabels.push(startDt.toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
+    weekCalAvg.push(avgCal);
+    weekProtAvg.push(avgProt);
+    weekCarbAvg.push(avgCarb);
+    weekFatAvg.push(avgFat);
+  }
+  const tgt=state.targets.cal||2200;
+  try{
+    if(chartWeeklyAvg)chartWeeklyAvg.destroy();
+    chartWeeklyAvg=new Chart(document.getElementById('chart-weekly-avg').getContext('2d'),{
+      type:'bar',
+      data:{labels:weekLabels,datasets:[
+        {label:'Calories',data:weekCalAvg,backgroundColor:weekCalAvg.map(v=>v>tgt*1.1?'rgba(192,57,43,0.8)':'rgba(45,106,79,0.7)'),borderRadius:4,yAxisID:'y'},
+        {type:'line',data:Array(weekLabels.length).fill(tgt),borderColor:'rgba(230,130,0,0.85)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false,yAxisID:'y'},
+        {label:'Protein',data:weekProtAvg,backgroundColor:'rgba(26,95,168,0.6)',borderRadius:4,yAxisID:'y2'},
+        {label:'Carbs',data:weekCarbAvg,backgroundColor:'rgba(29,158,117,0.6)',borderRadius:4,yAxisID:'y2'},
+        {label:'Fat',data:weekFatAvg,backgroundColor:'rgba(192,57,43,0.6)',borderRadius:4,yAxisID:'y2'},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{mode:'index',intersect:false}},
+        scales:{
+          x:{grid:{color:gc},ticks:{color:tc,font:{size:11}}},
+          y:{grid:{color:gc},ticks:{color:tc,font:{size:11}},position:'left',title:{display:true,text:'kcal',color:tc,font:{size:10}}},
+          y2:{grid:{display:false},ticks:{color:tc,font:{size:11}},position:'right',title:{display:true,text:'g',color:tc,font:{size:10}}}
+        }
+      }
+    });
+  }catch(e){}
 }
 
 function renderWeightChart(labels,dates){
