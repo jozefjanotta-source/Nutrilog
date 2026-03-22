@@ -335,6 +335,21 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     <button class="btn-primary" onclick="importData()">Import</button>
     <div id="import-msg" style="display:none;font-size:var(--fs-sm);margin-top:10px"></div>
   </div>
+
+  <div class="section-hd" style="margin-top:20px">GitHub Gist sync</div>
+  <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px">
+    <p style="font-size:var(--fs-sm);color:var(--text2);margin-bottom:14px;line-height:1.6">Enter your GitHub Personal Access Token (gist scope) once on each device. Then use Sync to push or pull all your data via a private GitHub Gist.</p>
+    <div class="form-field" style="margin-bottom:12px">
+      <label>GitHub Token</label>
+      <input type="password" id="gist-token-input" placeholder="ghp_..." style="padding:10px 12px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs-sm);outline:none;width:100%;margin-top:6px">
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn-primary" style="flex:1" onclick="gistSync('push')">&#8593; Push (save to cloud)</button>
+      <button class="btn-primary" style="flex:1;background:var(--info)" onclick="gistSync('pull')">&#8595; Pull (load from cloud)</button>
+    </div>
+    <div id="gist-msg" style="display:none;font-size:var(--fs-sm);margin-top:8px"></div>
+    <div id="gist-id-display" style="font-size:11px;color:var(--text3);margin-top:8px;word-break:break-all"></div>
+  </div>
 </div>
 
 </div><!-- end scroll-content -->
@@ -772,7 +787,7 @@ const DB=[
   {name:'Yoghurt Zvolenský cokolada',cal:137.9,prot:2.8,carb:11.0,fat:9.1,fiber:0.0,piece:140}
 ];
 
-const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight'};
+const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',gist_token:'nl_gist_token',gist_id:'nl_gist_id'};
 function lsGet(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch(e){return fb}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function todayISO(){return new Date().toISOString().slice(0,10)}
@@ -784,6 +799,8 @@ const state={
   log:lsGet(SK.log,{}),
   customFoods:lsGet(SK.custom,[]),
   weight:lsGet(SK.weight,{}),
+  gistToken:lsGet(SK.gist_token,''),
+  gistId:lsGet(SK.gist_id,''),
   currentDate:todayISO(),
   pendingFood:null,
   unitMode:'grams',
@@ -1123,7 +1140,12 @@ function renderCustomList(){
 function deleteCustom(i){state.customFoods.splice(i,1);persist('custom');renderCustomList();}
 
 // ---- TARGETS ----
-function loadTargetsForm(){['cal','prot','carb','fat','fiber'].forEach(k=>document.getElementById('t-'+k).value=state.targets[k]);}
+function loadTargetsForm(){
+  ['cal','prot','carb','fat','fiber'].forEach(k=>document.getElementById('t-'+k).value=state.targets[k]);
+  document.getElementById('gist-token-input').value=state.gistToken||'';
+  const gid=state.gistId;
+  document.getElementById('gist-id-display').textContent=gid?'Gist ID: '+gid:'No gist created yet.';
+}
 function saveTargets(){
   ['cal','prot','carb','fat','fiber'].forEach(k=>state.targets[k]=parseFloat(document.getElementById('t-'+k).value)||0);
   persist('targets');const m=document.getElementById('save-msg');m.style.display='block';setTimeout(()=>m.style.display='none',2000);
@@ -1260,6 +1282,84 @@ function importData(){
   }catch(e){
     msg.style.display='block';msg.style.color='var(--danger)';msg.textContent='Invalid code.';
   }
+}
+
+// ---- GIST SYNC ----
+async function gistSync(direction){
+  const tokenInput=document.getElementById('gist-token-input').value.trim();
+  const msg=document.getElementById('gist-msg');
+  msg.style.display='block';
+  msg.style.color='var(--text2)';
+  msg.textContent=direction==='push'?'Pushing to GitHub...':'Pulling from GitHub...';
+
+  if(!tokenInput){
+    msg.style.color='var(--danger)';
+    msg.textContent='Please enter your GitHub token first.';
+    return;
+  }
+
+  // Save token
+  state.gistToken=tokenInput;
+  lsSet(SK.gist_token, tokenInput);
+
+  const payload=JSON.stringify({
+    v:2,targets:state.targets,log:state.log,
+    customFoods:state.customFoods,weight:state.weight
+  });
+
+  const headers={'Authorization':'token '+tokenInput,'Content-Type':'application/json'};
+
+  try{
+    if(direction==='push'){
+      const body={description:'NutriLog data',public:false,files:{'nutrilog.json':{content:payload}}};
+      let resp, data;
+      if(state.gistId){
+        // Update existing gist
+        resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
+      } else {
+        // Create new gist
+        resp=await fetch('https://api.github.com/gists',{method:'POST',headers,body:JSON.stringify(body)});
+      }
+      data=await resp.json();
+      if(!resp.ok) throw new Error(data.message||'GitHub error');
+      state.gistId=data.id;
+      lsSet(SK.gist_id, data.id);
+      document.getElementById('gist-id-display').textContent='Gist ID: '+data.id;
+      msg.style.color='var(--accent)';
+      msg.textContent='Pushed successfully! Share your Gist ID with your other device or just enter the same token and push once.';
+    } else {
+      // Pull - find gist by looking for nutrilog.json in user gists
+      let gistId=state.gistId;
+      if(!gistId){
+        // Search for it
+        const resp=await fetch('https://api.github.com/gists',{headers});
+        const gists=await resp.json();
+        if(!resp.ok) throw new Error(gists.message||'GitHub error');
+        const found=gists.find(g=>g.files&&g.files['nutrilog.json']);
+        if(!found) throw new Error('No NutriLog gist found. Push from your other device first.');
+        gistId=found.id;
+        state.gistId=gistId;
+        lsSet(SK.gist_id,gistId);
+      }
+      const resp=await fetch('https://api.github.com/gists/'+gistId,{headers});
+      const data=await resp.json();
+      if(!resp.ok) throw new Error(data.message||'GitHub error');
+      const raw=data.files['nutrilog.json'].content;
+      const p=JSON.parse(raw);
+      if(!p.targets) throw new Error('Invalid data in gist');
+      state.targets=p.targets;state.log=p.log||{};
+      state.customFoods=p.customFoods||[];state.weight=p.weight||{};
+      persist('targets');persist('log');persist('custom');persist('weight');
+      document.getElementById('gist-id-display').textContent='Gist ID: '+gistId;
+      msg.style.color='var(--accent)';
+      msg.textContent='Pulled successfully! All data updated.';
+      loadTargetsForm();
+    }
+  }catch(e){
+    msg.style.color='var(--danger)';
+    msg.textContent='Error: '+e.message;
+  }
+  setTimeout(()=>msg.style.display='none',6000);
 }
 
 // ---- INIT ----
