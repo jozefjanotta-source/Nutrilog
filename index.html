@@ -804,7 +804,7 @@ function handleSearch(q){
   document.getElementById('search-status').textContent=all.length+' result'+(all.length!==1?'s':'');
   document.getElementById('search-results').innerHTML='<div class="results-list">'+all.map(f=>{
     const fs=JSON.stringify(f).replace(/'/g,"&#39;");
-    return '<div class="result-item" onclick='+"'"+'pickFood('+fs+')'+"'"+ '><div style="flex:1;min-width:0"><div class="result-name">'+f.name+'<span class="tag '+(f._src==='custom'?'tag-custom':'tag-builtin')+'">'+f._src+'</span></div><div class="result-meta">(f.unit&&f.unit!=='g'?'per 1 '+f.unit:f.piece?'per '+f.piece+'g':'per 100g')+' &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+(f.piece?' &nbsp;1pc='+f.piece+'g':'')+'</div></div><div class="result-cal">'+fmtI(f.cal)+'</div></div>';
+    return '<div class="result-item" onclick='+"'"+'pickFood('+fs+')'+"'"+ '><div style="flex:1;min-width:0"><div class="result-name">'+f.name+'<span class="tag '+(f._src==='custom'?'tag-custom':'tag-builtin')+'">'+f._src+'</span></div><div class="result-meta">'+(f.unit&&f.unit!=='g'?'per 1 '+f.unit:f.piece?'per '+f.piece+'g':'per 100g')+' &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+'</div></div><div class="result-cal">'+fmtI(f.cal)+'</div></div>';
   }).join('')+'</div>';
 }
 function clearSearch(){document.getElementById('search-input').value='';handleSearch('');}
