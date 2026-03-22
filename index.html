@@ -405,35 +405,63 @@ function parseCSVText(text){
   const lines=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
   const foods=[];
   const seen=new Set();
-  // Find header row dynamically
   let startRow=1;
+  let colName=0,colAmount=1,colUnit=2,colCal=3,colFat=4,colCarb=5,colProt=6;
   for(let i=0;i<lines.length;i++){
-    if(lines[i].toLowerCase().includes('food list')||lines[i].toLowerCase().includes('foodlist')||lines[i].toLowerCase().includes('food list;')||lines[i].toLowerCase().startsWith('food')){startRow=i+1;break;}
+    const lower=lines[i].toLowerCase();
+    if(lower.includes('food list')||lower.startsWith('food')){
+      const hcols=parseCSVLine(lines[i]);
+      hcols.forEach((h,idx)=>{
+        const hl=h.toLowerCase().trim().replace(/^\ufeff/,'');
+        if(hl==='food list'||hl==='food') colName=idx;
+        else if(hl==='amount') colAmount=idx;
+        else if(hl==='unit') colUnit=idx;
+        else if(hl==='calories'||hl==='cal') colCal=idx;
+        else if(hl==='fats'||hl==='fat') colFat=idx;
+        else if(hl==='carbs'||hl==='carb') colCarb=idx;
+        else if(hl==='prots'||hl==='prot'||hl==='protein') colProt=idx;
+      });
+      startRow=i+1;break;
+    }
   }
+  const pieceUnits=['pc','piece','slice','scoop'];
+  const spoonUnits=['tsp','tbsp'];
   for(let i=startRow;i<lines.length;i++){
     const line=lines[i].trim();
     if(!line) continue;
     const cols=parseCSVLine(line);
-    if(cols.length<5) continue;
-    const name=(cols[0]||'').replace(/^"|"$/g,'').trim();
+    if(cols.length<4) continue;
+    const name=(cols[colName]||'').replace(/^"|"$/g,'').trim();
     if(!name) continue;
     const key=name.toLowerCase();
     if(seen.has(key)) continue;
     seen.add(key);
-    const amount=parseFloat(cols[1])||100;
-    const cal=parseFloat(cols[2])||0;
-    const fat=parseFloat(cols[3])||0;
-    const carb=parseFloat(cols[4])||0;
-    const prot=parseFloat(cols[5])||0;
+    const amount=parseFloat(cols[colAmount])||100;
+    const unit=(cols[colUnit]||'g').toLowerCase().trim();
+    const cal=parseFloat(cols[colCal])||0;
+    const fat=parseFloat(cols[colFat])||0;
+    const carb=parseFloat(cols[colCarb])||0;
+    const prot=parseFloat(cols[colProt])||0;
     if(cal<=0) continue;
     let entry;
-    if(amount===1){
-      entry={name,cal:Math.round(cal*10)/10,prot:Math.round(prot*10)/10,carb:Math.round(carb*10)/10,fat:Math.round(fat*10)/10,fiber:0,piece:null};
+    if(pieceUnits.includes(unit)||spoonUnits.includes(unit)){
+      const n=amount>=1?amount:1;
+      entry={name,
+        cal:Math.round(cal/n*10)/10,
+        prot:Math.round(prot/n*10)/10,
+        carb:Math.round(carb/n*10)/10,
+        fat:Math.round(fat/n*10)/10,
+        fiber:0,piece:null,unit:unit};
     } else {
       const r=100/amount;
-      entry={name,cal:Math.round(cal*r*10)/10,prot:Math.round(prot*r*10)/10,carb:Math.round(carb*r*10)/10,fat:Math.round(fat*r*10)/10,fiber:0,piece:amount!==100?Math.round(amount):null};
+      entry={name,
+        cal:Math.round(cal*r*10)/10,
+        prot:Math.round(prot*r*10)/10,
+        carb:Math.round(carb*r*10)/10,
+        fat:Math.round(fat*r*10)/10,
+        fiber:0,piece:amount!==100?Math.round(amount):null,unit:'g'};
+      if(entry.cal>2000) continue;
     }
-    if(entry.cal>1000&&amount!==1) continue;
     foods.push(entry);
   }
   return foods;
@@ -776,7 +804,7 @@ function handleSearch(q){
   document.getElementById('search-status').textContent=all.length+' result'+(all.length!==1?'s':'');
   document.getElementById('search-results').innerHTML='<div class="results-list">'+all.map(f=>{
     const fs=JSON.stringify(f).replace(/'/g,"&#39;");
-    return '<div class="result-item" onclick='+"'"+'pickFood('+fs+')'+"'"+ '><div style="flex:1;min-width:0"><div class="result-name">'+f.name+'<span class="tag '+(f._src==='custom'?'tag-custom':'tag-builtin')+'">'+f._src+'</span></div><div class="result-meta">per 100g &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+(f.piece?' &nbsp;1pc='+f.piece+'g':'')+'</div></div><div class="result-cal">'+fmtI(f.cal)+'</div></div>';
+    return '<div class="result-item" onclick='+"'"+'pickFood('+fs+')'+"'"+ '><div style="flex:1;min-width:0"><div class="result-name">'+f.name+'<span class="tag '+(f._src==='custom'?'tag-custom':'tag-builtin')+'">'+f._src+'</span></div><div class="result-meta">(f.unit&&f.unit!=='g'?'per 1 '+f.unit:f.piece?'per '+f.piece+'g':'per 100g')+' &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+(f.piece?' &nbsp;1pc='+f.piece+'g':'')+'</div></div><div class="result-cal">'+fmtI(f.cal)+'</div></div>';
   }).join('')+'</div>';
 }
 function clearSearch(){document.getElementById('search-input').value='';handleSearch('');}
@@ -786,22 +814,36 @@ function setUnitMode(mode){
   state.unitMode=mode;
   document.querySelectorAll('.unit-tab').forEach((t,i)=>t.classList.toggle('active',['grams','pieces','spoons'][i]===mode));
   const f=state.pendingFood;const ai=document.getElementById('af-amount');
-  if(mode==='grams'){document.getElementById('amount-label').textContent='Amount (g)';document.getElementById('field-unit').style.display='none';ai.value=100;ai.step=1;}
-  else if(mode==='pieces'){document.getElementById('amount-label').textContent='Pieces'+(f&&f.piece?' (1pc='+f.piece+'g)':'')+'';document.getElementById('field-unit').style.display='none';ai.value=1;ai.step=0.5;}
-  else{document.getElementById('amount-label').textContent='Count';document.getElementById('field-unit').style.display='';ai.value=1;ai.step=0.5;}
+  if(mode==='grams'){
+    const u=f&&f.unit&&f.unit!=='g'?f.unit:'g';
+    document.getElementById('amount-label').textContent=u==='g'?'Amount (g)':'Number of '+u+'s';
+    document.getElementById('field-unit').style.display='none';
+    ai.value=1;ai.step=1;
+    if(u==='g'){ai.value=100;}
+  } else if(mode==='pieces'){
+    document.getElementById('amount-label').textContent='Pieces'+(f&&f.piece?' (1pc='+f.piece+'g)':'');
+    document.getElementById('field-unit').style.display='none';ai.value=1;ai.step=0.5;
+  } else {
+    document.getElementById('amount-label').textContent='Count';
+    document.getElementById('field-unit').style.display='';ai.value=1;ai.step=0.5;
+  }
   updatePreview();
 }
 function getEffectiveGrams(){
   const f=state.pendingFood;const count=parseFloat(document.getElementById('af-amount').value)||0;
-  if(state.unitMode==='grams')return count;
-  if(state.unitMode==='pieces')return count*(f&&f.piece?f.piece:100);
-  return count*(parseFloat(document.getElementById('af-unit').value)||15);
+  if(!f) return count;
+  const unit=f.unit||'g';
+  if(unit==='g'||unit==='ml') return count;
+  if(state.unitMode==='pieces'&&f.piece) return count*f.piece;
+  // For pc/slice/tsp/tbsp/scoop — we store per-unit macros so just use count as multiplier
+  return count;
 }
 function getAmountLabel(){
+  const f=state.pendingFood;
   const count=parseFloat(document.getElementById('af-amount').value)||0;
-  if(state.unitMode==='grams')return count+'g';
-  if(state.unitMode==='pieces')return count+' pc';
-  const sel=document.getElementById('af-unit');return count+' '+sel.options[sel.selectedIndex].text.split(' ')[0].toLowerCase();
+  const unit=(f&&f.unit)||'g';
+  if(unit==='g'||unit==='ml') return count+unit;
+  return count+' '+unit;
 }
 function pickFood(food){
   state.pendingFood=food;
@@ -815,15 +857,24 @@ function pickFood(food){
 }
 function updatePreview(){
   if(!state.pendingFood)return;
-  const f=state.pendingFood;const r=getEffectiveGrams()/100;
+  const f=state.pendingFood;
+  const count=parseFloat(document.getElementById('af-amount').value)||0;
+  const unit=(f.unit||'g').toLowerCase();
+  const isGram=unit==='g'||unit==='ml';
+  // For gram-based: multiply by count/100. For unit-based: multiply by count (already per unit)
+  const r=isGram?count/100:count;
   document.getElementById('af-preview').innerHTML=
     '<div class="preview-item"><div class="pv">'+fmtI(f.cal*r)+'</div><div class="pl">kcal</div></div>'+
-    '<div class="preview-item"><div class="pv">'+fmt(f.prot*r)+'g</div><div class="pl">protein</div></div>'+
-    '<div class="preview-item"><div class="pv">'+fmt(f.carb*r)+'g</div><div class="pl">carbs</div></div>';
+    '<div class="preview-item"><div class="pv">'+fmtI(f.prot*r)+'g</div><div class="pl">protein</div></div>'+
+    '<div class="preview-item"><div class="pv">'+fmtI(f.carb*r)+'g</div><div class="pl">carbs</div></div>';
 }
 function addToLog(){
   const f=state.pendingFood;if(!f)return;
-  const g=getEffectiveGrams();const r=g/100;const meal=document.getElementById('af-meal').value;
+  const count=parseFloat(document.getElementById('af-amount').value)||0;
+  const unit=(f.unit||'g').toLowerCase();
+  const isGram=unit==='g'||unit==='ml';
+  const r=isGram?count/100:count;
+  const meal=document.getElementById('af-meal').value;
   if(!state.log[state.currentDate])state.log[state.currentDate]=[];
   state.log[state.currentDate].push({name:f.name,meal,amountLabel:getAmountLabel(),cal:f.cal*r,prot:f.prot*r,carb:f.carb*r,fat:f.fat*r,fiber:(f.fiber||0)*r});
   persist('log');scheduleAutoSync();state.pendingFood=null;clearSearch();
