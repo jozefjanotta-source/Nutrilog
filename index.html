@@ -398,7 +398,7 @@ let DB=[];
 let DB_LOADED=false;
 
 function parseCSVText(text){
-  const lines=text.split('\n');
+  const lines=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
   const foods=[];
   const seen=new Set();
   // Find header row dynamically
@@ -1098,22 +1098,27 @@ async function gistSync(direction){
       }
       // Load foods
       let foodsLoaded=0;
-      if(data.files['foods.csv']){
+      const fileKeys=Object.keys(data.files||{}).join(', ');
+      if(data.files&&data.files['foods.csv']){
         const foodsText=data.files['foods.csv'].content;
+        const firstLine=foodsText.split('\n')[0];
         const foods=parseCSVText(foodsText);
+        foodsLoaded=foods.length;
         if(foods.length>0){
           DB=foods;DB_LOADED=true;
           lsSet('nl_foods_csv',foods);
-          foodsLoaded=foods.length;
           const fdc=document.getElementById('foods-db-count');
           if(fdc)fdc.textContent=foods.length+' foods loaded';
         }
+        msg.style.color='var(--accent)';
+        msg.textContent='Files in gist: '+fileKeys+'. foods.csv first line: '+firstLine+'. Foods parsed: '+foods.length;
+      } else {
+        msg.style.color='var(--danger)';
+        msg.textContent='Files in gist: '+fileKeys+'. No foods.csv found.';
       }
       state.gistId=gistId;
       lsSet(SK.gist_id,gistId);
       document.getElementById('gist-id-display').textContent='Gist ID: '+gistId;
-      msg.style.color='var(--accent)';
-      msg.textContent='Pulled! Data updated.'+(foodsLoaded?' '+foodsLoaded+' foods loaded.':' No food database found - upload foods.csv on Mac first.');
       loadTargetsForm();
     }
   }catch(e){
