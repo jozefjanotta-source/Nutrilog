@@ -105,8 +105,8 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 /* SELECTION ACTIONS */
 .sel-count{font-size:var(--fs-sm);color:var(--accent);font-weight:600}
 /* MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:flex-end;justify-content:center}
-.modal-box{background:var(--surface);border-radius:var(--radius) var(--radius) 0 0;padding:20px 20px calc(20px + var(--safe-bottom));width:100%;max-width:680px}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-box{background:var(--surface);border-radius:var(--radius);padding:24px;width:100%;max-width:480px;box-shadow:0 8px 32px rgba(0,0,0,.2)}
 .modal-title{font-size:var(--fs-lg);font-weight:600;margin-bottom:16px}
 .modal-row{display:flex;gap:8px;margin-bottom:12px;align-items:flex-end;flex-wrap:wrap}
 .modal-actions{display:flex;gap:8px;margin-top:16px}
@@ -189,7 +189,6 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     <div class="remain-macros" id="remain-macros"></div>
   </div>
   <div class="meal-bar-row" id="meal-bars"></div>
-  <div id="micro-strip" style="margin:0 16px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
   <div class="chart-card">
     <div class="chart-title">Calories — last 7 days</div>
     <div class="chart-wrap"><canvas id="dash-cal-chart"></canvas></div>
@@ -259,6 +258,11 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
   <div class="range-toggle">
     <button class="range-btn active" id="btn-7" onclick="setRange(7)">Last 7 days</button>
     <button class="range-btn" id="btn-30" onclick="setRange(30)">Last 30 days</button>
+    <button class="range-btn" id="btn-custom" onclick="setRange(0)">Custom</button>
+  </div>
+  <div id="custom-range-row" style="display:none;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <div class="form-field" style="min-width:130px"><label>From</label><input type="date" id="range-from" onchange="renderSummaryPage()" style="padding:9px 10px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs-sm);outline:none;width:100%"></div>
+    <div class="form-field" style="min-width:130px"><label>To</label><input type="date" id="range-to" onchange="renderSummaryPage()" style="padding:9px 10px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs-sm);outline:none;width:100%"></div>
   </div>
   <div class="weekly-grid" id="avg-grid"></div>
   <div class="chart-card" style="margin:0 0 14px">
@@ -839,7 +843,6 @@ function renderDash(){
   renderSummaryCards(totals);
   renderRing(totals);
   renderMealBars(state.currentDate);
-  renderMicroStrip(totals);
   renderDashCalChart();
 }
 
@@ -891,18 +894,6 @@ function renderMealBars(date){
   }).join('');
 }
 
-function renderMicroStrip(totals){
-  const t=state.targets;
-  const items=[
-    {lbl:'Fiber',val:fmt(totals.fiber),tgt:t.fiber,color:'#1d9e75'},
-    {lbl:'Protein',val:fmt(totals.prot),tgt:t.prot,color:'#1a5fa8'}
-  ];
-  document.getElementById('micro-strip').innerHTML=items.map(m=>{
-    const pct=m.tgt?Math.min(100,parseFloat(m.val)/m.tgt*100):0;
-    const over=m.tgt&&parseFloat(m.val)>m.tgt;
-    return'<div class="micro-item"><div class="mi-lbl">'+m.lbl+'</div><div class="mi-val" style="color:'+(over?'var(--danger)':m.color)+'">'+m.val+'g</div><div class="mi-tgt">'+(m.tgt?'Target: '+m.tgt+'g':'No target')+'</div>'+(m.tgt?'<div class="bar"><div class="bar-fill" style="width:'+pct+'%;background:'+(over?'var(--danger)':m.color)+'"></div></div>':'')+ '</div>';
-  }).join('');
-}
 
 function renderDashCalChart(){
   const dates=getDateRange(7);
@@ -1143,10 +1134,32 @@ function setRange(n){
   state.chartRange=n;
   document.getElementById('btn-7').classList.toggle('active',n===7);
   document.getElementById('btn-30').classList.toggle('active',n===30);
+  document.getElementById('btn-custom').classList.toggle('active',n===0);
+  const cr=document.getElementById('custom-range-row');
+  cr.style.display=n===0?'flex':'none';
+  if(n===0){
+    const today=todayISO();
+    const wkAgo=new Date(Date.now()-6*86400000).toISOString().slice(0,10);
+    if(!document.getElementById('range-from').value) document.getElementById('range-from').value=wkAgo;
+    if(!document.getElementById('range-to').value) document.getElementById('range-to').value=today;
+  }
   renderSummaryPage();
 }
 function renderSummaryPage(){
-  const dates=getDateRange(state.chartRange);
+  let dates;
+  if(state.chartRange===0){
+    const from=document.getElementById('range-from').value;
+    const to=document.getElementById('range-to').value;
+    if(!from||!to){dates=getDateRange(7);}
+    else{
+      dates=[];
+      let cur=new Date(from+'T12:00:00');
+      const end=new Date(to+'T12:00:00');
+      while(cur<=end&&dates.length<60){dates.push(cur.toISOString().slice(0,10));cur.setDate(cur.getDate()+1);}
+    }
+  } else {
+    dates=getDateRange(state.chartRange);
+  }
   const calData=dates.map(d=>fmtI(getTotals(d).cal));
   const protData=dates.map(d=>fmt(getTotals(d).prot));
   const carbData=dates.map(d=>fmt(getTotals(d).carb));
