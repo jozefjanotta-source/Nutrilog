@@ -393,7 +393,7 @@ let DB=[];
 let DB_LOADED=false;
 
 async function loadFoodsCSV(){
-  const CSV_URL='https://raw.githubusercontent.com/jozefjanotta-source/Nutrilog/main/foods.csv';
+  const CSV_URL='https://cdn.jsdelivr.net/gh/jozefjanotta-source/Nutrilog@main/foods.csv';
   try{
     const resp=await fetch(CSV_URL+'?t='+Date.now());
     if(!resp.ok) throw new Error('HTTP '+resp.status);
