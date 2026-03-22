@@ -1105,10 +1105,8 @@ async function gistSync(direction){
       }
       // Load foods
       let foodsLoaded=0;
-      const fileKeys=Object.keys(data.files||{}).join(', ');
       if(data.files&&data.files['foods.csv']){
         const foodsText=data.files['foods.csv'].content;
-        const firstLine=foodsText.split('\n')[0];
         const foods=parseCSVText(foodsText);
         foodsLoaded=foods.length;
         if(foods.length>0){
@@ -1118,10 +1116,10 @@ async function gistSync(direction){
           if(fdc)fdc.textContent=foods.length+' foods loaded';
         }
         msg.style.color='var(--accent)';
-        msg.textContent='Files in gist: '+fileKeys+'. foods.csv first line: '+firstLine+'. Foods parsed: '+foods.length;
+        msg.textContent='Pulled! Data and '+foodsLoaded+' foods updated.';
       } else {
-        msg.style.color='var(--danger)';
-        msg.textContent='Files in gist: '+fileKeys+'. No foods.csv found.';
+        msg.style.color='var(--accent)';
+        msg.textContent='Pulled! Data updated. No food database found - upload foods.csv on Mac first.';
       }
       state.gistId=gistId;
       lsSet(SK.gist_id,gistId);
