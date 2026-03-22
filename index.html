@@ -339,6 +339,11 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
   <div class="section-hd" style="margin-top:20px">GitHub Gist sync</div>
   <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px">
     <p style="font-size:var(--fs-sm);color:var(--text2);margin-bottom:14px;line-height:1.6">Enter your GitHub Personal Access Token (gist scope) once on each device. Then use Sync to push or pull all your data via a private GitHub Gist.</p>
+    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;font-size:var(--fs-sm);color:var(--text2)">
+      <b style="color:var(--text)">Food database:</b> <span id="foods-db-count">0 foods loaded</span><br>
+      <span style="font-size:11px;margin-top:4px;display:block">To update: upload your foods.csv here and it will be stored in your Gist.</span>
+      <input type="file" id="foods-csv-input" accept=".csv" style="margin-top:8px;font-size:12px;color:var(--text2)" onchange="uploadFoodsCSV(this)">
+    </div>
     <div class="form-field" style="margin-bottom:12px">
       <label>GitHub Token</label>
       <input type="password" id="gist-token-input" placeholder="ghp_..." style="padding:10px 12px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs-sm);outline:none;width:100%;margin-top:6px">
@@ -392,51 +397,84 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 let DB=[];
 let DB_LOADED=false;
 
-async function loadFoodsCSV(){
-  const CSV_URL='https://cdn.jsdelivr.net/gh/jozefjanotta-source/Nutrilog@main/foods.csv';
-  try{
-    const resp=await fetch(CSV_URL+'?t='+Date.now());
-    if(!resp.ok) throw new Error('HTTP '+resp.status);
-    const text=await resp.text();
-    const lines=text.split('\n');
-    const foods=[];
-    const seen=new Set();
-    for(let i=1;i<lines.length;i++){
-      const line=lines[i].trim();
-      if(!line) continue;
-      // Parse CSV properly handling quoted fields
-      const cols=parseCSVLine(line);
-      if(cols.length<5) continue;
-      const name=(cols[0]||'').replace(/^"|"$/g,'').trim();
-      if(!name) continue;
-      const key=name.toLowerCase();
-      if(seen.has(key)) continue;
-      seen.add(key);
-      const amount=parseFloat(cols[1])||100;
-      const cal=parseFloat(cols[2])||0;
-      const fat=parseFloat(cols[3])||0;
-      const carb=parseFloat(cols[4])||0;
-      const prot=parseFloat(cols[5])||0;
-      if(cal<=0) continue;
-      let entry;
-      if(amount===1){
-        entry={name,cal:Math.round(cal*10)/10,prot:Math.round(prot*10)/10,carb:Math.round(carb*10)/10,fat:Math.round(fat*10)/10,fiber:0,piece:null};
-      } else {
-        const r=100/amount;
-        entry={name,cal:Math.round(cal*r*10)/10,prot:Math.round(prot*r*10)/10,carb:Math.round(carb*r*10)/10,fat:Math.round(fat*r*10)/10,fiber:0,piece:amount!==100?Math.round(amount):null};
-      }
-      if(entry.cal>1000&&amount!==1) continue;
-      foods.push(entry);
+function parseCSVText(text){
+  const lines=text.split('\n');
+  const foods=[];
+  const seen=new Set();
+  for(let i=1;i<lines.length;i++){
+    const line=lines[i].trim();
+    if(!line) continue;
+    const cols=parseCSVLine(line);
+    if(cols.length<5) continue;
+    const name=(cols[0]||'').replace(/^"|"$/g,'').trim();
+    if(!name) continue;
+    const key=name.toLowerCase();
+    if(seen.has(key)) continue;
+    seen.add(key);
+    const amount=parseFloat(cols[1])||100;
+    const cal=parseFloat(cols[2])||0;
+    const fat=parseFloat(cols[3])||0;
+    const carb=parseFloat(cols[4])||0;
+    const prot=parseFloat(cols[5])||0;
+    if(cal<=0) continue;
+    let entry;
+    if(amount===1){
+      entry={name,cal:Math.round(cal*10)/10,prot:Math.round(prot*10)/10,carb:Math.round(carb*10)/10,fat:Math.round(fat*10)/10,fiber:0,piece:null};
+    } else {
+      const r=100/amount;
+      entry={name,cal:Math.round(cal*r*10)/10,prot:Math.round(prot*r*10)/10,carb:Math.round(carb*r*10)/10,fat:Math.round(fat*r*10)/10,fiber:0,piece:amount!==100?Math.round(amount):null};
     }
-    DB=foods;
+    if(entry.cal>1000&&amount!==1) continue;
+    foods.push(entry);
+  }
+  return foods;
+}
+
+async function loadFoodsCSV(){
+  // Try to load from Gist first (foods.csv stored there), fall back to cached version
+  const cached=lsGet('nl_foods_csv',null);
+  if(cached&&cached.length>0){
+    DB=cached;
     DB_LOADED=true;
-    console.log('Loaded '+foods.length+' foods from CSV');
-    // Update search status if on add page
-    const ss=document.getElementById('search-status');
-    if(ss&&ss.textContent.includes('Loading')) ss.textContent='';
-  }catch(e){
-    console.warn('Could not load foods CSV:',e.message);
-    DB_LOADED=true; // proceed with empty DB
+    console.log('Loaded '+DB.length+' foods from cache');
+  }
+  // Then try to fetch fresh copy from Gist if token available
+  if(state.gistToken){
+    try{
+      const headers={'Authorization':'token '+state.gistToken};
+      let gistId=state.gistId;
+      if(!gistId){
+        // Search for the gist
+        const resp=await fetch('https://api.github.com/gists',{headers});
+        if(resp.ok){
+          const gists=await resp.json();
+          const found=gists.find(g=>g.files&&g.files['nutrilog.json']);
+          if(found) gistId=found.id;
+        }
+      }
+      if(gistId){
+        const resp=await fetch('https://api.github.com/gists/'+gistId,{headers});
+        if(resp.ok){
+          const data=await resp.json();
+          if(data.files&&data.files['foods.csv']){
+            const text=data.files['foods.csv'].content;
+            const foods=parseCSVText(text);
+            if(foods.length>0){
+              DB=foods;
+              DB_LOADED=true;
+              lsSet('nl_foods_csv',foods);
+              console.log('Loaded '+foods.length+' foods from Gist');
+            }
+          }
+        }
+      }
+    }catch(e){
+      console.warn('Could not load foods from Gist:',e.message);
+    }
+  }
+  if(!DB_LOADED){
+    DB_LOADED=true;
+    console.warn('No foods loaded - upload foods.csv via Settings');
   }
 }
 
@@ -812,6 +850,7 @@ function loadTargetsForm(){
   document.getElementById('gist-token-input').value=state.gistToken||'';
   const gid=state.gistId;
   document.getElementById('gist-id-display').textContent=gid?'Gist ID: '+gid:'No gist created yet.';
+  const fdc=document.getElementById('foods-db-count');if(fdc)fdc.textContent=DB.length+' foods loaded';
 }
 function saveTargets(){
   ['cal','prot','carb','fat','fiber'].forEach(k=>state.targets[k]=parseFloat(document.getElementById('t-'+k).value)||0);
@@ -949,6 +988,36 @@ function importData(){
   }catch(e){
     msg.style.display='block';msg.style.color='var(--danger)';msg.textContent='Invalid code.';
   }
+}
+
+// ---- FOODS CSV UPLOAD ----
+function uploadFoodsCSV(input){
+  const file=input.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=async function(e){
+    const text=e.target.result;
+    const foods=parseCSVText(text);
+    if(!foods.length){alert('No foods found in CSV. Check the format.');return;}
+    DB=foods;
+    DB_LOADED=true;
+    lsSet('nl_foods_csv',foods);
+    document.getElementById('foods-db-count').textContent=foods.length+' foods loaded';
+    // Also push to Gist if configured
+    if(state.gistToken&&state.gistId){
+      const headers={'Authorization':'token '+state.gistToken,'Content-Type':'application/json'};
+      const body={files:{'foods.csv':{content:text}}};
+      try{
+        await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
+        alert(foods.length+' foods loaded and saved to your Gist!');
+      }catch(e){
+        alert(foods.length+' foods loaded locally. Could not save to Gist: '+e.message);
+      }
+    } else {
+      alert(foods.length+' foods loaded! Set up Gist sync below to share across devices.');
+    }
+  };
+  reader.readAsText(file);
 }
 
 // ---- GIST SYNC ----
