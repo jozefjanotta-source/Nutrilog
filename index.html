@@ -1087,15 +1087,33 @@ async function gistSync(direction){
       const resp=await fetch('https://api.github.com/gists/'+gistId,{headers});
       const data=await resp.json();
       if(!resp.ok) throw new Error(data.message||'GitHub error');
-      const raw=data.files['nutrilog.json'].content;
-      const p=JSON.parse(raw);
-      if(!p.targets) throw new Error('Invalid data in gist');
-      state.targets=p.targets;state.log=p.log||{};
-      state.customFoods=p.customFoods||[];state.weight=p.weight||{};
-      persist('targets');persist('log');persist('custom');persist('weight');
+      // Load log data
+      if(data.files['nutrilog.json']){
+        const raw=data.files['nutrilog.json'].content;
+        const p=JSON.parse(raw);
+        if(!p.targets) throw new Error('Invalid data in gist');
+        state.targets=p.targets;state.log=p.log||{};
+        state.customFoods=p.customFoods||[];state.weight=p.weight||{};
+        persist('targets');persist('log');persist('custom');persist('weight');
+      }
+      // Load foods
+      let foodsLoaded=0;
+      if(data.files['foods.csv']){
+        const foodsText=data.files['foods.csv'].content;
+        const foods=parseCSVText(foodsText);
+        if(foods.length>0){
+          DB=foods;DB_LOADED=true;
+          lsSet('nl_foods_csv',foods);
+          foodsLoaded=foods.length;
+          const fdc=document.getElementById('foods-db-count');
+          if(fdc)fdc.textContent=foods.length+' foods loaded';
+        }
+      }
+      state.gistId=gistId;
+      lsSet(SK.gist_id,gistId);
       document.getElementById('gist-id-display').textContent='Gist ID: '+gistId;
       msg.style.color='var(--accent)';
-      msg.textContent='Pulled successfully! All data updated.';
+      msg.textContent='Pulled! Data updated.'+(foodsLoaded?' '+foodsLoaded+' foods loaded.':' No food database found - upload foods.csv on Mac first.');
       loadTargetsForm();
     }
   }catch(e){
