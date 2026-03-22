@@ -401,7 +401,12 @@ function parseCSVText(text){
   const lines=text.split('\n');
   const foods=[];
   const seen=new Set();
-  for(let i=1;i<lines.length;i++){
+  // Find header row dynamically
+  let startRow=1;
+  for(let i=0;i<lines.length;i++){
+    if(lines[i].toLowerCase().includes('food list')||lines[i].toLowerCase().includes('foodlist')||lines[i].toLowerCase().includes('food list;')||lines[i].toLowerCase().startsWith('food')){startRow=i+1;break;}
+  }
+  for(let i=startRow;i<lines.length;i++){
     const line=lines[i].trim();
     if(!line) continue;
     const cols=parseCSVLine(line);
@@ -479,15 +484,17 @@ async function loadFoodsCSV(){
 }
 
 function parseCSVLine(line){
+  // Auto-detect delimiter: semicolon or comma
+  const delim=line.includes(';')?';':',';
   const result=[];
   let cur='';let inQuote=false;
   for(let i=0;i<line.length;i++){
     const ch=line[i];
     if(ch==='"'){inQuote=!inQuote;}
-    else if(ch===','&&!inQuote){result.push(cur);cur='';}
+    else if(ch===delim&&!inQuote){result.push(cur.trim());cur='';}
     else{cur+=ch;}
   }
-  result.push(cur);
+  result.push(cur.trim());
   return result;
 }
 
