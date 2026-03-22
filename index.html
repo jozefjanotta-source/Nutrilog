@@ -1011,17 +1011,24 @@ function uploadFoodsCSV(input){
     lsSet('nl_foods_csv',foods);
     document.getElementById('foods-db-count').textContent=foods.length+' foods loaded';
     // Also push to Gist if configured
-    if(state.gistToken&&state.gistId){
-      const headers={'Authorization':'token '+state.gistToken,'Content-Type':'application/json'};
+    const tok=(document.getElementById('gist-token-input').value.trim())||state.gistToken;
+    const gid=state.gistId;
+    if(tok&&gid){
+      const headers={'Authorization':'token '+tok,'Content-Type':'application/json'};
       const body={files:{'foods.csv':{content:text}}};
       try{
-        await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
-        alert(foods.length+' foods loaded and saved to your Gist!');
+        const resp=await fetch('https://api.github.com/gists/'+gid,{method:'PATCH',headers,body:JSON.stringify(body)});
+        if(resp.ok){
+          alert(foods.length+' foods loaded and saved to your Gist!');
+        } else {
+          const err=await resp.json();
+          alert(foods.length+' foods loaded. Gist save failed: '+(err.message||resp.status));
+        }
       }catch(e){
         alert(foods.length+' foods loaded locally. Could not save to Gist: '+e.message);
       }
     } else {
-      alert(foods.length+' foods loaded! Set up Gist sync below to share across devices.');
+      alert(foods.length+' foods loaded! Push to cloud first to enable Gist saving.');
     }
   };
   reader.readAsText(file);
