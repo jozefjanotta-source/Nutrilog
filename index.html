@@ -850,9 +850,9 @@ function renderSummaryCards(totals){
   const t=state.targets;
   const ms=[
     {lbl:'Calories',val:fmtI(totals.cal),tgt:t.cal,unit:'kcal',color:'#e4880a'},
-    {lbl:'Protein',val:fmt(totals.prot),tgt:t.prot,unit:'g',color:'#1a5fa8'},
-    {lbl:'Carbs',val:fmt(totals.carb),tgt:t.carb,unit:'g',color:'#1d9e75'},
-    {lbl:'Fat',val:fmt(totals.fat),tgt:t.fat,unit:'g',color:'#c0392b'}
+    {lbl:'Protein',val:fmtI(totals.prot),tgt:t.prot,unit:'g',color:'#1a5fa8'},
+    {lbl:'Carbs',val:fmtI(totals.carb),tgt:t.carb,unit:'g',color:'#1d9e75'},
+    {lbl:'Fat',val:fmtI(totals.fat),tgt:t.fat,unit:'g',color:'#c0392b'}
   ];
   document.getElementById('summary').innerHTML=ms.map(m=>{
     const pct=m.tgt?Math.min(100,m.val/m.tgt*100):0;const over=m.tgt&&m.val>m.tgt;
@@ -874,10 +874,10 @@ function renderRing(totals){
     ringChart=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[pct,100-pct],backgroundColor:[color,'rgba(128,128,128,0.15)'],borderWidth:0,borderRadius:4}]},options:{cutout:'72%',plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:400}}});
   }catch(e){}
   const macros=[
-    {lbl:'Protein',val:fmt(totals.prot),tgt:t.prot,over:totals.prot>t.prot},
-    {lbl:'Carbs',val:fmt(totals.carb),tgt:t.carb,over:totals.carb>t.carb},
-    {lbl:'Fat',val:fmt(totals.fat),tgt:t.fat,over:totals.fat>t.fat},
-    {lbl:'Fiber',val:fmt(totals.fiber),tgt:t.fiber,over:totals.fiber>t.fiber}
+    {lbl:'Protein',val:fmtI(totals.prot),tgt:t.prot,over:totals.prot>t.prot},
+    {lbl:'Carbs',val:fmtI(totals.carb),tgt:t.carb,over:totals.carb>t.carb},
+    {lbl:'Fat',val:fmtI(totals.fat),tgt:t.fat,over:totals.fat>t.fat},
+    {lbl:'Fiber',val:fmtI(totals.fiber),tgt:t.fiber,over:totals.fiber>t.fiber}
   ];
   document.getElementById('remain-macros').innerHTML=macros.map(m=>
     '<div class="rm-item"><div class="rm-lbl">'+m.lbl+'</div><div class="rm-val '+(m.over?'over':'')+'">'+m.val+(m.tgt?' / '+m.tgt:'')+'g</div></div>'
@@ -944,7 +944,7 @@ function renderLog(){
         '<div class="food-item-cb'+(checked?' checked':'')+'">'+( checked?'&#10003;':'')+'</div>'+
         '<div class="food-item-info">'+
           '<div class="food-item-name">'+e.name+'</div>'+
-          '<div class="food-item-meta">'+e.amountLabel+' &nbsp;P '+fmt(e.prot)+'g &nbsp;C '+fmt(e.carb)+'g &nbsp;F '+fmt(e.fat)+'g</div>'+
+          '<div class="food-item-meta">'+e.amountLabel+' &nbsp;P '+fmtI(e.prot)+'g &nbsp;C '+fmtI(e.carb)+'g &nbsp;F '+fmtI(e.fat)+'g</div>'+
         '</div>'+
         '<div class="food-item-cal">'+fmtI(e.cal)+' kcal</div>'+
       '</div>';
@@ -1043,7 +1043,7 @@ function handleSearch(q){
   document.getElementById('search-status').textContent=all.length+' result'+(all.length!==1?'s':'');
   document.getElementById('search-results').innerHTML='<div class="results-list">'+all.map(f=>{
     const fs=JSON.stringify(f).replace(/'/g,"&#39;");
-    return '<div class="result-item" onclick='+"'"+'pickFood('+fs+')'+"'"+ '><div style="flex:1;min-width:0"><div class="result-name">'+f.name+'<span class="tag '+(f._src==='custom'?'tag-custom':'tag-builtin')+'">'+f._src+'</span></div><div class="result-meta">per 100g &nbsp;P '+fmt(f.prot)+'g &nbsp;C '+fmt(f.carb)+'g &nbsp;F '+fmt(f.fat)+'g'+(f.piece?' &nbsp;1pc='+f.piece+'g':'')+'</div></div><div class="result-cal">'+fmtI(f.cal)+'</div></div>';
+    return '<div class="result-item" onclick='+"'"+'pickFood('+fs+')'+"'"+ '><div style="flex:1;min-width:0"><div class="result-name">'+f.name+'<span class="tag '+(f._src==='custom'?'tag-custom':'tag-builtin')+'">'+f._src+'</span></div><div class="result-meta">per 100g &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+(f.piece?' &nbsp;1pc='+f.piece+'g':'')+'</div></div><div class="result-cal">'+fmtI(f.cal)+'</div></div>';
   }).join('')+'</div>';
 }
 function clearSearch(){document.getElementById('search-input').value='';handleSearch('');}
@@ -1117,7 +1117,7 @@ function renderCustomList(){
   const list=document.getElementById('custom-list');
   if(!state.customFoods.length){list.innerHTML='<div class="empty-log">No custom foods yet.</div>';return;}
   list.innerHTML=state.customFoods.map((f,i)=>
-    '<div class="custom-item"><div class="custom-item-info"><div class="custom-item-name">'+f.name+'</div><div class="custom-item-meta">'+fmtI(f.cal)+' kcal &nbsp;P '+fmt(f.prot)+'g &nbsp;C '+fmt(f.carb)+'g &nbsp;F '+fmt(f.fat)+'g'+(f.piece?' &nbsp;1pc='+f.piece+'g':'')+'</div></div><button class="btn-sm-danger" onclick="deleteCustom('+i+')">Delete</button></div>'
+    '<div class="custom-item"><div class="custom-item-info"><div class="custom-item-name">'+f.name+'</div><div class="custom-item-meta">'+fmtI(f.cal)+' kcal &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+(f.piece?' &nbsp;1pc='+f.piece+'g':'')+'</div></div><button class="btn-sm-danger" onclick="deleteCustom('+i+')">Delete</button></div>'
   ).join('');
 }
 function deleteCustom(i){state.customFoods.splice(i,1);persist('custom');renderCustomList();}
@@ -1167,8 +1167,8 @@ function renderSummaryPage(){
   const labels=dates.map(d=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
   const daysLogged=dates.filter(d=>(state.log[d]||[]).length>0).length;
   const avgCal=daysLogged?Math.round(dates.reduce((a,d)=>a+getTotals(d).cal,0)/daysLogged):0;
-  const avgProt=daysLogged?fmt(dates.reduce((a,d)=>a+getTotals(d).prot,0)/daysLogged):0;
-  const avgCarb=daysLogged?fmt(dates.reduce((a,d)=>a+getTotals(d).carb,0)/daysLogged):0;
+  const avgProt=daysLogged?fmtI(dates.reduce((a,d)=>a+getTotals(d).prot,0)/daysLogged):0;
+  const avgCarb=daysLogged?fmtI(dates.reduce((a,d)=>a+getTotals(d).carb,0)/daysLogged):0;
   document.getElementById('avg-grid').innerHTML=
     '<div class="week-stat"><div class="ws-lbl">Avg calories</div><div class="ws-val">'+avgCal+'</div><div class="ws-sub">kcal / logged day</div></div>'+
     '<div class="week-stat"><div class="ws-lbl">Avg protein</div><div class="ws-val">'+avgProt+'g</div><div class="ws-sub">target: '+state.targets.prot+'g</div></div>'+
