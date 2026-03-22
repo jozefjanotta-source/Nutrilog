@@ -828,7 +828,7 @@ function addToLog(){
   state.log[state.currentDate].push({name:f.name,meal,amountLabel:getAmountLabel(),cal:f.cal*r,prot:f.prot*r,carb:f.carb*r,fat:f.fat*r,fiber:(f.fiber||0)*r});
   persist('log');scheduleAutoSync();state.pendingFood=null;clearSearch();
   document.getElementById('add-panel').style.display='none';
-  switchView('dash');
+  document.getElementById('search-input').focus();
 }
 
 // ---- CUSTOM FOODS ----
