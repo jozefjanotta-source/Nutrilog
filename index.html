@@ -967,10 +967,14 @@ function renderSummaryPage(){
   const carbData=dates.map(d=>fmt(getTotals(d).carb));
   const fatData=dates.map(d=>fmt(getTotals(d).fat));
   const labels=dates.map(d=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
-  const daysLogged=dates.filter(d=>(state.log[d]||[]).length>0).length;
-  const avgCal=daysLogged?Math.round(dates.reduce((a,d)=>a+getTotals(d).cal,0)/daysLogged):0;
-  const avgProt=daysLogged?fmtI(dates.reduce((a,d)=>a+getTotals(d).prot,0)/daysLogged):0;
-  const avgCarb=daysLogged?fmtI(dates.reduce((a,d)=>a+getTotals(d).carb,0)/daysLogged):0;
+  const loggedDates=dates.filter(d=>(state.log[d]||[]).length>0);
+  const daysLogged=loggedDates.length;
+  const totalCal=loggedDates.reduce((a,d)=>a+getTotals(d).cal,0);
+  const totalProt=loggedDates.reduce((a,d)=>a+getTotals(d).prot,0);
+  const totalCarb=loggedDates.reduce((a,d)=>a+getTotals(d).carb,0);
+  const avgCal=daysLogged?Math.round(totalCal/daysLogged):0;
+  const avgProt=daysLogged?fmtI(totalProt/daysLogged):0;
+  const avgCarb=daysLogged?fmtI(totalCarb/daysLogged):0;
   document.getElementById('avg-grid').innerHTML=
     '<div class="week-stat"><div class="ws-lbl">Avg calories</div><div class="ws-val">'+avgCal+'</div><div class="ws-sub">kcal / logged day</div></div>'+
     '<div class="week-stat"><div class="ws-lbl">Avg protein</div><div class="ws-val">'+avgProt+'g</div><div class="ws-sub">target: '+state.targets.prot+'g</div></div>'+
@@ -1034,8 +1038,8 @@ function renderWeeklyAvgChart(){
     }
     const logged=weekDates.filter(d=>(state.log[d]||[]).length>0);
     if(!logged.length) continue;
-    const totals=logged.map(d=>getTotals(d));
-    const avgCal=Math.round(totals.reduce((a,t)=>a+t.cal,0)/logged.length);
+    const totalWeekCal=logged.reduce((a,d)=>a+getTotals(d).cal,0);
+    const avgCal=Math.round(totalWeekCal/logged.length);
     // Label: Mon DD MMM
     const lbl=weekStart.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
     const isCurrentWeek=w===0;
