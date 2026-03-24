@@ -1006,37 +1006,41 @@ function renderSummaryPage(){
 }
 
 function renderWeeklyAvgChart(){
-  // Build last 8 complete weeks of data
+  // Build last 8 calendar weeks (Mon-Sun), including current partial week
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
   const tc=isDark?'#606058':'#9e9e97';
   const weekLabels=[];
   const weekCalAvg=[];
-  const weekProtAvg=[];
-  const weekCarbAvg=[];
-  const weekFatAvg=[];
-  // Go back up to 8 weeks
+
+  // Find Monday of current week
+  const now=new Date();
+  const dayOfWeek=now.getDay(); // 0=Sun,1=Mon,...6=Sat
+  const diffToMonday=dayOfWeek===0?-6:1-dayOfWeek;
+  const thisMonday=new Date(now);
+  thisMonday.setDate(now.getDate()+diffToMonday);
+  thisMonday.setHours(0,0,0,0);
+
   for(let w=7;w>=0;w--){
+    const weekStart=new Date(thisMonday);
+    weekStart.setDate(thisMonday.getDate()-(w*7));
     const weekDates=[];
-    for(let d=6;d>=0;d--){
-      const dt=new Date();
-      dt.setDate(dt.getDate()-(w*7+d));
+    for(let d=0;d<7;d++){
+      const dt=new Date(weekStart);
+      dt.setDate(weekStart.getDate()+d);
+      // Don't include future dates
+      if(dt>now) break;
       weekDates.push(dt.toISOString().slice(0,10));
     }
     const logged=weekDates.filter(d=>(state.log[d]||[]).length>0);
     if(!logged.length) continue;
     const totals=logged.map(d=>getTotals(d));
     const avgCal=Math.round(totals.reduce((a,t)=>a+t.cal,0)/logged.length);
-    const avgProt=Math.round(totals.reduce((a,t)=>a+t.prot,0)/logged.length);
-    const avgCarb=Math.round(totals.reduce((a,t)=>a+t.carb,0)/logged.length);
-    const avgFat=Math.round(totals.reduce((a,t)=>a+t.fat,0)/logged.length);
-    // Label: start date of week
-    const startDt=new Date(weekDates[0]+'T12:00:00');
-    weekLabels.push(startDt.toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
+    // Label: Mon DD MMM
+    const lbl=weekStart.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+    const isCurrentWeek=w===0;
+    weekLabels.push(lbl+(isCurrentWeek?' *':''));
     weekCalAvg.push(avgCal);
-    weekProtAvg.push(avgProt);
-    weekCarbAvg.push(avgCarb);
-    weekFatAvg.push(avgFat);
   }
   const tgt=state.targets.cal||2200;
   try{
@@ -1044,7 +1048,7 @@ function renderWeeklyAvgChart(){
     chartWeeklyAvg=new Chart(document.getElementById('chart-weekly-avg').getContext('2d'),{
       type:'bar',
       data:{labels:weekLabels,datasets:[
-        {label:'Avg calories',data:weekCalAvg,backgroundColor:weekCalAvg.map(v=>v>tgt*1.1?'rgba(192,57,43,0.8)':'rgba(45,106,79,0.7)'),borderRadius:4},
+        {label:'Avg kcal',data:weekCalAvg,backgroundColor:weekCalAvg.map(v=>v>tgt*1.1?'rgba(192,57,43,0.8)':'rgba(45,106,79,0.7)'),borderRadius:4},
         {type:'line',data:Array(weekLabels.length).fill(tgt),borderColor:'rgba(230,130,0,0.85)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false},
       ]},
       options:{responsive:true,maintainAspectRatio:false,
