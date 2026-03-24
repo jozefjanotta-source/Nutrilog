@@ -17,7 +17,7 @@
   --warn:#b5590a;--danger:#c0392b;--info:#1a5fa8;--info-light:#e8f0fb;
   --radius:12px;--radius-sm:8px;--shadow:0 1px 4px rgba(0,0,0,.07);
   --tab-h:60px;--safe-bottom:env(safe-area-inset-bottom,0px);
-  --fs:15px;--fs-sm:13px;--fs-xs:11px;--fs-lg:17px;--fs-xl:22px;
+  --fs:16px;--fs-sm:14px;--fs-xs:12px;--fs-lg:18px;--fs-xl:23px;
 }
 @media(prefers-color-scheme:dark){:root{
   --bg:#141412;--surface:#1e1e1c;--surface2:#2a2a27;
@@ -193,6 +193,10 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     <div class="chart-title">Calories — last 7 days</div>
     <div class="chart-wrap"><canvas id="dash-cal-chart"></canvas></div>
   </div>
+  <div class="chart-card" id="macro-pie-container" style="display:none">
+    <div class="chart-title">Macro split (%)</div>
+    <div class="chart-wrap" style="height:160px"><canvas id="macro-pie-chart"></canvas></div>
+  </div>
 </div>
 
 <!-- LOG -->
@@ -308,7 +312,10 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     </div>
     <button class="btn-primary" onclick="saveCustomFood()">Save food</button>
   </div>
-  <div class="section-hd">My foods</div>
+  <div class="section-hd" style="display:flex;align-items:center;justify-content:space-between">
+    My foods
+    <button id="btn-toggle-foods" class="tb-btn" onclick="toggleFoodList()" style="font-size:12px;padding:5px 10px">Hide list</button>
+  </div>
   <div id="custom-list"></div>
 </div>
 
@@ -553,7 +560,7 @@ const state={
 };
 function persist(k){lsSet(SK[k],state[k])}
 
-let chartCal=null,chartMacro=null,chartWeight=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null;
+let chartCal=null,chartMacro=null,chartWeight=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null,macroPieChart=null;
 
 const VIEWS=['dash','log','add','summary','custom','targets'];
 function switchView(v){
@@ -600,16 +607,19 @@ function getMealTotals(date){
 function renderDash(){
   document.getElementById('date-label').textContent=dayLabel(state.currentDate);
   const totals=getTotals(state.currentDate);
-  renderSummaryCards(totals);
-  renderRing(totals);
+  const adjTarget=getAdjustedTarget();
+  renderSummaryCards(totals,adjTarget);
+  renderRing(totals,adjTarget);
   renderMealBars(state.currentDate);
   renderDashCalChart();
+  renderMacroPie(totals);
 }
 
-function renderSummaryCards(totals){
+function renderSummaryCards(totals,targetCal){
   const t=state.targets;
+  const adjCal=targetCal||t.cal;
   const ms=[
-    {lbl:'Calories',val:fmtI(totals.cal),tgt:t.cal,unit:'kcal',color:'#e4880a'},
+    {lbl:'Calories',val:fmtI(totals.cal),tgt:adjCal,unit:'kcal',color:'#e4880a'},
     {lbl:'Protein',val:fmtI(totals.prot),tgt:t.prot,unit:'g',color:'#1a5fa8'},
     {lbl:'Carbs',val:fmtI(totals.carb),tgt:t.carb,unit:'g',color:'#1d9e75'},
     {lbl:'Fat',val:fmtI(totals.fat),tgt:t.fat,unit:'g',color:'#c0392b'}
@@ -620,10 +630,12 @@ function renderSummaryCards(totals){
   }).join('');
 }
 
-function renderRing(totals){
-  const t=state.targets;const over=totals.cal>t.cal;
-  const rem=Math.max(0,t.cal-totals.cal);
-  const pct=t.cal?Math.min(100,totals.cal/t.cal*100):0;
+function renderRing(totals,targetCal){
+  const t=state.targets;
+  const adjCal=targetCal||t.cal;
+  const over=totals.cal>adjCal;
+  const rem=Math.max(0,adjCal-totals.cal);
+  const pct=adjCal?Math.min(100,totals.cal/adjCal*100):0;
   document.getElementById('ring-val').textContent=fmtI(over?totals.cal-t.cal:rem);
   document.getElementById('ring-lbl').textContent=over?'over':'left';
   document.getElementById('ring-val').style.color=over?'var(--danger)':'var(--accent)';
@@ -700,10 +712,10 @@ function renderLog(){
     items.forEach(e=>{
       const idx=entries.indexOf(e);
       const checked=state.selected.has(idx);
-      html+='<div class="food-item'+(checked?' selected':'')+'" onclick="toggleSelect('+idx+')">'+
-        '<div class="food-item-cb'+(checked?' checked':'')+'">'+( checked?'&#10003;':'')+'</div>'+
-        '<div class="food-item-info">'+
-          '<div class="food-item-name">'+e.name+'</div>'+
+      html+='<div class="food-item'+(checked?' selected':'')+'" >'+
+        '<div class="food-item-cb'+(checked?' checked':'')+'" onclick="event.stopPropagation();toggleSelect('+idx+')">'+( checked?'&#10003;':'')+'</div>'+
+        '<div class="food-item-info" onclick="event.stopPropagation();editEntry('+idx+')">'+
+          '<div class="food-item-name">'+e.name+' <span style="font-size:10px;color:var(--accent);opacity:.7">✎</span></div>'+
           '<div class="food-item-meta">'+e.amountLabel+' &nbsp;P '+fmtI(e.prot)+'g &nbsp;C '+fmtI(e.carb)+'g &nbsp;F '+fmtI(e.fat)+'g</div>'+
         '</div>'+
         '<div class="food-item-cal">'+fmtI(e.cal)+' kcal</div>'+
@@ -1285,6 +1297,66 @@ function showSyncStatus(status){
     el.textContent='Sync failed';
     setTimeout(()=>el.style.opacity='0',3000);
   }
+}
+
+// ---- TOGGLE FOOD LIST ----
+function toggleFoodList(){
+  const list=document.getElementById('custom-list');
+  const btn=document.getElementById('btn-toggle-foods');
+  const isHidden=list.style.display==='none';
+  list.style.display=isHidden?'block':'none';
+  btn.textContent=isHidden?'Hide list':'Show list';
+}
+
+// ---- EDIT ENTRY ----
+function editEntry(idx){
+  const entries=state.log[state.currentDate]||[];
+  const item=entries[idx];
+  if(!item)return;
+  const unit=(item.amountLabel||'').replace(/[0-9.]/g,'').trim()||'g';
+  const currentAmt=parseFloat(item.amountLabel)||0;
+  const newAmt=prompt('Update amount for '+item.name+' ('+unit+'):', currentAmt);
+  if(newAmt===null)return;
+  const n=parseFloat(newAmt);
+  if(isNaN(n)||n<=0){alert('Invalid amount.');return;}
+  const ratio=n/currentAmt;
+  item.cal*=ratio;item.prot*=ratio;item.carb*=ratio;item.fat*=ratio;item.fiber*=ratio;
+  item.amountLabel=n+unit;
+  persist('log');scheduleAutoSync();
+  renderLog();renderDash();
+}
+
+// ---- DYNAMIC CALORIE TARGET ----
+function getAdjustedTarget(){
+  const yest=new Date(state.currentDate+'T12:00:00');
+  yest.setDate(yest.getDate()-1);
+  const yestISO=yest.toISOString().slice(0,10);
+  const yestTotals=getTotals(yestISO);
+  if(yestTotals.cal===0)return state.targets.cal;
+  const diff=state.targets.cal-yestTotals.cal;
+  return Math.max(Math.round(state.targets.cal*0.5),state.targets.cal+diff);
+}
+
+// ---- MACRO PIE CHART ----
+function renderMacroPie(totals){
+  const pieBox=document.getElementById('macro-pie-container');
+  if(!pieBox)return;
+  if(totals.cal===0){pieBox.style.display='none';return;}
+  pieBox.style.display='block';
+  const pPct=Math.round((totals.prot*4/totals.cal)*100)||0;
+  const cPct=Math.round((totals.carb*4/totals.cal)*100)||0;
+  const fPct=Math.round((totals.fat*9/totals.cal)*100)||0;
+  const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+  const tc=isDark?'#9a9a92':'#6b6b65';
+  if(macroPieChart)macroPieChart.destroy();
+  macroPieChart=new Chart(document.getElementById('macro-pie-chart'),{
+    type:'pie',
+    data:{
+      labels:['Protein '+pPct+'%','Carbs '+cPct+'%','Fat '+fPct+'%'],
+      datasets:[{data:[totals.prot*4,totals.carb*4,totals.fat*9],backgroundColor:['#1a5fa8','#1d9e75','#c0392b'],borderWidth:0}]
+    },
+    options:{maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:tc,font:{size:12},boxWidth:14}}}}
+  });
 }
 
 // ---- INIT ----
