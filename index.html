@@ -542,7 +542,7 @@ function parseCSVLine(line){
   return result;
 }
 
-const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',gist_token:'nl_gist_token',gist_id:'nl_gist_id'};
+const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones'};
 function lsGet(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch(e){return fb}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function todayISO(){return new Date().toISOString().slice(0,10)}
@@ -556,6 +556,7 @@ const state={
   weight:lsGet(SK.weight,{}),
   gistToken:lsGet(SK.gist_token,''),
   gistId:lsGet(SK.gist_id,''),
+  tombstones:lsGet('nl_tombstones',{}),
   currentDate:todayISO(),
   pendingFood:null,
   unitMode:'grams',
@@ -763,10 +764,28 @@ function updateSelectionUI(){
   ['btn-copy','btn-move','btn-del'].forEach(id=>document.getElementById(id).disabled=dis);
 }
 
+function recordTombstones(date, entries, indices){
+  if(!state.tombstones[date]) state.tombstones[date]=[];
+  const ts=Date.now();
+  indices.forEach(i=>{
+    const e=entries[i];
+    if(e) state.tombstones[date].push({key:e.name+'|'+e.meal+'|'+e.amountLabel,ts});
+  });
+  lsSet('nl_tombstones',state.tombstones);
+}
+
+function isTombstoned(date, entry){
+  const tombs=state.tombstones[date]||[];
+  const key=entry.name+'|'+entry.meal+'|'+entry.amountLabel;
+  return tombs.some(t=>t.key===key);
+}
+
 function deleteSelected(){
   if(!state.selected.size)return;
   if(!confirm('Delete '+state.selected.size+' item(s)?')){return;}
   const entries=state.log[state.currentDate]||[];
+  const selectedIndices=[...state.selected];
+  recordTombstones(state.currentDate, entries, selectedIndices);
   state.log[state.currentDate]=entries.filter((_,i)=>!state.selected.has(i));
   state.selected=new Set();
   persist('log');scheduleAutoSync();
@@ -1111,7 +1130,7 @@ function deleteWeight(d){delete state.weight[d];persist('weight');scheduleAutoSy
 
 // ---- EXPORT / IMPORT ----
 function exportData(){
-  const payload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight});
+  const payload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,tombstones:state.tombstones});
   const encoded=btoa(unescape(encodeURIComponent(payload)));
   navigator.clipboard.writeText(encoded).then(()=>{
     const m=document.getElementById('export-msg');m.style.display='block';setTimeout(()=>m.style.display='none',4000);
@@ -1206,7 +1225,7 @@ async function gistSync(direction){
             const remoteData=await fetchResp.json();
             if(remoteData.files&&remoteData.files['nutrilog.json']){
               const remote=JSON.parse(remoteData.files['nutrilog.json'].content);
-              if(remote.log) state.log=mergeLogData(state.log,remote.log);
+              if(remote.log) state.log=mergeLogData(state.log,remote.log,remote.tombstones||{});
               persist('log');
               // Save backup
               const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
@@ -1217,7 +1236,7 @@ async function gistSync(direction){
           }
         }catch(e){}
       }
-      const mergedPayload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight});
+      const mergedPayload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,tombstones:state.tombstones});
       const body={description:'NutriLog data',public:false,files:{'nutrilog.json':{content:mergedPayload}}};
       let resp, data;
       if(state.gistId){
@@ -1256,7 +1275,9 @@ async function gistSync(direction){
         if(!p.targets) throw new Error('Invalid data in gist');
         state.targets=p.targets;state.log=p.log||{};
         state.customFoods=p.customFoods||[];state.weight=p.weight||{};
+        state.tombstones=p.tombstones||{};
         persist('targets');persist('log');persist('custom');persist('weight');
+        lsSet('nl_tombstones',state.tombstones);
       }
       // Load foods
       let foodsLoaded=0;
@@ -1296,23 +1317,43 @@ function scheduleAutoSync(){
   autoSyncTimer=setTimeout(()=>silentPush(),3000);
 }
 
-function mergeLogData(local, remote){
-  // Merge two log objects - for each date, keep the one with more entries
-  // If both have entries for same date, merge them (deduplicate by name+meal+amountLabel)
-  const merged = {...remote};
+function mergeLogData(local, remote, remoteTombstones){
+  // Merge tombstones from both sides
+  const allTombstones={...remoteTombstones||{}};
+  for(const date in state.tombstones){
+    if(!allTombstones[date]) allTombstones[date]=[];
+    allTombstones[date]=[...allTombstones[date],...state.tombstones[date]];
+  }
+  state.tombstones=allTombstones;
+  lsSet('nl_tombstones',state.tombstones);
+
+  function tombstonedOn(date, entry){
+    const tombs=allTombstones[date]||[];
+    const key=entry.name+'|'+entry.meal+'|'+entry.amountLabel;
+    return tombs.some(t=>t.key===key);
+  }
+
+  const merged={...remote};
   for(const date in local){
     if(!merged[date]||merged[date].length===0){
-      merged[date]=local[date];
-    } else if(local[date].length > merged[date].length){
-      // Local has more - use local but add any remote entries not in local
-      const localKeys=new Set(local[date].map(e=>e.name+'|'+e.meal+'|'+e.amountLabel));
-      const extraRemote=merged[date].filter(e=>!localKeys.has(e.name+'|'+e.meal+'|'+e.amountLabel));
-      merged[date]=[...local[date],...extraRemote];
+      // Only take local entries that aren't tombstoned
+      merged[date]=(local[date]||[]).filter(e=>!tombstonedOn(date,e));
     } else {
-      // Remote has more - use remote but add any local entries not in remote
-      const remoteKeys=new Set(merged[date].map(e=>e.name+'|'+e.meal+'|'+e.amountLabel));
-      const extraLocal=local[date].filter(e=>!remoteKeys.has(e.name+'|'+e.meal+'|'+e.amountLabel));
-      merged[date]=[...merged[date],...extraLocal];
+      // Merge: combine both, deduplicate, remove tombstoned
+      const seen=new Set();
+      const combined=[...local[date],...merged[date]];
+      merged[date]=combined.filter(e=>{
+        const key=e.name+'|'+e.meal+'|'+e.amountLabel;
+        if(seen.has(key)||tombstonedOn(date,e)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
+  }
+  // Also filter remote-only dates through tombstones
+  for(const date in merged){
+    if(!local[date]){
+      merged[date]=(merged[date]||[]).filter(e=>!tombstonedOn(date,e));
     }
   }
   return merged;
@@ -1330,7 +1371,7 @@ async function silentPush(){
         try{
           const remote=JSON.parse(remoteData.files['nutrilog.json'].content);
           if(remote.log){
-            state.log=mergeLogData(state.log,remote.log);
+            state.log=mergeLogData(state.log,remote.log,remote.tombstones||{});
             persist('log');
           }
         }catch(e){}
@@ -1343,7 +1384,7 @@ async function silentPush(){
         lsSet('nl_backups',JSON.stringify(backups));
       }
     }
-    const payload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight});
+    const payload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,tombstones:state.tombstones});
     const body={description:'NutriLog data',public:false,files:{'nutrilog.json':{content:payload}}};
     const resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
     if(resp.ok){showSyncStatus('synced');}
@@ -1548,7 +1589,9 @@ function initApp(){
             if(p.targets){
               state.targets=p.targets;state.log=p.log||{};
               state.customFoods=p.customFoods||[];state.weight=p.weight||{};
+              state.tombstones=p.tombstones||{};
               persist('targets');persist('log');persist('custom');persist('weight');
+              lsSet('nl_tombstones',state.tombstones);
               renderDash();loadTargetsForm();
             }
             showSyncStatus('synced');
