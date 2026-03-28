@@ -1035,10 +1035,12 @@ function renderWeeklyAvgChart(){
     for(let d=0;d<7;d++){
       const dt=new Date(weekStart);
       dt.setDate(weekStart.getDate()+d);
-      // Don't include future dates
-      if(dt>now) break;
-      weekDates.push(dt.toISOString().slice(0,10));
+      const dISO=dt.toISOString().slice(0,10);
+      // Don't include future dates (but always include today)
+      if(dt>now&&dISO!==todayISO()) break;
+      weekDates.push(dISO);
     }
+    const todayStr=todayISO();
     const logged=weekDates.filter(d=>(state.log[d]||[]).length>0);
     if(!logged.length) continue;
     const totals=logged.map(d=>getTotals(d));
@@ -1073,14 +1075,17 @@ function renderWeightChart(labels,dates){
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
   const tc=isDark?'#606058':'#9e9e97';
-  const wData=dates.map(d=>state.weight[d]||null);
-  const hasData=wData.some(v=>v!==null);
+  // Use ALL weight entries, not just the current date range
+  const allEntries=Object.entries(state.weight).sort((a,b)=>a[0].localeCompare(b[0]));
+  const hasData=allEntries.length>0;
   document.getElementById('weight-chart-wrap').style.display=hasData?'block':'none';
   if(hasData){
+    const wLabels=allEntries.map(([d])=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
+    const wData=allEntries.map(([,v])=>v);
     try{
       if(chartWeight)chartWeight.destroy();
       chartWeight=new Chart(document.getElementById('chart-weight').getContext('2d'),{type:'line',
-        data:{labels,datasets:[{data:wData,borderColor:'rgba(45,106,79,0.9)',backgroundColor:'rgba(45,106,79,0.1)',borderWidth:2,pointRadius:4,pointBackgroundColor:'rgba(45,106,79,0.9)',tension:0.3,spanGaps:true}]},
+        data:{labels:wLabels,datasets:[{data:wData,borderColor:'rgba(45,106,79,0.9)',backgroundColor:'rgba(45,106,79,0.1)',borderWidth:2,pointRadius:5,pointBackgroundColor:'rgba(45,106,79,0.9)',tension:0.3,spanGaps:true}]},
         options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.raw+' kg'}}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:45}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}}}}}
       });
     }catch(e){}
@@ -1451,9 +1456,9 @@ function renderWeeklyBudget(){
       '<div style="font-size:var(--fs-xs);color:var(--text3)">Week: '+Math.round(b.totalEaten)+' / '+b.weeklyTarget+' kcal</div>'+
     '</div>'+
     '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">'+
-      '<div style="font-size:28px;font-weight:700;color:'+(over?'var(--danger)':'var(--accent)')+'">'+Math.abs(b.remainingToday)+'</div>'+
+      '<div style="font-size:28px;font-weight:700;color:'+(over?'var(--danger)':'var(--accent)')+'">'+Math.round(Math.abs(b.remainingToday))+'</div>'+
       '<div style="font-size:var(--fs-sm);color:var(--text2)">'+(over?'kcal over budget':'kcal remaining')+'</div>'+
-      '<div style="font-size:var(--fs-xs);color:var(--text3);margin-left:auto">budget: '+b.todayBudget+' kcal</div>'+
+      '<div style="font-size:var(--fs-xs);color:var(--text3);margin-left:auto">budget: '+Math.round(b.todayBudget)+' kcal</div>'+
     '</div>'+
     '<div style="height:6px;border-radius:3px;background:var(--surface2);overflow:hidden">'+
       '<div style="height:100%;border-radius:3px;width:'+pct+'%;background:'+(over?'var(--danger)':'var(--accent)')+'"></div>'+
