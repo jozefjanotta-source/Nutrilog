@@ -1,270 +1,425 @@
-﻿Food list;Amount;Calories;Fats;Carbs;Prots;;;;;
-Apple large;1;110;0;24;1;;;;;
-Apple medium;1;72;0;19;0;;;;;
-Apple stewed;100;33;0,1;8,1;0,3;;;;;
-Appricots;1;17;0;4;0;;;;;
-Avocado;1;322;29;17;4;;;;;
-baguette;80;283;13;35;7;;;;;
-Baguette small;1;242,5837321;3,69;41,22;8,91;;;;;
-Baked potato;500;504;14,5;90;11;;;;;
-Baked potato no oil;100;77;0,1;18;2,2;;;;;
-Banana;3;315;1;81;4;;;;;
-Banana chips;100;502;27;60;3;;;;;
-Banana peeled;100;95;0,3;23,2;1,2;;;;;
-Basmati cooked;288;347;1,1;74;8,5;;;;;
-Basmati rice dry;100;347;1,1;74;8,5;;;;;
-Beans;50;56;0,5;6,3;4,2;;;;;
-Beef ground lean;200;274;10;0;43;;;;;
-Beef ground 85/15;100;215;15;0;19;;;;;
-beef meat cooked;100;171;5,4;0;31;;;;;
-beef meat raw lean;100;163;4,1;0;30;;;;;
-beef sirloin;150;309;13;0;44;;;;;
-Beer;1;194;0;24;2,4;;;;;
-Birel;1;104;0,05;25;1;;;;;
-Birel fruit;1;35;0;8,6;0;;;;;
-Barilla Mulino Bianco;1;34;1,3;4,9;0,5;;;;;
-Blackberries;100;46;0,5;9,6;1,4;;;;;
-Blackcurrants;100;28;0;6,6;0,9;;;;;
-Blueberries canned;100;88;0;21;1;;;;;
-Blueberries;100;57;0;14;1;;;;;
-Boiled potato;100;72;0,1;17;1,8;;;;;
-Bounty bar;28,5;139;7,3;16,8;1,1;;;;;
-Bounty;3;403,5;24;40,5;4,65;;;;;
-Bread;100;219;3;39;9;;;;;
-bread homemade;760;1984;38;324;70;;;;;
-Bread rivercote;4;266;5,5;42;8,8;;;;;
-Bread Mcennedy;1;110;3,4;15,4;3,2;;;;;
-Bread vianocka;100;320;8,9;51,9;8,1;;;;;
-Bread rye;1;117;1;26,2;3,2;;;;;
-Broccoli;100;24;0,8;1,1;3,1;;;;;
-butter;20;143;16,22;0,06;0,1;;;;;
-Cabbage cooked;100;58;3;7;1;;;;;
-Cake Panettone;100;374;17;49;5,4;;;;;
-Carp;100;162;7,2;0;23;;;;;
-Catfish;100;119;5,9;0;15,2;;;;;
-Cashew butter (tsp);1;86,1;6,9;4,95;2,25;;;;;
-Cashews;100;576;48;18;18;;;;;
-Champignons;125;31;0;4;3;;;;;
-Cheese camemberd;125;264;16;0;29;;;;;
-Cheese gorgonzola;100;344;29;0,7;19;;;;;
-cheese gouda;100;344;26;1,4;26;;;;;
-Cheesecake;150;482;34;38;8;;;;;
-cheese kiri (1 piece);1;51,2;4,9;0,5;1,4;;;;;
-Cheese mozzarella light;100;165;9;2;19;;;;;
-Cherries;1;91;0;23;2;;;;;
-Chicken breasts roasted;100;156;4;0;30;;;;;
-Chicken beasts raw;100;120;2,6;0;22,5;;;;;
-Chicken leg meat skinless roasted;100;177;7,5;0;27,3;;;;;
-Chicken leg roasted boneless with skin (gr);100;184;9;0;24;;;;;
-Chicken leg roasted with skin (pc);1;210;10;0;27;;;;;
-Chicken leg quarter with skin;100;236;7,5;0;27,3;;;;;
-Chicken schnitzel;105;201;7,7;16;16;;;;;
-Chips;100;540;34;50,5;6;;;;;
-Chocolate Milka;100;530;29;59;6,3;;;;;
-Dark chocolate ;100;610;48;33;6,9;;;;;
-Cookie italian (g);100;475;19;68;7,1;;;;;
-Coconut oil (tsp);1;39;;;;;;;;
-Cod cooked;100;65;0,9;0;23;;;;;
-Collagen;1;47;0;1,95;9;;;;;
-Collagen powder (scoop);1;90;0;0;22;;;;;
-Cottage light;100;77;2;3;11;;;;;
-Cottage cheese milbona;100;98;5;3;11,5;;;;;
-Cottage light Pilos;100;80;3;2;11;;;;;
-Cottage cheese 4%;100;101;4;4;12;;;;;
-Corn;100;24;0;3;2,5;;;;;
-Corn flour;100;357;1;78;7;;;;;
-Cream;100;345;37;3;2;;;;;
-Cucumber;100;15;0;4;1;;;;;
-Dijon mustard;1;10;0;1;0;;;;;
-duck breasts;100;140;2,5;0;28;;;;;
-duck leg;1;200;10;0;25;;;;;
-egg;1;72;4,8;0,4;6,3;;;;;
-egg white;3;51;0;1;11;;;;;
-Emco nuts;1;211;3,6;35;7,7;;;;;
-Flank steak;300;425;16;0;64;;;;;
-Fries;100;130;4,1;20;2,2;;;;;
-Game;100;187;8;0;26;;;;;
-Gatorade;100;24;0;5,9;0;;;;;
-gooseberries;0,3;20;0;5;0;;;;;
-Gorgonzola;100;357;29;0;21;;;;;
-Grapefruit;1;104;1;26;2;;;;;
-grapefruit (gr);100;30;0;7;1;;;;;
-Grapes;100;65;0;16;0;;;;;
-Green beans;100;25;0,1;4,7;1,7;;;;;
-Green onion;1;3;0;1;0;;;;;
-Green pepper;0,5;12;0;3;1;;;;;
-Ham Schwarzwald;100;208;12;1;24;;;;;
-Ham Turkey;100;103;2;1;20;;;;;
-Hellmann's light;100;233;23;6,7;0,13;;;;;
-Hellmann's;50;210;21;0,4;4;;;;;
-Hemp oil;1;43;5;0;0;;;;;
-Hokaido;100;37;0,2;8,7;1;;;;;
-Honey;1;39,4;0,0;9,8;0,0;;;;;
-Honey (g);100;304,0;0,0;82,0;0,3;;;;;
-Ice cone;1;168;5;27;4;;;;;
-Ice cream;100;197;7;30;3;;;;;
-Ice cream walnut;100;262;16;24,8;4,3;;;;;
-Isostar;500;148;0;35;0;;;;;
-italian marmelada;50;126;0,15;30;0,3;;;;;
-jam;3;52;0;13;0;;;;;
-Jam Bio Maribel;100;239;0;57;0,5;;;;;
-Juice apple;100;50;0;12;0;;;;;
-Juice orange;100;44;0,2;9,1;0;;;;;
-Kaiser bun;1;169,3;3;26,9;6,8;;;;;
-Kaufland cottage cheese;100;69;2,3;1;11;;;;;
-ketchup;50;59;0;15;0;;;;;
-Kiwi;1;46;0;11;1;;;;;
-Knedlik;100;212;2;42;7;;;;;
-Kolozvarska kapusta;100;196;14;12;7;;;;;
-Lard;100;897;100;0;0,1;;;;;
-Lasagne;200;293;14;25;19;;;;;
-Lentils;100;352;1,1;63;25;;;;;
-Lettuce;100;19;0,3;1,9;0,7;;;;;
-LF milk;200;83;1;11;7;;;;;
-Loksa;100;143;0,9;31,1;4,6;;;;;
-Mackerel sour;100;81,9;5,1;2,1;6,8;;;;;
-Mackerel in tomato;1;103;6;2;9;;;;;
-Magnum;1;280;17;27;4;;;;;
-Mango;150;90;1;22;1;;;;;
-Mashed potatoes;100;104;4,3;15,5;1,8;;;;;
-Mayo;15;35;4;1;0;;;;;
-Mayo Perkins;100;353;35,5;8,4;0;;;;;
-Mcflurry;1;220;5,4;36;5,5;;;;;
-Mcwrap;1;363;17;30;22;;;;;
-Milk fat;100;66;3,9;4,5;3,3;;;;;
-Milk lowfat;300;128;3;15;10;;;;;
-Milk semi;300;140;5;14;10;;;;;
-Milk dry coconut;8;55;5;2;1;;;;;
-Milk dry;100;430;14;45;31;;;;;
-Milk muler pistachio;100;74;1;12;3;;;;;
-Muffin;1;180;12;21;3;;;;;
-Mushrooms;100;13;1;0;2;;;;;
-Mustard;1;3;0;;;;;;;
-Nectarines;2;137;1;29;3;;;;;
-Noodles with cheese and bacon;100;257,6;6;42,8;8,2;;;;;
-Nuts mixed;100;646;58;6,4;20,1;;;;;
-Oats;100;351;7;56;11;;;;;
-Oats Lidl;100;372;7;58,7;13,5;;;;;
-Olive oil;1;119;14;0;0;;;;;
-Olive oil tsp;1;40;4;0;0;;;;;
-Onion;100;36;0;8,3;0,6;;;;;
-Orange;1;87;0,2;21;1,7;;;;;
-Pancake recipe;140;366;14,4;47,4;10,2;;;;;
-Parmesan (tbsp);1;20;1,5;0;1,625;;;;;
-Pasta italian dry;100;335;3;63;14;;;;;
-Pasta cooked;170;270;2,5;54;10;;;;;
-Pasta wholewheat cooked;170;211;0,9;45;9,1;;;;;
-Pasta penne cooked wholewheat;970;1735;12,5;320;65;;;;;
-Peach;2;122;1;30;3;;;;;
-Peaches canned;200;108;0,1;29;0,9;;;;;
-Peanuts;100;567;49;16;26;;;;;
-Peanut bars;60;193;6;29;7;;;;;
-Peanut butter (tsp);1;96;8;3;4;;;;;
-Pear;1;119;0;32;1;;;;;
-Peeled tomatoes;100;28;0;5;1;;;;;
-Pepper yellow;100;26;0,2;5,3;1,2;;;;;
-Pickle;1;7;0;1;0;;;;;
-Pineapple;100;50;0,1;13;0,5;;;;;
-Pizza;1;1600;64;168;80;;;;;
-Pizza bread;75;210;11;29;8;;;;;
-Plums;4;121;0,7;30;1,8;;;;;
-Polenta;28;45;2;5;1;;;;;
-Placky;100;268;15;28;6;;;;;
-Pollock;100;90;1;0;19,4;;;;;
-Popcorn;100;433;24;37;7,2;;;;;
-Potato salad;100;157;9,4;16;2;;;;;
-Pork belly;100;320;27,4;0;23,4;;;;;
-Pork knuckle;200;468;33;2;44;;;;;
-Pork schnitzel;135;358;18;27;22;;;;;
-Pork tenderloin grilled;100;184;6,4;0;31,6;;;;;
-Pork neck;100;275;18,5;0;27,5;;;;;
-pork liver;100;165;4,4;3,8;26;;;;;
-Pork loin chops;100;242;14;0;27;;;;;
-Pork leg raw;100;119;3;0;22,7;;;;;
-Pork ham raw;100;151;7;0;21;;;;;
-Pork ham cooked;100;175;5,8;0;29;;;;;
-Pork pate;100;159;14,2;4,3;4,2;;;;;
-Popcorn medium;1;470;43;64;16;;;;;
-Power sport drink;100;26;0;6,3;0;;;;;
-Pringles;100;503;31;52;3,8;;;;;
-Protein DY Isolate;1;116;1;0,7;26;;;;;
-Protein Myprotein (scoop);1;102;1,8;1,4;20;;;;;
-Protein Bar Nutrend;1;232;9;24;13;;;;;
-Protein Bar Nutrend big;1;374;16;36;21;;;;;
-Protein Bar DY;1;193;5;20;21;;;;;
-Protein Weider;1;121;2;3;24;;;;;
-Protein Weider Double;1;425;15;44;28;;;;;
-Protein bar weider 60%;1;164;4;7;27;;;;;
-Prunes;100;279;1;62;2;;;;;
-Pumpkin;100;13;0,3;2,1;0,6;;;;;
-Pumpkin Hokkaido;100;44;0;9;2;;;;;
-Pumpkin seeds;100;590;46,7;7;28,7;;;;;
-Pudding;100;101;2,7;15,7;3,1;;;;;
-Rabbit;100;173;4;0;33;;;;;
-Raisins;100;272;0,4;69,3;2,1;;;;;
-Radler;1;130,1;0,2;31,3;0;;;;;
-Radler dark;1;160;0;37,5;0;;;;;
-Radler birrel;1;175;0;43;0;;;;;
-Raffaello;100;627;48,3;38,6;7,4;;;;;
-Raspberries;100;55;0,6;12;1,2;;;;;
-Rajo cottage cheese;180;182;8;7;22;;;;;
-Red Beet;100;40;0;10;1;;;;;
-Red currants canned;100;56;0,2;14;1,5;;;;;
-Red peppers;68;19;0;5;1;;;;;
-Rice cooked;100;143;0;31,4;2,9;;;;;
-Rice dry;100;347;1,1;74;8,5;;;;;
-Rice instant;100;373;1,3;82,6;6;;;;;
-Roll;1;154;1,5;30,2;4,4;;;;;
-Rucola;1;11;1;4;3;;;;;
-Salad potatoe;100;157;9,4;16;2;;;;;
-Salad;1;45;0;9,2;2;;;;;
-Salmon;125;258;17,5;0;25;;;;;
-Salmon in tomato sauce;100;189;13,4;7,4;9,8;;;;;
-Salt Straws;100;511;26,2;57,1;10,3;;;;;
-Sauce barbecue (1tbsp);1;23;0,5;5,3;0,5;;;;;
-Sauce ceasar;100;214;43;9,6;1,7;;;;;
-Sardines Nixe (can 125g);100;217;15,4;3,1;15,5;;;;;
-Sausage;100;286,6;25;1,1;15;;;;;
-Sheep milk sour;300;168;8,4;12,63;9,51;;;;;
-Snickers;1;243,5;11,5;30,5;4,3;;;;;
-Soup cabbage (portion);1;70;3;8;4;;;;;
-Soup chicken (250 ml);1;62,7;2,6;5,4;4,3;;;;;
-Spinach;1;7;0;1;0;;;;;
-Spread soya alfa bio (french) (g);100;145;9;8;8;;;;;
-Spread soya tartar;100;150;10;11;4;;;;;
-Squash;1400;238;4,3;60;13;;;;;
-strawberries;100;32;0,3;7,9;0,7;;;;;
-Strudel;100;274;11;41;3,3;;;;;
-Sugar (tsp);1;17,5;0;4,5;0;;;;;
-Subway BBQ chicken;1;312;3;49;20;;;;;
-tangerine;1;57;0,3;14,5;0,9;;;;;
-Tlacenka;100;254;21;2;15;;;;;
-Tiramisu;200;675;40;80;8;;;;;
-Tortilla (62g);1;178;3,7;28,6;5,7;;;;;
-Tea granulated Lord Nelson;200;79;0,2;19;0,2;;;;;
-Toast bread;1;246;3;46;8;;;;;
-Toffifee;100;522;28,8;59;6;;;;;
-Tomato cherry;5;11;0;2;0;;;;;
-Tomato;100;23;0,6;3,3;1,2;;;;;
-Tomato sauce;100;39;0,2;7;1,7;;;;;
-Treccia ;100;294;7;49;8;;;;;
-Tuna;100;109;0,9;0;25;;;;;
-Tuna canned drained;100;279;21,4;0;21,6;;;;;
-tuna rio mare;100;410;38;0;17;;;;;
-Tuna rio mare naturale;100;101;0,5;0;24;;;;;
-Tuna in brine;100;110;0,5;0;26;;;;;
-Turkey breasts;100;130;2,1;0;28;;;;;
-Turkey leg roasted with skin;100;208;9,8;0;28;;;;;
-Turkey leg roasted skinless;100;159;3,8;0;29;;;;;
-Tvaroh;100;144;7,5;15;4;;;;;
-Tzaziki;3;9;0;1;5;;;;;
-Veggie spread (bottle);1;58;1;12;3;;;;;
-Veggie mixture Leco (g);100;31;0;5;1;;;;;
-Vinegar (tbsp);1;3;0;0;0;;;;;
-Walnuts;30;196;20;4;5;;;;;
-Watermelon;400;120;1;30;2;;;;;
-Weider protein;30;113;1;1;25;;;;;
-Wine red;200;167;0;5,1;0,1;;;;;
-Yoghurt Holandia;100;67;3,8;4,5;3,7;;;;;
-Yoghurt lowfat pilos;100;57;0,3;3,5;10;;;;;
-Yoghurt Zvolenský cokolada;140;193;12,7;15,4;3,9;;;;;
+Food list;Amount;Unit;Calories;Fats;Carbs;Prots;;;;;
+Apple large;1;pc;110;0.4;24.2;0.6;;;;;
+Apple medium;1;pc;72;0.2;19;0.4;;;;;
+Apple stewed;100;g;33;0.1;8.1;0.3;;;;;
+Appricots;1;pc;17;0;4;0;;;;;
+Avocado;1;pc;322;29;17;4;;;;;
+baguette;80;g;283;13;35;7;;;;;
+Baguette small;1;pc;242.583732057416;3.69;41.22;8.91;;;;;
+Baked potato;500;g;504;14.5;90;11;;;;;
+Baked potato no oil;100;g;77;0.1;18;2.2;;;;;
+Banana;3;pc;315;1;81;4;;;;;
+Banana chips;100;g;502;27;60;3;;;;;
+Banana peeled;100;g;95;0.3;23.2;1.2;;;;;
+Basmati cooked;288;g;347;1.1;74;8.5;;;;;
+Basmati rice dry;100;g;347;1.1;74;8.5;;;;;
+Beans;50;g;55.5;0.5;6.3;4.2;;;;;
+Beef ground lean;200;g;274;10;0;43;;;;;
+Beef ground 85/15;100;g;215;15;0;19;;;;;
+beef meat cooked;100;g;171;5.4;0;31;;;;;
+beef meat raw lean;100;g;163;4.1;0;30;;;;;
+beef sirloin;150;g;309;13;0;44;;;;;
+Beer;1;pc;194;0;24;2.4;;;;;
+Birel;1;pc;104.066985645933;0.05;25;1;;;;;
+Birel fruit;1;pc;35;0;8.6;0;;;;;
+Barilla Mulino Bianco;1;pc;34;1.3;4.9;0.5;;;;;
+Blackberries;100;g;46;0.5;9.6;1.4;;;;;
+Blackcurrants;100;g;28;0;6.6;0.9;;;;;
+Blueberries canned;100;g;88;0;21;1;;;;;
+Blueberries;100;g;57;0;14;1;;;;;
+Boiled potato;100;g;72;0.1;17;1.8;;;;;
+Bounty bar;28.5;g;139;7.3;16.8;1.1;;;;;
+Bounty;3;pc;403.5;24;40.5;4.65;;;;;
+Bread;100;g;219;3;39;9;;;;;
+bread homemade;760;g;1984;37.5;324;70;;;;;
+Bread rivercote;4;slice;266;5.5;42;8.8;;;;;
+Bread Mcennedy;1;slice;110;3.4;15.4;3.2;;;;;
+Bread vianocka;100;g;320;8.9;51.9;8.1;;;;;
+Bread rye;1;slice;117;1;26.2;3.2;;;;;
+Broccoli;100;g;24;0.8;1.1;3.1;;;;;
+butter;20;g;143;16.22;0.06;0.1;;;;;
+Cabbage cooked;100;g;58;3;7;1;;;;;
+Cake Panettone;100;g;374;17;49;5.4;;;;;
+Carp;100;g;162;7.2;0;23;;;;;
+Catfish;100;g;119;5.9;0;15.2;;;;;
+Cashew butter (tsp);1;tsp;86.1;6.9;4.95;2.25;;;;;
+Cashews;100;g;576;48;18;18;;;;;
+Champignons;125;g;31;0.3;3.75;3.484;;;;;
+Cheese camemberd;125;g;263.75;16.25;0;28.75;;;;;
+Cheese gorgonzola;100;g;344;29;0.7;19;;;;;
+cheese gouda;100;g;344;26;1.4;26;;;;;
+Cheesecake;150;g;482;34;38;8;;;;;
+cheese kiri (1 piece);1;pc;51.2;4.9;0.5;1.4;;;;;
+Cheese mozzarella light;100;g;165;9;2;19;;;;;
+Cherries;1;pc;91;0;23;2;;;;;
+Chicken breasts roasted;100;g;156;4;0;30;;;;;
+Chicken beasts raw;100;g;120;2.6;0;22.5;;;;;
+Chicken leg meat skinless roasted;100;g;177;7.5;0;27.3;;;;;
+Chicken leg roasted boneless with skin (gr);100;g;184;9;0;24;;;;;
+Chicken leg roasted with skin (pc);1;pc;210;10;0;27;;;;;
+Chicken leg quarter with skin;100;g;236;7.5;0;27.3;;;;;
+Chicken schnitzel;105;g;201;7.7;16;16;;;;;
+Chips;100;g;540;34;50.5;6;;;;;
+Chocolate Milka;100;g;530;29;59;6.3;;;;;
+Dark chocolate ;100;g;610;48;33;6.9;;;;;
+Cookie italian (g);100;g;475;18.7;68;7.1;;;;;
+Coconut oil (tsp);1;tsp;39;;;;;;;;
+Cod cooked;100;g;65;0.9;0;23;;;;;
+Collagen;1;scoop;47;0;1.95;9;;;;;
+Collagen powder (scoop);1;scoop;90;0;0;22;;;;;
+Cottage light;100;g;77;2.4;2.8;11;;;;;
+Cottage cheese milbona;100;g;98;4.5;2.8;11.5;;;;;
+Cottage light Pilos;100;g;80;3;2.3;11;;;;;
+Cottage cheese 4%;100;g;101;4.2;3.8;12;;;;;
+Corn;100;g;24;0.4;2.7;2.5;;;;;
+Corn flour;100;g;357;1;78;7;;;;;
+Cream;100;g;345;37;3;2;;;;;
+Cucumber;100;g;15;0;4;1;;;;;
+Dijon mustard;1;tsp;10;0;1;0;;;;;
+duck breasts;100;g;140;2.5;0;28;;;;;
+duck leg;1;pc;200;10;0;25;;;;;
+egg;1;pc;72;4.8;0.4;6.3;;;;;
+egg white;3;pc;51;0;1;11;;;;;
+Emco nuts;1;pc;211;3.6;35;7.7;;;;;
+Flank steak;300;g;425;16;0;64;;;;;
+Fries;100;g;130;4.1;20;2.2;;;;;
+Game;100;g;187;8;0;26;;;;;
+Gatorade;100;g;24;0;5.9;0;;;;;
+gooseberries;0.3;g;20;0;5;0;;;;;
+Gorgonzola;100;g;357;29;0;21;;;;;
+Grapefruit;1;pc;103.5;0.5;26;1.9;;;;;
+grapefruit (gr);100;g;30;0.1;6.8;0.8;;;;;
+Grapes;100;g;65;0;16;0;;;;;
+Green beans;100;g;25;0.1;4.7;1.7;;;;;
+Green onion;1;pc;3;0;1;0;;;;;
+Green pepper;0.5;pc;12;0;3;1;;;;;
+Ham Schwarzwald;100;g;208;12;1;24;;;;;
+Ham Turkey;100;g;103;2;1;20;;;;;
+Hellmann's light;100;g;233;23;6.7;0.13;;;;;
+Hellmann's;50;g;210;21;0.4;4;;;;;
+Hemp oil;1;tsp;43;5;0;0;;;;;
+Hokaido;100;g;37;0.2;8.7;1;;;;;
+Honey;1;tsp;39.36;0,0;9.804;0,0;;;;;
+Honey (g);100;g;304,0;0,0;82,0;0.3;;;;;
+Ice cone;1;pc;168;5;27;4;;;;;
+Ice cream;100;g;197;7;30;3;;;;;
+Ice cream walnut;100;g;262;16;24.8;4.3;;;;;
+Isostar;500;g;148;0;35;0;;;;;
+italian marmelada;50;g;126;0.15;30;0.3;;;;;
+jam;3;pc;52;0;13;0;;;;;
+Jam Bio Maribel;100;g;239;0;57;0.5;;;;;
+Juice apple;100;g;50;0;12;0;;;;;
+Juice orange;100;g;44;0.2;9.1;0;;;;;
+Kaiser bun;1;pc;169.3;3;26.9;6.8;;;;;
+Kaufland cottage cheese;100;g;69;2.3;1;11;;;;;
+ketchup;50;g;59;0;15;0;;;;;
+Kiwi;1;pc;46;0;11;1;;;;;
+Knedlik;100;g;212;2;42;7;;;;;
+Kolozvarska kapusta;100;g;196;14;12;7;;;;;
+Lard;100;g;897;100;0;0.1;;;;;
+Lasagne;200;g;293;14;25;19;;;;;
+Lentils;100;g;352;1.1;63;25;;;;;
+Lettuce;100;g;19;0.3;1.9;0.7;;;;;
+LF milk;200;g;83;1;11;7;;;;;
+Loksa;100;g;143;0.9;31.1;4.6;;;;;
+Mackerel sour;100;g;81.9;5.1;2.1;6.8;;;;;
+Mackerel in tomato;1;pc;103;6;2;9;;;;;
+Magnum;1;pc;280;17;27;4;;;;;
+Mango;150;g;90;1;22;1;;;;;
+Mashed potatoes;100;g;104;4.3;15.5;1.8;;;;;
+Mayo;15;g;35;4;1;0;;;;;
+Mayo Perkins;100;g;353;35.5;8.4;0;;;;;
+Mcflurry;1;pc;220;5.4;36;5.5;;;;;
+Mcwrap;1;pc;363;17;30;22;;;;;
+Milk fat;100;g;66;3.9;4.5;3.3;;;;;
+Milk lowfat;300;g;128;3;15;10;;;;;
+Milk semi;300;g;140;5;14;10;;;;;
+Milk dry coconut;8;pc;55;5.2;1.6;1;;;;;
+Milk dry;100;g;430;14;45;31;;;;;
+Milk muler pistachio;100;g;74;1.4;12.2;3.2;;;;;
+Muffin;1;pc;180.181818181818;12.3636363636364;20.5;2.68181818181818;;;;;
+Mushrooms;100;g;13;0.5;0.4;1.8;;;;;
+Mustard;1;pc;3;0;;;;;;;
+Nectarines;2;pc;137;1;29;3;;;;;
+Noodles with cheese and bacon;100;g;257.6;6;42.8;8.2;;;;;
+Nuts mixed;100;g;646;58;6.4;20.1;;;;;
+Oats;100;g;351;7.1;56;11;;;;;
+Oats Lidl;100;g;372;7;58.7;13.5;;;;;
+Olive oil tsp;1;tsp;40;4;0;0;;;;;
+Onion;100;g;36;0;8.3;0.6;;;;;
+Orange;1;pc;87;0.2;21;1.7;;;;;
+Pancake recipe;140;g;366;14.4;47.4;10.2;;;;;
+Parmesan (tbsp);1;tbsp;20;1.5;0;1.625;;;;;
+Pasta italian dry;100;g;335;3;63;14;;;;;
+Pasta cooked;170;g;270;2.5;54;10;;;;;
+Pasta wholewheat cooked;170;g;211;0.9;45;9.1;;;;;
+Pasta penne cooked wholewheat;970;g;1735;12.5;320;65;;;;;
+Peach;2;pc;122;1;30;3;;;;;
+Peaches canned;200;g;108;0.1;29;0.9;;;;;
+Peanuts;100;g;567;49;16;26;;;;;
+Peanut bars;60;g;193;6;29;7;;;;;
+Peanut butter (tsp);1;tsp;96.45;7.5;2.85;3.75;;;;;
+Pear;1;pc;119;0;32;1;;;;;
+Peeled tomatoes;100;g;28;0;5;1;;;;;
+Pepper yellow;100;g;26;0.2;5.3;1.2;;;;;
+Pickle;1;pc;7;0;1;0;;;;;
+Pineapple;100;g;50;0.1;13;0.5;;;;;
+Pizza;1;slice;1600;64;168;80;;;;;
+Pizza bread;75;g;210;11;29;8;;;;;
+Plums;4;pc;121;0.7;30;1.8;;;;;
+Polenta;28;g;45;2;5;1;;;;;
+Placky;100;g;268;15;28;6;;;;;
+Pollock;100;g;90;1;0;19.4;;;;;
+Popcorn;100;g;433;24;37;7.2;;;;;
+Potato salad;100;g;157;9.4;16;2;;;;;
+Pork belly;100;g;320;27.4;0;23.4;;;;;
+Pork knuckle;200;g;468;33;2;44;;;;;
+Pork schnitzel;135;g;358;18;27;22;;;;;
+Pork tenderloin grilled;100;g;184;6.4;0;31.6;;;;;
+Pork neck;100;g;275;18.5;0;27.5;;;;;
+pork liver;100;g;165;4.4;3.8;26;;;;;
+Pork loin chops;100;g;242;14;0;27;;;;;
+Pork leg raw;100;g;119;3;0;22.7;;;;;
+Pork ham raw;100;g;151;7;0;21;;;;;
+Pork ham cooked;100;g;175;5.8;0;29;;;;;
+Pork pate;100;g;159;14.2;4.3;4.2;;;;;
+Popcorn medium;1;pc;470;43;64;16;;;;;
+Power sport drink;100;g;26;0;6.3;0;;;;;
+Pringles;100;g;503;31;52;3.8;;;;;
+Protein DY Isolate;1;scoop;116;1;0.7;26;;;;;
+Protein Myprotein (scoop);1;scoop;102;1.8;1.4;20;;;;;
+Protein Bar Nutrend;1;scoop;232.1;9.075;23.925;12.595;;;;;
+Protein Bar Nutrend big;1;scoop;374;15.725;36.125;21.08;;;;;
+Protein Bar DY;1;scoop;193;5.4;20;20.5;;;;;
+Protein Weider;1;scoop;121;1.8;2.5;24;;;;;
+Protein Weider Double;1;scoop;425;15;44;28;;;;;
+Protein bar weider 60%;1;scoop;164;4.1;6.9;27;;;;;
+Prunes;100;g;279;0.5;62;2;;;;;
+Pumpkin;100;g;13;0.3;2.1;0.6;;;;;
+Pumpkin Hokkaido;100;g;44;0;9;2;;;;;
+Pumpkin seeds;100;g;590;46.7;7;28.7;;;;;
+Pudding;100;g;101;2.7;15.7;3.1;;;;;
+Rabbit;100;g;173;4;0;33;;;;;
+Raisins;100;g;272;0.4;69.3;2.1;;;;;
+Radler;1;pc;130.1;0.2;31.3;0;;;;;
+Radler dark;1;pc;160;0;37.5;0;;;;;
+Radler birrel;1;pc;175;0;43;0;;;;;
+Raffaello;100;g;627;48.3;38.6;7.4;;;;;
+Raspberries;100;g;55;0.6;12;1.2;;;;;
+Rajo cottage cheese;180;g;182;8;7;22;;;;;
+Red Beet;100;g;40;0;10;1;;;;;
+Red currants canned;100;g;56;0.2;14;1.5;;;;;
+Red peppers;68;g;19;0;5;1;;;;;
+Rice cooked;100;g;143;0;31.4;2.9;;;;;
+Rice dry;100;g;347;1.1;74;8.5;;;;;
+Rice instant;100;g;373;1.3;82.6;6;;;;;
+Roll;1;pc;154;1.5;30.2;4.4;;;;;
+Rucola;1;pc;11;1;4;3;;;;;
+Salad potatoe;100;g;157;9.4;16;2;;;;;
+Salad;1;pc;45;0;9.2;2;;;;;
+Salmon;125;g;258;17.5;0;25;;;;;
+Salmon in tomato sauce;100;g;189;13.4;7.4;9.8;;;;;
+Salt Straws;100;g;511;26.2;57.1;10.3;;;;;
+Sauce barbecue (1tbsp);1;tbsp;23;0.5;5.3;0.5;;;;;
+Sauce ceasar;100;g;214;43;9.6;1.7;;;;;
+Sardines Nixe (can 125g);100;g;217;15.4;3.1;15.5;;;;;
+Sausage;100;g;286.6;25;1.1;15;;;;;
+Sheep milk sour;300;g;168;8.4;12.63;9.51;;;;;
+Snickers;1;pc;243.5;11.5;30.5;4.3;;;;;
+Soup cabbage (portion);1;pc;70;3;8;4;;;;;
+Soup chicken (250 ml);1;pc;62.7;2.6;5.4;4.3;;;;;
+Spinach;1;pc;7;0;1;0;;;;;
+Spread soya alfa bio (french) (g);100;g;145;9;8;8;;;;;
+Spread soya tartar;100;g;150;10;11;4;;;;;
+Squash;1400;g;238;4.3;60;13;;;;;
+strawberries;100;g;32;0.3;7.9;0.7;;;;;
+Strudel;100;g;274;11;41;3.3;;;;;
+Sugar (tsp);1;tsp;17.5;0;4.5;0;;;;;
+Subway BBQ chicken;1;pc;312;3;49;20;;;;;
+tangerine;1;pc;57;0.3;14.5;0.9;;;;;
+Tlacenka;100;g;254;21;2;15;;;;;
+Tiramisu;200;g;675;40;80;8;;;;;
+Tortilla (62g);1;pc;178;3.7;28.6;5.7;;;;;
+Tea granulated Lord Nelson;200;g;79;0.2;19;0.2;;;;;
+Toast bread;1;slice;246;3;46;8;;;;;
+Toffifee;100;g;522;28.8;59;6;;;;;
+Tomato cherry;5;pc;11;0;2;0;;;;;
+Tomato;100;g;23;0.6;3.3;1.2;;;;;
+Tomato sauce;100;g;39;0.2;7;1.7;;;;;
+Treccia ;100;g;294;7;49;8;;;;;
+Tuna;100;g;109;0.9;0;25;;;;;
+Tuna canned drained;100;g;279;21.4;0;21.6;;;;;
+tuna rio mare;100;g;410;38;0;17;;;;;
+Tuna rio mare naturale;100;g;101;0.5;0;24;;;;;
+Tuna in brine;100;g;110;0.5;0;26;;;;;
+Turkey breasts;100;g;130;2.1;0;28;;;;;
+Turkey leg roasted with skin;100;g;208;9.8;0;28;;;;;
+Turkey leg roasted skinless;100;g;159;3.8;0;29;;;;;
+Tvaroh;100;g;144;7.5;15;4;;;;;
+Tzaziki;3;tsp;9;0;1;5;;;;;
+Veggie spread (bottle);1;pc;58.2;0.533333333333333;11.7;2.88333333333333;;;;;
+Veggie mixture Leco (g);100;g;31.1;0.3;5.2;1.1;;;;;
+Vinegar (tbsp);1;tbsp;3;0;0;0;;;;;
+Walnuts;30;g;196;20;4.1;4.6;;;;;
+Watermelon;400;g;120;1;30;2;;;;;
+Weider protein;30;g;113;1;1;25;;;;;
+Wine red;200;g;167;0;5.1;0.1;;;;;
+Yoghurt Holandia;100;g;67;3.8;4.5;3.7;;;;;
+Yoghurt lowfat pilos;100;g;57;0.3;3.5;10;;;;;
+Yoghurt Zvolenský cokolada;140;g;193;12.7;15.4;3.9;;;;;
+Raisins dried;100;g;325.0;0.0;80.0;2.5
+Selsky jogurt by Hollandia;100;g;67.0;3.8;4.5;3.7
+Beef shank;100;g;200.0;5.9;0.0;34.1
+Di Pfanni;1;pc;134.0;1.9;23.0;5.8
+White rice cooked;100;g;130.0;0.3;28.2;2.7
+Boiled potatoes;100;g;86.0;0.1;20.0;1.7
+Apples red;1.0;pc;125.1;0.4;29.8;0.6
+Selsky jogurt Hollandia;100;g;67.0;3.8;4.6;3.7
+Toffifay by Storck;5.0;pc;42.0;2.2;5.2;0.6
+Cottage cheese pilos light;100;g;80.0;3.0;2.3;11.0
+Basmati rice;100;g;144.0;0.4;31.4;3.2
+Salmon grilled;100;g;168.1;8.8;0.0;21.2
+Mixed salad;100;g;23.5;0.0;3.5;2.4
+Tastino balance sandwich american style by Lidl;2.0;pc;110.0;3.4;15.4;3.2
+Jam maribel;100;g;239.7;0.2;59.3;0.4
+Blackcurrant;100;g;58.0;0.0;15.0;0.1
+Baked Potatoes in Owen;100;g;118.7;3.4;20.8;1.9
+Grilled turkey breast;100;g;129.1;2.0;2.0;28.0
+Grilled steak;100;g;203.0;8.5;0.0;31.5
+Blue cheese;100;g;353.0;28.7;2.3;21.4
+33% heavy whipping cream by Lucerne;100;g;300.0;33.3;6.7;2.0
+Birell;100;g;19.8;0.0;4.6;0.2
+Tangerines;1.0;pc;37.1;0.2;9.3;0.6
+Peanut MYPROTEIN;100;g;574.1;46.0;12.0;30.0
+Pork collar;100;g;178.6;7.1;0.0;26.8
+Potatoes mashed without butter;100;g;108.0;5.0;14.4;2.0
+The original pilsner beer by Pilsner Urquell;100;g;38.6;0.0;4.7;0.5
+Bananas;1.0;pc;105.0;0.4;27.0;1.3
+Egg whole;2.0;pc;87.6;6.9;0.5;5.4
+Turkey breast;100;g;130.0;2.1;0.0;27.9
+Chicken leg -- Chicken broilers or fryers leg meat only cooked roasted;100;g;173.0;6.0;0.0;27.7
+Whole grain american style sandwich by Tastino;4.0;pc;96.0;1.9;15.4;3.0
+Jam strawberry;4.0;tsp;16.7;0.0;4.3;0.0
+Peanut butter;1.0;tsp;31.7;2.7;1.2;1.3
+Krowka;3.0;pc;46.7;0.8;8.0;0.7
+Oranges;1.0;pc;86.5;0.2;21.6;1.7
+Chicken liver;100;g;172.0;6.4;1.1;25.8
+Semi-skimmed milk;100;g;50.0;1.8;4.8;3.6
+Sugars brown;2.0;tsp;11.4;0.0;2.9;0.0
+Cocoa;2.0;tsp;4.1;0.2;1.0;0.4
+Toasted bread whole;4.0;pc;76.5;1.0;12.8;4.1
+Full milk;100;g;62.0;3.3;4.9;3.2
+Slovakia;100;g;431.8;14.0;70.0;4.0
+Wafers with 35% nougat creme filling topped with 48% dark chocolate by Sondey;3.0;pc;63.5;4.3;5.3;0.8
+Wafer Sondey;1.5;pc;576.0;39.0;51.0;4.3
+Tatarska omacka by Hellmann's;2.0;tbsp;41.1;3.9;1.3;0.1
+Nutella;100;g;550.0;30.0;60.0;5.0
+Smotanovy jogurt cokolada by Zvolensky;100;g;138.1;9.1;11.0;2.8
+Scrambled;100;g;172.2;13.1;2.1;11.1
+Milbona greek -- Low fat greek style yoghurt by Milbona;2.0;pc;87.5;3.0;6.3;8.7
+Chicken leg with bone;1.0;pc;552.0;43.0;0.0;38.0
+Hokkaido pumpkin;100;g;69.0;0.6;12.0;1.7
+Tofu rastlinna natierka s paprikou a cili jemne by Lunter;100;g;176.0;13.0;6.5;7.0
+Light yogurt 0.2% Fat by Pilos;100;g;57.0;0.3;3.5;10.0
+Pickle cucumber sour;5.0;pc;16.2;0.4;3.3;0.7
+Premium salted caramel dairy ice cream by Gelatelli;1.0;pc;268.8;11.0;39.6;4.1
+Merci;4.0;pc;70.0;4.5;7.0;1.0
+Yogurt Pilos;100;g;33.0;0.1;4.5;3.4
+Sausage pork;100;g;301.0;26.6;2.0;12.1
+Ham Pikok;100;g;155.0;8.0;1.4;19.0
+Mixed nuts Lidl;100;g;607.1;53.6;17.9;21.4
+Schwarzwalder;100;g;243.0;15.0;1.0;26.0
+Mozzarella Pilos;1;pc;157.0;8.5;1.0;19.0
+Ham dulano;100;g;116.0;3.0;2.5;20.0
+Wholemeal tortilla wraps by Snack Day;2.0;pc;181.0;4.4;28.0;5.9
+Pasta sauce organic tomato basil by Amy's;100;g;72.0;3.6;8.8;1.6
+Pear juice;100;g;44.8;0.0;12.4;0.0
+Potatoes baked;100;g;92.0;0.2;21.1;2.1
+Olive oil;1.0;tbsp;119.3;13.5;0.0;0.0
+Praline;3.0;pc;70.0;3.0;2.8;0.4
+Rice parboiled;100;g;374.0;1.0;80.9;7.5
+Muffins Lidl;1.0;pc;350.0;0.0;40.0;4.0
+Cheese beef Subway;2.0;pc;540.0;27.0;48.0;28.0
+Doner beef Kebab;1.0;pc;1067.0;69.0;69.0;41.0
+Dark with choco chips muffins by Lidl;100;g;409.0;21.0;48.0;5.7
+Subway beef;10.0;pc;49.1;0.9;6.4;3.9
+Cheese spread kiri;1;pc;56.0;5.2;0.5;1.7
+Nutrend;1;pc;372.6;16.0;36.0;20.4
+Cream cake;2.0;pc;180.0;9.0;22.0;2.0
+Bread rye Lidl;3.0;pc;117.0;1.0;21.0;3.2
+Mila;100;g;547.0;36.0;47.0;8.0
+Ham Pork;100;g;203.0;12.9;0.1;20.2
+Choco vanilla ice cream by Gelatelli;100;g;578.0;38.2;50.6;7.1
+Bacon;100;g;468.0;35.1;1.7;33.9
+Cream sour;1.0;tbsp;23.8;2.3;0.6;0.3
+Multivitamin juice Lidl;100;g;35.0;0.0;8.4;0.5
+Puff pastry with apricot glaze by Preferred Selection;100;g;555.6;33.3;55.6;7.4
+Egg scrambled;100;g;172.2;13.1;2.1;11.1
+Chicken leg skin;2.0;pc;234.8;11.3;0.1;31.1
+Proteinovy chlebik by Tastino;100;g;300.7;14.0;18.7;29.0
+Cherry tomatoes;3.0;pc;3.0;0.0;0.6;0.2
+Holandia;100;g;67.0;3.8;4.5;3.7
+Salted Dy;1.0;pc;186.7;4.2;20.0;22.0
+Turkey leg meat;100;g;159.0;3.8;0.0;29.2
+Chicken skinless grilled;100;g;151.0;3.2;0.0;30.5
+Salmon raw;100;g;127.0;4.4;0.0;20.5
+Dy Nutrition;0.5;pc;48.0;0.2;0.1;11.5
+Recky jogurt bily by Pilos;100;g;57.0;0.3;3.5;10.0
+Ice cream carte d'or;100;g;197.0;7.4;30.0;2.6
+Canned salmon;1.0;pc;129.0;5.0;0.0;19.7
+Milk -- Milk whole 3.25% milkfat;100;g;62.0;3.3;4.9;3.2
+Arrabbiata by Franz Josef;100;g;45.0;1.2;6.2;1.7
+10% yogurt Pilos;100;g;122.0;10.0;3.2;4.6
+Grecki;100;g;121.0;10.0;4.0;3.7
+Cheese Pringles;1;pc;210.0;13.0;22.0;2.0
+Spaghetti dry;100;g;371.0;1.5;74.7;13.0
+Hellmann's by Ketchup;100;g;133.3;0.0;31.7;0.0
+Homemade bread;100;g;277.5;5.4;51.3;8.4
+Pork tenderloin;100;g;170.0;5.5;0.0;28.2
+Kaiser Lidl;2.0;pc;166.0;0.9;33.8;6.5
+Semi-Skimmed milk Lidl;100;g;46.8;1.5;4.8;3.4
+Peaches;1;pc;61.2;0.4;15.0;1.4
+Rump steak;100;g;120.7;3.4;0.7;22.0
+Birrell;100;g;19.8;0.0;3.7;0.3
+Tzatziki;5.0;tbsp;22.5;1.7;1.0;0.5
+Sardine Giana;1.0;pc;314.0;25.0;1.6;21.0
+Red wine;100;g;83.3;0.0;2.6;0.1
+90% pork;100;g;178.6;9.8;0.0;20.5
+Combino;100;g;48.0;0.5;9.6;2.1
+Spaghetti;100;g;352.0;2.9;73.4;13.9
+Spaghetti whole;100;g;148.7;1.7;30.1;6.0
+Saracene by Balocco;12.0;pc;71.0;3.0;9.6;1.1
+Leffe;100;g;57.6;0.0;4.8;0.5
+Tomatoes;100;g;16.0;0.2;3.2;1.2
+Onions;100;g;40.0;0.1;9.3;1.1
+Asparagus;1;pc;0.2;0.0;0.0;0.0
+Knusprige reiswaffeln;100;g;385.0;2.5;83.5;8.0
+Arabiatta;3.0;tbsp;7.2;0.4;0.8;0.2
+Linguini Barilla;100;g;357.1;1.8;75.0;12.5
+Cheeseburger;1;pc;573.5;29.5;44.5;32.0
+Pasta whole cooked;100;g;149.0;1.7;30.1;6.0
+Pumpkin boiled;3.0;pc;49.0;0.2;12.0;1.8
+Arrabbiata sauce by Barilla;100;g;60.0;3.1;7.7;1.4
+Chicken breast -- Chicken broilers or fryers breast meat only cooked roasted;100;g;173.0;4.5;0.0;30.9
+Girotondi by Mulino Bianco;5.0;pc;40.0;1.4;6.0;0.6
+Coffee ice cream Gelatelli;1.0;pc;267.7;13.8;31.9;3.7
+Pure di patate in;100;g;356.6;0.6;80.6;8.3
+McDonalds fries;0.5;pc;240.0;11.5;32.5;3.5
+Potato soup;1;pc;210.0;16.0;13.0;5.0
+Italiamo tuna bruschetta spread by Lidl;100;g;92.0;5.9;4.9;5.2
+Tuffles;5.0;pc;55.0;3.2;5.7;0.5
+String Cheese;100;g;295.0;19.8;5.6;23.8
+Beef shank lean cooked;100;g;160.0;4.5;0.0;29.9
+Ground beef;100;g;270.0;17.8;0.0;25.8
+Tycinky;100;g;463.3;19.0;60.0;11.0
+Burgers Lidl;2.0;pc;105.0;1.4;3.5;19.0
+Pancake with apple and cinnamon filling by Lidl;4.0;pc;118.0;1.7;22.2;3.0
+Excellence orange Lindt;100;g;533.3;33.3;56.7;6.7
+Sugar;2.0;pc;10.8;0.0;2.8;0.0
+Schnitzel;100;g;222.4;10.3;15.8;15.8
+Confetteria raffaello by Ferrero;100;g;627.0;48.3;38.6;7.4
+Lindt;5.0;pc;80.0;6.0;5.0;1.0
+Milka;100;g;556.0;34.8;54.0;5.6
+Spaghetti Barilla;100;g;357.1;1.8;75.0;12.5
+Cream cheese;100;g;350.0;34.4;5.5;6.2
+Sushi;2.0;pc;40.0;1.8;4.0;2.0
