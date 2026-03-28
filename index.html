@@ -562,6 +562,42 @@ function persist(k){lsSet(SK[k],state[k])}
 
 let chartCal=null,chartMacro=null,chartWeight=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null,macroPieChart=null;
 
+function mergeData(cloudData){
+  // Merge targets: prefer local if set, else use cloud
+  state.targets=cloudData.targets||state.targets;
+  // Merge log: combine entries from both local and cloud by date
+  if(cloudData.log){
+    Object.keys(cloudData.log).forEach(date=>{
+      if(!state.log[date]) state.log[date]=[];
+      const cloudEntries=cloudData.log[date]||[];
+      const localEntries=state.log[date]||[];
+      // Merge by creating unique set (avoid duplicates by name+meal+cal+time)
+      const merged={};
+      localEntries.forEach(e=>{
+        const key=e.name+':'+e.meal+':'+e.cal;
+        merged[key]=e;
+      });
+      cloudEntries.forEach(e=>{
+        const key=e.name+':'+e.meal+':'+e.cal;
+        if(!merged[key]) merged[key]=e;
+      });
+      state.log[date]=Object.values(merged);
+    });
+  }
+  // Merge custom foods: add new ones not already present
+  if(cloudData.customFoods){
+    const existingNames=new Set(state.customFoods.map(f=>f.name));
+    cloudData.customFoods.forEach(cf=>{
+      if(!existingNames.has(cf.name)){
+        state.customFoods.push(cf);
+      }
+    });
+  }
+  // Merge weight: combine entries by date
+  if(cloudData.weight){
+    state.weight={...cloudData.weight,...state.weight};
+  }
+}
 const VIEWS=['dash','log','add','summary','custom','targets'];
 function switchView(v){
   VIEWS.forEach(id=>{
@@ -594,6 +630,21 @@ function getDateRange(n){
   for(let i=n-1;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);dates.push(d.toISOString().slice(0,10));}
   return dates;
 }
+function getWeekToDateRange(){
+  // Get all dates from Sunday of this week to today (inclusive)
+  const today=new Date(todayISO()+'T12:00:00');
+  const dayOfWeek=today.getDay(); // 0=Sun,1=Mon,...6=Sat
+  const sunday=new Date(today);
+  sunday.setDate(today.getDate()-dayOfWeek);
+  sunday.setHours(0,0,0,0);
+  const dates=[];
+  let current=new Date(sunday);
+  while(current<=today){
+    dates.push(current.toISOString().slice(0,10));
+    current.setDate(current.getDate()+1);
+  }
+  return dates;
+}
 function getTotals(date){
   return(state.log[date]||[]).reduce((a,e)=>({cal:a.cal+e.cal,prot:a.prot+e.prot,carb:a.carb+e.carb,fat:a.fat+e.fat,fiber:a.fiber+e.fiber}),{cal:0,prot:0,carb:0,fat:0,fiber:0});
 }
@@ -608,21 +659,29 @@ function renderDash(){
   document.getElementById('date-label').textContent=dayLabel(state.currentDate);
   const totals=getTotals(state.currentDate);
   const adjTarget=getAdjustedTarget();
-  renderSummaryCards(totals,adjTarget);
+  const weekDates=getWeekToDateRange();
+  const weekTotals=weekDates.reduce((a,d)=>({cal:a.cal+getTotals(d).cal,prot:a.prot+getTotals(d).prot,carb:a.carb+getTotals(d).carb,fat:a.fat+getTotals(d).fat,fiber:a.fiber+getTotals(d).fiber}),{cal:0,prot:0,carb:0,fat:0,fiber:0});
+  renderSummaryCards(weekTotals,adjTarget,weekDates.length);
   renderRing(totals,adjTarget);
   renderMealBars(state.currentDate);
   renderDashCalChart();
   renderMacroPie(totals);
 }
 
-function renderSummaryCards(totals,targetCal){
+function renderSummaryCards(totals,targetCal,daysInWeek){
   const t=state.targets;
   const adjCal=targetCal||t.cal;
+  const weekBudget=adjCal*(daysInWeek||1);
+  const weekRemaining=Math.max(0,weekBudget-totals.cal);
+  const todayTotals=getTotals(state.currentDate);
+  const remainingDays=Math.max(1,7-daysInWeek+1);
+  const dailyBudget=Math.round(weekRemaining/remainingDays);
+  const todayRemaining=Math.max(0,dailyBudget-todayTotals.cal);
   const ms=[
-    {lbl:'Calories',val:fmtI(totals.cal),tgt:adjCal,unit:'kcal',color:'#e4880a'},
-    {lbl:'Protein',val:fmtI(totals.prot),tgt:t.prot,unit:'g',color:'#1a5fa8'},
-    {lbl:'Carbs',val:fmtI(totals.carb),tgt:t.carb,unit:'g',color:'#1d9e75'},
-    {lbl:'Fat',val:fmtI(totals.fat),tgt:t.fat,unit:'g',color:'#c0392b'}
+    {lbl:'Week Cal',val:fmtI(totals.cal),tgt:weekBudget,unit:'kcal',color:'#e4880a'},
+    {lbl:'Daily Cal',val:fmtI(todayTotals.cal),tgt:dailyBudget,unit:'kcal',color:'#e4880a'},
+    {lbl:'Week Remaining',val:fmtI(weekRemaining),tgt:null,unit:'kcal',color:totals.cal>weekBudget?'#c0392b':'#2d6a4f'},
+    {lbl:'Daily Remaining',val:fmtI(todayRemaining),tgt:null,unit:'kcal',color:todayTotals.cal>dailyBudget?'#c0392b':'#2d6a4f'}
   ];
   document.getElementById('summary').innerHTML=ms.map(m=>{
     const pct=m.tgt?Math.min(100,m.val/m.tgt*100):0;const over=m.tgt&&m.val>m.tgt;
@@ -1223,13 +1282,12 @@ async function gistSync(direction){
       const resp=await fetch('https://api.github.com/gists/'+gistId,{headers});
       const data=await resp.json();
       if(!resp.ok) throw new Error(data.message||'GitHub error');
-      // Load log data
+      // Load log data and merge
       if(data.files['nutrilog.json']){
         const raw=data.files['nutrilog.json'].content;
         const p=JSON.parse(raw);
         if(!p.targets) throw new Error('Invalid data in gist');
-        state.targets=p.targets;state.log=p.log||{};
-        state.customFoods=p.customFoods||[];state.weight=p.weight||{};
+        mergeData(p);
         persist('targets');persist('log');persist('custom');persist('weight');
       }
       // Load foods
