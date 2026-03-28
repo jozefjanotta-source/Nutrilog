@@ -188,6 +188,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     </div>
     <div class="remain-macros" id="remain-macros"></div>
   </div>
+  <div id="weekly-budget-row" style="margin:0 16px 12px;background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:14px 16px"></div>
   <div class="meal-bar-row" id="meal-bars"></div>
   <div class="chart-card">
     <div class="chart-title">Calories — last 7 days</div>
@@ -365,6 +366,10 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     </div>
     <div id="gist-msg" style="display:none;font-size:var(--fs-sm);margin-top:8px"></div>
     <div id="gist-id-display" style="font-size:11px;color:var(--text3);margin-top:8px;word-break:break-all"></div>
+    <div style="height:.5px;background:var(--border);margin:14px 0"></div>
+    <div class="section-hd" style="margin-bottom:8px">Restore from backup</div>
+    <p style="font-size:var(--fs-sm);color:var(--text2);margin-bottom:10px;line-height:1.6">Last 7 snapshots saved automatically before each push.</p>
+    <div id="backup-list"></div>
   </div>
 </div>
 
@@ -562,42 +567,6 @@ function persist(k){lsSet(SK[k],state[k])}
 
 let chartCal=null,chartMacro=null,chartWeight=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null,macroPieChart=null;
 
-function mergeData(cloudData){
-  // Merge targets: prefer local if set, else use cloud
-  state.targets=cloudData.targets||state.targets;
-  // Merge log: combine entries from both local and cloud by date
-  if(cloudData.log){
-    Object.keys(cloudData.log).forEach(date=>{
-      if(!state.log[date]) state.log[date]=[];
-      const cloudEntries=cloudData.log[date]||[];
-      const localEntries=state.log[date]||[];
-      // Merge by creating unique set (avoid duplicates by name+meal+cal+time)
-      const merged={};
-      localEntries.forEach(e=>{
-        const key=e.name+':'+e.meal+':'+e.cal;
-        merged[key]=e;
-      });
-      cloudEntries.forEach(e=>{
-        const key=e.name+':'+e.meal+':'+e.cal;
-        if(!merged[key]) merged[key]=e;
-      });
-      state.log[date]=Object.values(merged);
-    });
-  }
-  // Merge custom foods: add new ones not already present
-  if(cloudData.customFoods){
-    const existingNames=new Set(state.customFoods.map(f=>f.name));
-    cloudData.customFoods.forEach(cf=>{
-      if(!existingNames.has(cf.name)){
-        state.customFoods.push(cf);
-      }
-    });
-  }
-  // Merge weight: combine entries by date
-  if(cloudData.weight){
-    state.weight={...cloudData.weight,...state.weight};
-  }
-}
 const VIEWS=['dash','log','add','summary','custom','targets'];
 function switchView(v){
   VIEWS.forEach(id=>{
@@ -630,21 +599,6 @@ function getDateRange(n){
   for(let i=n-1;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);dates.push(d.toISOString().slice(0,10));}
   return dates;
 }
-function getWeekToDateRange(){
-  // Get all dates from Sunday of this week to today (inclusive)
-  const today=new Date(todayISO()+'T12:00:00');
-  const dayOfWeek=today.getDay(); // 0=Sun,1=Mon,...6=Sat
-  const sunday=new Date(today);
-  sunday.setDate(today.getDate()-dayOfWeek);
-  sunday.setHours(0,0,0,0);
-  const dates=[];
-  let current=new Date(sunday);
-  while(current<=today){
-    dates.push(current.toISOString().slice(0,10));
-    current.setDate(current.getDate()+1);
-  }
-  return dates;
-}
 function getTotals(date){
   return(state.log[date]||[]).reduce((a,e)=>({cal:a.cal+e.cal,prot:a.prot+e.prot,carb:a.carb+e.carb,fat:a.fat+e.fat,fiber:a.fiber+e.fiber}),{cal:0,prot:0,carb:0,fat:0,fiber:0});
 }
@@ -659,29 +613,22 @@ function renderDash(){
   document.getElementById('date-label').textContent=dayLabel(state.currentDate);
   const totals=getTotals(state.currentDate);
   const adjTarget=getAdjustedTarget();
-  const weekDates=getWeekToDateRange();
-  const weekTotals=weekDates.reduce((a,d)=>({cal:a.cal+getTotals(d).cal,prot:a.prot+getTotals(d).prot,carb:a.carb+getTotals(d).carb,fat:a.fat+getTotals(d).fat,fiber:a.fiber+getTotals(d).fiber}),{cal:0,prot:0,carb:0,fat:0,fiber:0});
-  renderSummaryCards(weekTotals,adjTarget,weekDates.length);
+  renderSummaryCards(totals,adjTarget);
   renderRing(totals,adjTarget);
   renderMealBars(state.currentDate);
   renderDashCalChart();
   renderMacroPie(totals);
+  renderWeeklyBudget();
 }
 
-function renderSummaryCards(totals,targetCal,daysInWeek){
+function renderSummaryCards(totals,targetCal){
   const t=state.targets;
   const adjCal=targetCal||t.cal;
-  const weekBudget=adjCal*(daysInWeek||1);
-  const weekRemaining=Math.max(0,weekBudget-totals.cal);
-  const todayTotals=getTotals(state.currentDate);
-  const remainingDays=Math.max(1,7-daysInWeek+1);
-  const dailyBudget=Math.round(weekRemaining/remainingDays);
-  const todayRemaining=Math.max(0,dailyBudget-todayTotals.cal);
   const ms=[
-    {lbl:'Week Cal',val:fmtI(totals.cal),tgt:weekBudget,unit:'kcal',color:'#e4880a'},
-    {lbl:'Daily Cal',val:fmtI(todayTotals.cal),tgt:dailyBudget,unit:'kcal',color:'#e4880a'},
-    {lbl:'Week Remaining',val:fmtI(weekRemaining),tgt:null,unit:'kcal',color:totals.cal>weekBudget?'#c0392b':'#2d6a4f'},
-    {lbl:'Daily Remaining',val:fmtI(todayRemaining),tgt:null,unit:'kcal',color:todayTotals.cal>dailyBudget?'#c0392b':'#2d6a4f'}
+    {lbl:'Calories',val:fmtI(totals.cal),tgt:adjCal,unit:'kcal',color:'#e4880a'},
+    {lbl:'Protein',val:fmtI(totals.prot),tgt:t.prot,unit:'g',color:'#1a5fa8'},
+    {lbl:'Carbs',val:fmtI(totals.carb),tgt:t.carb,unit:'g',color:'#1d9e75'},
+    {lbl:'Fat',val:fmtI(totals.fat),tgt:t.fat,unit:'g',color:'#c0392b'}
   ];
   document.getElementById('summary').innerHTML=ms.map(m=>{
     const pct=m.tgt?Math.min(100,m.val/m.tgt*100):0;const over=m.tgt&&m.val>m.tgt;
@@ -984,6 +931,7 @@ function loadTargetsForm(){
   const gid=state.gistId;
   document.getElementById('gist-id-display').textContent=gid?'Gist ID: '+gid:'No gist created yet.';
   const fdc=document.getElementById('foods-db-count');if(fdc)fdc.textContent=DB.length+' foods loaded';
+  renderBackupList();
 }
 function saveTargets(){
   ['cal','prot','carb','fat','fiber'].forEach(k=>state.targets[k]=parseFloat(document.getElementById('t-'+k).value)||0);
@@ -1026,14 +974,10 @@ function renderSummaryPage(){
   const carbData=dates.map(d=>fmt(getTotals(d).carb));
   const fatData=dates.map(d=>fmt(getTotals(d).fat));
   const labels=dates.map(d=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
-  const loggedDates=dates.filter(d=>(state.log[d]||[]).length>0);
-  const daysLogged=loggedDates.length;
-  const totalCal=loggedDates.reduce((a,d)=>a+getTotals(d).cal,0);
-  const totalProt=loggedDates.reduce((a,d)=>a+getTotals(d).prot,0);
-  const totalCarb=loggedDates.reduce((a,d)=>a+getTotals(d).carb,0);
-  const avgCal=daysLogged?Math.round(totalCal/daysLogged):0;
-  const avgProt=daysLogged?fmtI(totalProt/daysLogged):0;
-  const avgCarb=daysLogged?fmtI(totalCarb/daysLogged):0;
+  const daysLogged=dates.filter(d=>(state.log[d]||[]).length>0).length;
+  const avgCal=daysLogged?Math.round(dates.reduce((a,d)=>a+getTotals(d).cal,0)/daysLogged):0;
+  const avgProt=daysLogged?fmtI(dates.reduce((a,d)=>a+getTotals(d).prot,0)/daysLogged):0;
+  const avgCarb=daysLogged?fmtI(dates.reduce((a,d)=>a+getTotals(d).carb,0)/daysLogged):0;
   document.getElementById('avg-grid').innerHTML=
     '<div class="week-stat"><div class="ws-lbl">Avg calories</div><div class="ws-val">'+avgCal+'</div><div class="ws-sub">kcal / logged day</div></div>'+
     '<div class="week-stat"><div class="ws-lbl">Avg protein</div><div class="ws-val">'+avgProt+'g</div><div class="ws-sub">target: '+state.targets.prot+'g</div></div>'+
@@ -1097,8 +1041,8 @@ function renderWeeklyAvgChart(){
     }
     const logged=weekDates.filter(d=>(state.log[d]||[]).length>0);
     if(!logged.length) continue;
-    const totalWeekCal=logged.reduce((a,d)=>a+getTotals(d).cal,0);
-    const avgCal=Math.round(totalWeekCal/logged.length);
+    const totals=logged.map(d=>getTotals(d));
+    const avgCal=Math.round(totals.reduce((a,t)=>a+t.cal,0)/logged.length);
     // Label: Mon DD MMM
     const lbl=weekStart.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
     const isCurrentWeek=w===0;
@@ -1249,13 +1193,31 @@ async function gistSync(direction){
 
   try{
     if(direction==='push'){
-      const body={description:'NutriLog data',public:false,files:{'nutrilog.json':{content:payload}}};
+      // Merge with remote before pushing
+      if(state.gistId){
+        try{
+          const fetchResp=await fetch('https://api.github.com/gists/'+state.gistId,{headers});
+          if(fetchResp.ok){
+            const remoteData=await fetchResp.json();
+            if(remoteData.files&&remoteData.files['nutrilog.json']){
+              const remote=JSON.parse(remoteData.files['nutrilog.json'].content);
+              if(remote.log) state.log=mergeLogData(state.log,remote.log);
+              persist('log');
+              // Save backup
+              const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
+              backups.unshift({ts:new Date().toISOString(),data:remoteData.files['nutrilog.json'].content});
+              if(backups.length>7) backups.pop();
+              lsSet('nl_backups',JSON.stringify(backups));
+            }
+          }
+        }catch(e){}
+      }
+      const mergedPayload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight});
+      const body={description:'NutriLog data',public:false,files:{'nutrilog.json':{content:mergedPayload}}};
       let resp, data;
       if(state.gistId){
-        // Update existing gist
         resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
       } else {
-        // Create new gist
         resp=await fetch('https://api.github.com/gists',{method:'POST',headers,body:JSON.stringify(body)});
       }
       data=await resp.json();
@@ -1282,12 +1244,13 @@ async function gistSync(direction){
       const resp=await fetch('https://api.github.com/gists/'+gistId,{headers});
       const data=await resp.json();
       if(!resp.ok) throw new Error(data.message||'GitHub error');
-      // Load log data and merge
+      // Load log data
       if(data.files['nutrilog.json']){
         const raw=data.files['nutrilog.json'].content;
         const p=JSON.parse(raw);
         if(!p.targets) throw new Error('Invalid data in gist');
-        mergeData(p);
+        state.targets=p.targets;state.log=p.log||{};
+        state.customFoods=p.customFoods||[];state.weight=p.weight||{};
         persist('targets');persist('log');persist('custom');persist('weight');
       }
       // Load foods
@@ -1328,16 +1291,57 @@ function scheduleAutoSync(){
   autoSyncTimer=setTimeout(()=>silentPush(),3000);
 }
 
+function mergeLogData(local, remote){
+  // Merge two log objects - for each date, keep the one with more entries
+  // If both have entries for same date, merge them (deduplicate by name+meal+amountLabel)
+  const merged = {...remote};
+  for(const date in local){
+    if(!merged[date]||merged[date].length===0){
+      merged[date]=local[date];
+    } else if(local[date].length > merged[date].length){
+      // Local has more - use local but add any remote entries not in local
+      const localKeys=new Set(local[date].map(e=>e.name+'|'+e.meal+'|'+e.amountLabel));
+      const extraRemote=merged[date].filter(e=>!localKeys.has(e.name+'|'+e.meal+'|'+e.amountLabel));
+      merged[date]=[...local[date],...extraRemote];
+    } else {
+      // Remote has more - use remote but add any local entries not in remote
+      const remoteKeys=new Set(merged[date].map(e=>e.name+'|'+e.meal+'|'+e.amountLabel));
+      const extraLocal=local[date].filter(e=>!remoteKeys.has(e.name+'|'+e.meal+'|'+e.amountLabel));
+      merged[date]=[...merged[date],...extraLocal];
+    }
+  }
+  return merged;
+}
+
 async function silentPush(){
   if(!state.gistToken||!state.gistId) return;
-  const payload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight});
   const headers={'Authorization':'token '+state.gistToken,'Content-Type':'application/json'};
   try{
+    // First fetch remote to merge before pushing
+    const fetchResp=await fetch('https://api.github.com/gists/'+state.gistId,{headers});
+    if(fetchResp.ok){
+      const remoteData=await fetchResp.json();
+      if(remoteData.files&&remoteData.files['nutrilog.json']){
+        try{
+          const remote=JSON.parse(remoteData.files['nutrilog.json'].content);
+          if(remote.log){
+            state.log=mergeLogData(state.log,remote.log);
+            persist('log');
+          }
+        }catch(e){}
+      }
+      // Save backup before overwriting
+      if(remoteData.files&&remoteData.files['nutrilog.json']){
+        const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
+        backups.unshift({ts:new Date().toISOString(),data:remoteData.files['nutrilog.json'].content});
+        if(backups.length>7) backups.pop();
+        lsSet('nl_backups',JSON.stringify(backups));
+      }
+    }
+    const payload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight});
     const body={description:'NutriLog data',public:false,files:{'nutrilog.json':{content:payload}}};
     const resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
-    if(resp.ok){
-      showSyncStatus('synced');
-    }
+    if(resp.ok){showSyncStatus('synced');}
   }catch(e){
     showSyncStatus('error');
   }
@@ -1363,6 +1367,98 @@ function showSyncStatus(status){
     el.textContent='Sync failed';
     setTimeout(()=>el.style.opacity='0',3000);
   }
+}
+
+// ---- BACKUP & RESTORE ----
+function renderBackupList(){
+  const list=document.getElementById('backup-list');
+  if(!list)return;
+  try{
+    const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
+    if(!backups.length){list.innerHTML='<div style="font-size:var(--fs-sm);color:var(--text3)">No backups yet. Backups are created automatically when you push.</div>';return;}
+    list.innerHTML=backups.map((b,i)=>{
+      const dt=new Date(b.ts).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+      let entries=0;
+      try{const d=JSON.parse(b.data);entries=Object.values(d.log||{}).reduce((a,v)=>a+v.length,0);}catch(e){}
+      return'<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:.5px solid var(--border);font-size:var(--fs-sm)">'+
+        '<span style="color:var(--text2)">'+dt+' &nbsp;<span style="color:var(--text3)">'+entries+' entries</span></span>'+
+        '<button class="tb-btn" onclick="restoreBackup('+i+')" style="font-size:12px;padding:5px 10px">Restore</button>'+
+      '</div>';
+    }).join('');
+  }catch(e){list.innerHTML='<div style="font-size:var(--fs-sm);color:var(--text3)">No backups found.</div>';}
+}
+
+function restoreBackup(i){
+  if(!confirm('Restore this backup? Current data will be replaced.'))return;
+  try{
+    const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
+    const b=backups[i];
+    const p=JSON.parse(b.data);
+    if(!p.targets)throw new Error('Invalid backup');
+    state.targets=p.targets;state.log=p.log||{};
+    state.customFoods=p.customFoods||[];state.weight=p.weight||{};
+    persist('targets');persist('log');persist('custom');persist('weight');
+    loadTargetsForm();renderDash();
+    alert('Restored successfully!');
+  }catch(e){alert('Restore failed: '+e.message);}
+}
+
+// ---- WEEKLY CALORIE BUDGET ----
+function getWeeklyBudget(){
+  // Find last Sunday (or today if Sunday)
+  const today=new Date(state.currentDate+'T12:00:00');
+  const dayOfWeek=today.getDay(); // 0=Sun
+  const daysSinceSunday=dayOfWeek; // 0 if Sunday, 1 if Monday, etc
+  
+  // Collect all days from Sunday to today (inclusive)
+  const weekDays=[];
+  for(let i=0;i<=daysSinceSunday;i++){
+    const d=new Date(today);
+    d.setDate(today.getDate()-daysSinceSunday+i);
+    weekDays.push(d.toISOString().slice(0,10));
+  }
+  
+  const weeklyTarget=state.targets.cal*7;
+  const daysInWeek=7;
+  const daysLeft=daysInWeek-daysSinceSunday; // including today
+  
+  // Calories eaten from Sunday up to but NOT including today
+  const eatenBefore=weekDays.slice(0,-1).reduce((a,d)=>a+getTotals(d).cal,0);
+  const eatenToday=getTotals(state.currentDate).cal;
+  const totalEaten=eatenBefore+eatenToday;
+  
+  // Remaining budget for today and future days
+  const remainingWeekly=weeklyTarget-eatenBefore;
+  const todayBudget=Math.round(remainingWeekly/daysLeft);
+  const remainingToday=todayBudget-eatenToday;
+  
+  return{
+    weeklyTarget,totalEaten,eatenBefore,eatenToday,
+    todayBudget,remainingToday,daysLeft,
+    weekDays,daysSinceSunday
+  };
+}
+
+function renderWeeklyBudget(){
+  const el=document.getElementById('weekly-budget-row');
+  if(!el)return;
+  const b=getWeeklyBudget();
+  const over=b.remainingToday<0;
+  const pct=b.todayBudget?Math.min(100,b.eatenToday/b.todayBudget*100):0;
+  el.innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+      '<div style="font-size:var(--fs-sm);font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em">Daily budget</div>'+
+      '<div style="font-size:var(--fs-xs);color:var(--text3)">Week: '+Math.round(b.totalEaten)+' / '+b.weeklyTarget+' kcal</div>'+
+    '</div>'+
+    '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">'+
+      '<div style="font-size:28px;font-weight:700;color:'+(over?'var(--danger)':'var(--accent)')+'">'+Math.abs(b.remainingToday)+'</div>'+
+      '<div style="font-size:var(--fs-sm);color:var(--text2)">'+(over?'kcal over budget':'kcal remaining')+'</div>'+
+      '<div style="font-size:var(--fs-xs);color:var(--text3);margin-left:auto">budget: '+b.todayBudget+' kcal</div>'+
+    '</div>'+
+    '<div style="height:6px;border-radius:3px;background:var(--surface2);overflow:hidden">'+
+      '<div style="height:100%;border-radius:3px;width:'+pct+'%;background:'+(over?'var(--danger)':'var(--accent)')+'"></div>'+
+    '</div>'+
+    '<div style="font-size:var(--fs-xs);color:var(--text3);margin-top:6px">Based on '+b.weekDays.length+' day'+(b.weekDays.length!==1?'s':'')+' this week (Sun–Sat) &nbsp;·&nbsp; '+b.daysLeft+' day'+(b.daysLeft!==1?'s':'')+' remaining</div>';
 }
 
 // ---- TOGGLE FOOD LIST ----
