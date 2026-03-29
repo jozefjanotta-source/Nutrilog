@@ -178,11 +178,9 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 <div id="view-dash">
   <div class="date-nav">
     <button class="date-btn" onclick="changeDay(-1)">&#8592;</button>
-    <div class="date-label" id="date-label" style="cursor:pointer;position:relative">
-      <input type="date" id="date-picker-dash" onchange="jumpToDate(this.value)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
-      <span id="date-label-text"></span>
-    </div>
-    <button class="date-btn" onclick="changeDay(1)" style="position:relative;z-index:5">&#8594;</button>
+    <div class="date-label" id="date-label-text"></div>
+    <label class="date-btn" style="cursor:pointer;font-size:16px">&#128197;<input type="date" id="date-picker-dash" onchange="jumpToDate(this.value)" style="position:absolute;opacity:0;width:0;height:0"></label>
+    <button class="date-btn" onclick="changeDay(1)">&#8594;</button>
   </div>
   <div class="summary" id="summary"></div>
   <div class="remain-row">
@@ -207,11 +205,9 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 <div id="view-log" style="padding-top:8px">
   <div class="date-nav" style="padding-top:0">
     <button class="date-btn" onclick="changeDay(-1)">&#8592;</button>
-    <div class="date-label" id="log-date-label" style="cursor:pointer;position:relative">
-      <input type="date" id="date-picker-log" onchange="jumpToDate(this.value)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
-      <span id="log-date-label-text"></span>
-    </div>
-    <button class="date-btn" onclick="changeDay(1)" style="position:relative;z-index:5">&#8594;</button>
+    <div class="date-label" id="log-date-label-text"></div>
+    <label class="date-btn" style="cursor:pointer;font-size:16px">&#128197;<input type="date" id="date-picker-log" onchange="jumpToDate(this.value)" style="position:absolute;opacity:0;width:0;height:0"></label>
+    <button class="date-btn" onclick="changeDay(1)">&#8594;</button>
   </div>
   <div class="log-toolbar">
     <div class="log-toolbar-left">
@@ -623,7 +619,7 @@ function getMealTotals(date){
 
 // ---- DASHBOARD ----
 function renderDash(){
-  const dlEl=document.getElementById('date-label-text');if(dlEl)dlEl.textContent=dayLabel(state.currentDate);else{const d=document.getElementById('date-label');if(d)d.firstChild&&(d.firstChild.textContent=dayLabel(state.currentDate));}
+  const dlEl=document.getElementById('date-label-text');if(dlEl)dlEl.textContent=dayLabel(state.currentDate);
   const totals=getTotals(state.currentDate);
   const adjTarget=getAdjustedTarget();
   renderSummaryCards(totals,adjTarget);
