@@ -626,21 +626,21 @@ function renderSummaryCards(totals,targetCal){
   const t=state.targets;
   const adjCal=targetCal||t.cal;
   const ms=[
-    {lbl:'Calories',val:fmtI(totals.cal),tgt:adjCal,unit:'kcal',color:'#e4880a'},
+    {lbl:'Calories',val:fmtI(totals.cal),tgt:t.cal,unit:'kcal',color:'#e4880a'},
     {lbl:'Protein',val:fmtI(totals.prot),tgt:t.prot,unit:'g',color:'#1a5fa8'},
     {lbl:'Carbs',val:fmtI(totals.carb),tgt:t.carb,unit:'g',color:'#1d9e75'},
     {lbl:'Fat',val:fmtI(totals.fat),tgt:t.fat,unit:'g',color:'#c0392b'}
   ];
   document.getElementById('summary').innerHTML=ms.map(m=>{
     const pct=m.tgt?Math.min(100,m.val/m.tgt*100):0;const over=m.tgt&&m.val>m.tgt;
-    return'<div class="macro-card"><div class="lbl">'+m.lbl+'</div><div class="val '+(over?'val-over':'')+'">'+m.val+'</div><div class="tgt">'+(m.tgt?'/ '+m.tgt+' '+m.unit:'-')+'</div>'+(m.tgt?'<div class="bar"><div class="bar-fill" style="width:'+pct+'%;background:'+(over?'var(--danger)':m.color)+'"></div></div>':'')+ '</div>';
+    return'<div class="macro-card"><div class="lbl">'+m.lbl+'</div><div class="val '+(over&&m.lbl==="Calories"?'val-over':over&&m.lbl!=="Calories"?'val-over':'')+'">'+m.val+'</div><div class="tgt">'+(m.tgt?'/ '+m.tgt+' '+m.unit:'-')+'</div>'+(m.tgt?'<div class="bar"><div class="bar-fill" style="width:'+pct+'%;background:'+(over?'var(--danger)':m.color)+'"></div></div>':'')+ '</div>';
   }).join('');
 }
 
 function renderRing(totals,targetCal){
   const t=state.targets;
   const adjCal=targetCal||t.cal;
-  const over=totals.cal>adjCal;
+  const over=totals.cal>t.cal;  // red only when over BASE target
   const rem=Math.max(0,adjCal-totals.cal);
   const pct=adjCal?Math.min(100,totals.cal/adjCal*100):0;
   document.getElementById('ring-val').textContent=fmtI(over?totals.cal-t.cal:rem);
