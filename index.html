@@ -178,7 +178,8 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 <div id="view-dash">
   <div class="date-nav">
     <button class="date-btn" onclick="changeDay(-1)">&#8592;</button>
-    <div class="date-label" id="date-label"></div>
+    <div class="date-label" id="date-label" onclick="document.getElementById('date-picker-dash').showPicker&&document.getElementById('date-picker-dash').showPicker();document.getElementById('date-picker-dash').click()" style="cursor:pointer"></div>
+    <input type="date" id="date-picker-dash" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px" onchange="jumpToDate(this.value)">
     <button class="date-btn" onclick="changeDay(1)">&#8594;</button>
   </div>
   <div class="summary" id="summary"></div>
@@ -204,7 +205,8 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 <div id="view-log" style="padding-top:8px">
   <div class="date-nav" style="padding-top:0">
     <button class="date-btn" onclick="changeDay(-1)">&#8592;</button>
-    <div class="date-label" id="log-date-label"></div>
+    <div class="date-label" id="log-date-label" onclick="document.getElementById('date-picker-log').showPicker&&document.getElementById('date-picker-log').showPicker();document.getElementById('date-picker-log').click()" style="cursor:pointer"></div>
+    <input type="date" id="date-picker-log" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px" onchange="jumpToDate(this.value)">
     <button class="date-btn" onclick="changeDay(1)">&#8594;</button>
   </div>
   <div class="log-toolbar">
@@ -583,6 +585,12 @@ function switchView(v){
   if(v==='targets'){loadTargetsForm();}
 }
 
+function jumpToDate(iso){
+  if(!iso)return;
+  state.currentDate=iso;
+  state.selected=new Set();
+  renderDash();renderLog();
+}
 function changeDay(d){
   const dt=new Date(state.currentDate);dt.setDate(dt.getDate()+d);
   state.currentDate=dt.toISOString().slice(0,10);
