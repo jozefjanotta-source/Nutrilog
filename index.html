@@ -178,9 +178,11 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 <div id="view-dash">
   <div class="date-nav">
     <button class="date-btn" onclick="changeDay(-1)">&#8592;</button>
-    <div class="date-label" id="date-label" onclick="document.getElementById('date-picker-dash').showPicker&&document.getElementById('date-picker-dash').showPicker();document.getElementById('date-picker-dash').click()" style="cursor:pointer"></div>
-    <input type="date" id="date-picker-dash" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px" onchange="jumpToDate(this.value)">
-    <button class="date-btn" onclick="changeDay(1)">&#8594;</button>
+    <div class="date-label" id="date-label" style="cursor:pointer;position:relative">
+      <input type="date" id="date-picker-dash" onchange="jumpToDate(this.value)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
+      <span id="date-label-text"></span>
+    </div>
+    <button class="date-btn" onclick="changeDay(1)" style="position:relative;z-index:5">&#8594;</button>
   </div>
   <div class="summary" id="summary"></div>
   <div class="remain-row">
@@ -205,9 +207,11 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 <div id="view-log" style="padding-top:8px">
   <div class="date-nav" style="padding-top:0">
     <button class="date-btn" onclick="changeDay(-1)">&#8592;</button>
-    <div class="date-label" id="log-date-label" onclick="document.getElementById('date-picker-log').showPicker&&document.getElementById('date-picker-log').showPicker();document.getElementById('date-picker-log').click()" style="cursor:pointer"></div>
-    <input type="date" id="date-picker-log" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px" onchange="jumpToDate(this.value)">
-    <button class="date-btn" onclick="changeDay(1)">&#8594;</button>
+    <div class="date-label" id="log-date-label" style="cursor:pointer;position:relative">
+      <input type="date" id="date-picker-log" onchange="jumpToDate(this.value)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
+      <span id="log-date-label-text"></span>
+    </div>
+    <button class="date-btn" onclick="changeDay(1)" style="position:relative;z-index:5">&#8594;</button>
   </div>
   <div class="log-toolbar">
     <div class="log-toolbar-left">
@@ -619,7 +623,7 @@ function getMealTotals(date){
 
 // ---- DASHBOARD ----
 function renderDash(){
-  document.getElementById('date-label').textContent=dayLabel(state.currentDate);
+  const dlEl=document.getElementById('date-label-text');if(dlEl)dlEl.textContent=dayLabel(state.currentDate);else{const d=document.getElementById('date-label');if(d)d.firstChild&&(d.firstChild.textContent=dayLabel(state.currentDate));}
   const totals=getTotals(state.currentDate);
   const adjTarget=getAdjustedTarget();
   renderSummaryCards(totals,adjTarget);
@@ -719,7 +723,7 @@ function renderDashCalChart(){
 // ---- LOG PAGE ----
 function renderLog(){
   const lbl=dayLabel(state.currentDate);
-  document.getElementById('log-date-label').textContent=lbl;
+  const ldEl=document.getElementById('log-date-label-text');if(ldEl)ldEl.textContent=lbl;
   const entries=state.log[state.currentDate]||[];
   const meals=['Breakfast','Lunch','Dinner','Snack'];
   let html='';
