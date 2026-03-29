@@ -1363,20 +1363,10 @@ async function silentPush(){
   if(!state.gistToken||!state.gistId) return;
   const headers={'Authorization':'token '+state.gistToken,'Content-Type':'application/json'};
   try{
-    // First fetch remote to merge before pushing
+    // Save backup first (fetch remote quickly)
     const fetchResp=await fetch('https://api.github.com/gists/'+state.gistId,{headers});
     if(fetchResp.ok){
       const remoteData=await fetchResp.json();
-      if(remoteData.files&&remoteData.files['nutrilog.json']){
-        try{
-          const remote=JSON.parse(remoteData.files['nutrilog.json'].content);
-          if(remote.log){
-            state.log=mergeLogData(state.log,remote.log,remote.tombstones||{});
-            persist('log');
-          }
-        }catch(e){}
-      }
-      // Save backup before overwriting
       if(remoteData.files&&remoteData.files['nutrilog.json']){
         const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
         backups.unshift({ts:new Date().toISOString(),data:remoteData.files['nutrilog.json'].content});
@@ -1384,6 +1374,7 @@ async function silentPush(){
         lsSet('nl_backups',JSON.stringify(backups));
       }
     }
+    // Just overwrite remote with local state — no merge
     const payload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,tombstones:state.tombstones});
     const body={description:'NutriLog data',public:false,files:{'nutrilog.json':{content:payload}}};
     const resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
@@ -1587,9 +1578,11 @@ function initApp(){
             const raw=data.files['nutrilog.json'].content;
             const p=JSON.parse(raw);
             if(p.targets){
-              state.targets=p.targets;state.log=p.log||{};
+              // Merge remote log with local, respecting tombstones
+              const mergedLog=mergeLogData(state.log,p.log||{},p.tombstones||{});
+              state.targets=p.targets;
+              state.log=mergedLog;
               state.customFoods=p.customFoods||[];state.weight=p.weight||{};
-              state.tombstones=p.tombstones||{};
               persist('targets');persist('log');persist('custom');persist('weight');
               lsSet('nl_tombstones',state.tombstones);
               renderDash();loadTargetsForm();
