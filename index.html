@@ -1307,7 +1307,12 @@ async function gistSync(direction){
       // Load log data
       if(data.files['nutrilog.json']){
         const raw=data.files['nutrilog.json'].content;
-        const p=JSON.parse(raw);
+        let p;
+        try{
+          p=JSON.parse(raw);
+        }catch(parseErr){
+          throw new Error('JSON parse error. Data starts with: '+raw.slice(0,100));
+        }
         if(!p.targets) throw new Error('Invalid data in gist');
         state.targets=p.targets;state.log=p.log||{};
         state.customFoods=p.customFoods||[];state.weight=p.weight||{};
