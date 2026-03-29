@@ -675,7 +675,13 @@ function renderMealBars(date){
 
 
 function renderDashCalChart(){
-  const dates=getDateRange(7);
+  // Show 7 days ending at currentDate (works for past and future)
+  const dates=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date(state.currentDate+'T12:00:00');
+    d.setDate(d.getDate()-i);
+    dates.push(d.toISOString().slice(0,10));
+  }
   const calData=dates.map(d=>fmtI(getTotals(d).cal));
   const labels=dates.map(d=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
   const tgt=state.targets.cal||2200;
@@ -1527,13 +1533,7 @@ function editEntry(idx){
 
 // ---- DYNAMIC CALORIE TARGET ----
 function getAdjustedTarget(){
-  const yest=new Date(state.currentDate+'T12:00:00');
-  yest.setDate(yest.getDate()-1);
-  const yestISO=yest.toISOString().slice(0,10);
-  const yestTotals=getTotals(yestISO);
-  if(yestTotals.cal===0)return state.targets.cal;
-  const diff=state.targets.cal-yestTotals.cal;
-  return Math.max(Math.round(state.targets.cal*0.5),state.targets.cal+diff);
+  return state.targets.cal; // use base target always
 }
 
 // ---- MACRO PIE CHART ----
