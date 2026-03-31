@@ -1253,6 +1253,7 @@ async function gistSync(direction){
 
   try{
     if(direction==='push'){
+      cleanupData();
       // Merge with remote before pushing
       if(state.gistId){
         try{
@@ -1359,12 +1360,19 @@ function scheduleAutoSync(){
 }
 
 function mergeLogData(local, remote, remoteTombstones){
-  // Merge tombstones from both sides
-  const allTombstones={...remoteTombstones||{}};
-  for(const date in state.tombstones){
-    if(!allTombstones[date]) allTombstones[date]=[];
-    allTombstones[date]=[...allTombstones[date],...state.tombstones[date]];
-  }
+  // Merge tombstones from both sides - deduplicate by key
+  const allTombstones={};
+  const mergeTombs=(src)=>{
+    for(const date in src){
+      if(!allTombstones[date]) allTombstones[date]=[];
+      const existing=new Set(allTombstones[date].map(t=>t.key));
+      for(const t of src[date]){
+        if(!existing.has(t.key)){allTombstones[date].push(t);existing.add(t.key);}
+      }
+    }
+  };
+  mergeTombs(remoteTombstones||{});
+  mergeTombs(state.tombstones||{});
   state.tombstones=allTombstones;
   lsSet('nl_tombstones',state.tombstones);
 
@@ -1400,8 +1408,27 @@ function mergeLogData(local, remote, remoteTombstones){
   return merged;
 }
 
+function cleanupData(){
+  // Remove empty log days
+  for(const date in state.log){
+    if(!state.log[date]||state.log[date].length===0) delete state.log[date];
+  }
+  // Keep tombstones only for last 60 days
+  const cutoff=new Date();cutoff.setDate(cutoff.getDate()-60);
+  const cutoffISO=cutoff.toISOString().slice(0,10);
+  for(const date in state.tombstones){
+    if(date<cutoffISO) delete state.tombstones[date];
+  }
+  // Trim tombstone arrays to max 50 per day
+  for(const date in state.tombstones){
+    if(state.tombstones[date].length>50) state.tombstones[date]=state.tombstones[date].slice(0,50);
+  }
+  lsSet('nl_tombstones',state.tombstones);
+}
+
 async function silentPush(){
   if(!state.gistToken||!state.gistId) return;
+  cleanupData();
   const headers={'Authorization':'token '+state.gistToken,'Content-Type':'application/json'};
   try{
     // Save backup first (fetch remote quickly)
@@ -1596,6 +1623,8 @@ function renderMacroPie(totals){
 // ---- INIT ----
 function initApp(){
   try{
+    // Clean up bloated tombstones immediately
+    cleanupData();
     VIEWS.forEach(id=>{const el=document.getElementById('view-'+id);if(el)el.style.display='none';});
     document.getElementById('w-date').value=todayISO();
     loadTargetsForm();
