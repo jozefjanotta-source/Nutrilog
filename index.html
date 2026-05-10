@@ -22,9 +22,9 @@
 @media(prefers-color-scheme:dark){:root{
   --bg:#000000;--surface:#111111;--surface2:#1b1b1b;
   --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
-  --text:#f6f3eb;--text2:#c7c0b4;--text3:#81796b;
-  --accent:#f59e0b;--accent-light:#2a1b05;--accent-text:#ffd38a;
-  --warn:#fbbf24;--danger:#ef4444;--danger-light:#2b0d0d;--info:#a3a3a3;--info-light:#232323;
+  --text:#f5f7fa;--text2:#c8d0d8;--text3:#7f8a96;
+  --accent:#00c853;--accent-light:#062414;--accent-text:#6dffae;
+  --warn:#f59e0b;--danger:#ef4444;--danger-light:#2b0d0d;--info:#38bdf8;--info-light:#061926;
   --shadow:0 10px 30px rgba(0,0,0,.55);
 }}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -101,7 +101,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .food-item-info{flex:1;min-width:0}
 .food-item-name{font-size:var(--fs);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .food-item-meta{font-size:var(--fs-sm);color:var(--text2);margin-top:3px}
-.food-item-cal{font-size:var(--fs-sm);font-weight:600;color:var(--warn);white-space:nowrap}
+.food-item-cal{font-size:var(--fs-sm);font-weight:600;color:var(--accent);white-space:nowrap}
 .empty-log{text-align:center;padding:48px 20px;color:var(--text3);font-size:var(--fs);line-height:1.7}
 .day-total{background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;margin:0 16px 16px;font-size:var(--fs-sm);color:var(--text2);display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
 /* SELECTION ACTIONS */
@@ -125,7 +125,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .result-item:active{background:var(--surface2)}
 .result-name{font-size:var(--fs);font-weight:500;flex:1}
 .result-meta{font-size:var(--fs-sm);color:var(--text2);margin-top:3px}
-.result-cal{font-size:var(--fs-sm);font-weight:600;color:var(--warn)}
+.result-cal{font-size:var(--fs-sm);font-weight:600;color:var(--accent)}
 .tag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:4px;vertical-align:middle}
 .tag-builtin{background:var(--info-light);color:var(--info)}
 .tag-custom{background:var(--accent-light);color:var(--accent-text)}
@@ -203,10 +203,10 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .decision-metric .dm-val{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.5}
 .decision-status{display:inline-block;border-radius:4px;padding:2px 6px;margin-left:5px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 .decision-status.ok{background:var(--accent-light);color:var(--accent-text)}
-.decision-status.warn{background:var(--info-light);color:var(--info)}
+.decision-status.warn{background:rgba(245,158,11,.14);color:var(--warn)}
 .decision-status.bad{background:#fdecea;color:var(--danger)}
 .decision-final{margin-top:12px;border-radius:var(--radius-sm);padding:13px 14px;background:var(--accent-light);color:var(--accent-text);font-size:var(--fs-lg);font-weight:700}
-.decision-final.warn{background:var(--info-light);color:var(--info)}
+.decision-final.warn{background:rgba(245,158,11,.14);color:var(--warn)}
 .decision-final.bad{background:#fdecea;color:var(--danger)}
 .btn-sm{background:var(--surface);border:.5px solid var(--border);color:var(--text2);border-radius:var(--radius-sm);padding:7px 12px;font-size:var(--fs-sm);cursor:pointer}
 .btn-sm:active{background:var(--surface2)}
@@ -215,8 +215,8 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
   .tab-bar,.macro-card,.remain-row,.micro-item,.chart-card,.food-item,.results-list,.add-form,.custom-item,.week-stat,.measurement-item,.measurement-weekly,.decision-card,.modal-box{border-color:var(--border);box-shadow:var(--shadow)}
   .macro-card,.chart-card,.decision-card,.measurement-item,.food-item,.custom-item,.week-stat{padding-top:15px;padding-bottom:15px}
   .form-field input,.form-field select,.form-field textarea,.search-input{background:#050505;border-color:var(--border2)}
-  .form-field input:focus,.form-field select:focus,.form-field textarea:focus,.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(245,158,11,.16)}
-  .food-item.selected{background:#211604}
+  .form-field input:focus,.form-field select:focus,.form-field textarea:focus,.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,200,83,.18)}
+  .food-item.selected{background:#062414}
   .btn-primary,.tb-btn.accent{color:#111}
   .food-item-cb.checked{color:#111}
   .decision-status.bad,.decision-final.bad,.recovery-warning{background:var(--danger-light)}
@@ -837,9 +837,9 @@ function renderSummaryCards(totals,targetCal){
   const t=state.targets;
   const adjCal=targetCal||t.cal;
   const ms=[
-    {lbl:'Calories',val:fmtI(totals.cal),tgt:t.cal,unit:'kcal',color:'#f59e0b'},
-    {lbl:'Protein',val:fmtI(totals.prot),tgt:t.prot,unit:'g',color:'#a3a3a3'},
-    {lbl:'Carbs',val:fmtI(totals.carb),tgt:t.carb,unit:'g',color:'#7a9b76'},
+    {lbl:'Calories',val:fmtI(totals.cal),tgt:t.cal,unit:'kcal',color:'#00c853'},
+    {lbl:'Protein',val:fmtI(totals.prot),tgt:t.prot,unit:'g',color:'#38bdf8'},
+    {lbl:'Carbs',val:fmtI(totals.carb),tgt:t.carb,unit:'g',color:'#00a64a'},
     {lbl:'Fat',val:fmtI(totals.fat),tgt:t.fat,unit:'g',color:'#ef4444'}
   ];
   document.getElementById('summary').innerHTML=ms.map(m=>{
@@ -857,7 +857,7 @@ function renderRing(totals,targetCal){
   document.getElementById('ring-val').textContent=fmtI(over?totals.cal-t.cal:rem);
   document.getElementById('ring-lbl').textContent=over?'over':'left';
   document.getElementById('ring-val').style.color=over?'var(--danger)':'var(--accent)';
-  const color=over?'#ef4444':'#f59e0b';
+  const color=over?'#ef4444':'#00c853';
   try{
     const ctx=document.getElementById('ring-canvas').getContext('2d');
     if(ringChart)ringChart.destroy();
@@ -876,7 +876,7 @@ function renderRing(totals,targetCal){
 
 function renderMealBars(date){
   const mt=getMealTotals(date);const t=state.targets.cal||2200;
-  const meals=['Breakfast','Lunch','Dinner','Snack'];const colors=['#f59e0b','#7a9b76','#a3a3a3','#fbbf24'];
+  const meals=['Breakfast','Lunch','Dinner','Snack'];const colors=['#00c853','#38bdf8','#00a64a','#f59e0b'];
   document.getElementById('meal-bars').innerHTML=meals.map((m,i)=>{
     const cal=mt[m]||0;if(!cal)return'';
     const pct=Math.min(100,cal/t*100);
@@ -903,14 +903,14 @@ function renderDashCalChart(){
   const threshold=tgt*1.1;
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#b8b0a3':'#9e9e97';
+  const tc=isDark?'#c8d0d8':'#9e9e97';
   try{
     if(dashCalChart)dashCalChart.destroy();
     dashCalChart=new Chart(document.getElementById('dash-cal-chart').getContext('2d'),{
       type:'bar',
       data:{labels,datasets:[
-        {data:calData,backgroundColor:calData.map(v=>v>threshold?'rgba(239,68,68,0.82)':v>0?'rgba(245,158,11,0.78)':'rgba(128,128,128,0.22)'),borderRadius:5,label:'Calories'},
-        {type:'line',data:Array(7).fill(tgt),borderColor:'rgba(251,191,36,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false}
+        {data:calData,backgroundColor:calData.map(v=>v>threshold?'rgba(239,68,68,0.82)':v>0?'rgba(0,200,83,0.78)':'rgba(128,128,128,0.22)'),borderRadius:5,label:'Calories'},
+        {type:'line',data:Array(7).fill(tgt),borderColor:'rgba(56,189,248,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false}
       ]},
       options:{responsive:true,maintainAspectRatio:false,
         plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':'Target: '+tgt}}},
@@ -1282,7 +1282,7 @@ function renderSummaryPage(){
     '<div class="week-stat"><div class="ws-lbl">Days logged</div><div class="ws-val">'+daysLogged+'</div><div class="ws-sub">of last '+state.chartRange+'</div></div>';
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#b8b0a3':'#9e9e97';
+  const tc=isDark?'#c8d0d8':'#9e9e97';
   const tgt=state.targets.cal||2200;
   const threshold=tgt*1.1;
   const bo={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:45}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}}}}};
@@ -1290,16 +1290,16 @@ function renderSummaryPage(){
     if(chartCal)chartCal.destroy();
     chartCal=new Chart(document.getElementById('chart-cal').getContext('2d'),{type:'bar',
       data:{labels,datasets:[
-        {data:calData,backgroundColor:calData.map(v=>v>threshold?'rgba(239,68,68,0.82)':v>0?'rgba(245,158,11,0.78)':'rgba(128,128,128,0.22)'),borderRadius:4,label:'Calories'},
-        {type:'line',data:Array(calData.length).fill(tgt),borderColor:'rgba(251,191,36,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false}
+        {data:calData,backgroundColor:calData.map(v=>v>threshold?'rgba(239,68,68,0.82)':v>0?'rgba(0,200,83,0.78)':'rgba(128,128,128,0.22)'),borderRadius:4,label:'Calories'},
+        {type:'line',data:Array(calData.length).fill(tgt),borderColor:'rgba(56,189,248,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false}
       ]},
       options:{...bo,plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':'Target: '+tgt}}},scales:{...bo.scales,y:{...bo.scales.y,suggestedMax:tgt*1.3,suggestedMin:0}}}
     });
     if(chartMacro)chartMacro.destroy();
     chartMacro=new Chart(document.getElementById('chart-macro').getContext('2d'),{type:'bar',
       data:{labels,datasets:[
-        {label:'Protein',data:protData,backgroundColor:'rgba(163,163,163,0.82)',stack:'s'},
-        {label:'Carbs',data:carbData,backgroundColor:'rgba(122,155,118,0.82)',stack:'s'},
+        {label:'Protein',data:protData,backgroundColor:'rgba(56,189,248,0.82)',stack:'s'},
+        {label:'Carbs',data:carbData,backgroundColor:'rgba(0,200,83,0.82)',stack:'s'},
         {label:'Fat',data:fatData,backgroundColor:'rgba(239,68,68,0.82)',stack:'s'}
       ]},
       options:{...bo,plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{mode:'index',intersect:false}},scales:{x:{...bo.scales.x,stacked:true},y:{...bo.scales.y,stacked:true}}}
@@ -1313,7 +1313,7 @@ function renderWeeklyAvgChart(){
   // Build last 8 calendar weeks (Mon-Sun), including current partial week
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#b8b0a3':'#9e9e97';
+  const tc=isDark?'#c8d0d8':'#9e9e97';
   const weekLabels=[];
   const weekCalAvg=[];
 
@@ -1354,8 +1354,8 @@ function renderWeeklyAvgChart(){
     chartWeeklyAvg=new Chart(document.getElementById('chart-weekly-avg').getContext('2d'),{
       type:'bar',
       data:{labels:weekLabels,datasets:[
-        {label:'Avg kcal',data:weekCalAvg,backgroundColor:weekCalAvg.map(v=>v>tgt*1.1?'rgba(239,68,68,0.82)':'rgba(245,158,11,0.78)'),borderRadius:4},
-        {type:'line',data:Array(weekLabels.length).fill(tgt),borderColor:'rgba(251,191,36,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false},
+        {label:'Avg kcal',data:weekCalAvg,backgroundColor:weekCalAvg.map(v=>v>tgt*1.1?'rgba(239,68,68,0.82)':'rgba(0,200,83,0.78)'),borderRadius:4},
+        {type:'line',data:Array(weekLabels.length).fill(tgt),borderColor:'rgba(56,189,248,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false},
       ]},
       options:{responsive:true,maintainAspectRatio:false,
         plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':'Target: '+tgt}}},
@@ -1371,7 +1371,7 @@ function renderWeeklyAvgChart(){
 function renderWeightChart(labels,dates){
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#b8b0a3':'#9e9e97';
+  const tc=isDark?'#c8d0d8':'#9e9e97';
   // Use ALL weight entries, not just the current date range
   const allEntries=Object.entries(state.weight).sort((a,b)=>a[0].localeCompare(b[0]));
   const hasData=allEntries.length>0;
@@ -1382,7 +1382,7 @@ function renderWeightChart(labels,dates){
     try{
       if(chartWeight)chartWeight.destroy();
       chartWeight=new Chart(document.getElementById('chart-weight').getContext('2d'),{type:'line',
-        data:{labels:wLabels,datasets:[{data:wData,borderColor:'rgba(245,158,11,0.92)',backgroundColor:'rgba(245,158,11,0.12)',borderWidth:2,pointRadius:5,pointBackgroundColor:'rgba(245,158,11,0.92)',tension:0.3,spanGaps:true}]},
+        data:{labels:wLabels,datasets:[{data:wData,borderColor:'rgba(0,200,83,0.92)',backgroundColor:'rgba(0,200,83,0.12)',borderWidth:2,pointRadius:5,pointBackgroundColor:'rgba(0,200,83,0.92)',tension:0.3,spanGaps:true}]},
         options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.raw+' kg'}}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:45}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}}}}}
       });
     }catch(e){}
@@ -1626,7 +1626,7 @@ function renderMeasurementLineChart(canvasId, chartRef, chartData, color, unit){
   if(!chartData.values.length)return null;
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#b8b0a3':'#9e9e97';
+  const tc=isDark?'#c8d0d8':'#9e9e97';
   try{
     return new Chart(canvas.getContext('2d'),{
       type:'line',
@@ -1646,8 +1646,8 @@ function renderMeasurementCharts(){
   document.getElementById('measurement-weight-card').style.display=weightData.values.length?'block':'none';
   document.getElementById('measurement-waist-card').style.display=waistData.values.length?'block':'none';
   document.getElementById('measurement-bf-card').style.display=bfData.values.length?'block':'none';
-  measurementWeightChart=renderMeasurementLineChart('measurement-weight-chart',measurementWeightChart,weightData,'rgba(245,158,11,0.92)','kg');
-  measurementWaistChart=renderMeasurementLineChart('measurement-waist-chart',measurementWaistChart,waistData,'rgba(122,155,118,0.9)','cm');
+  measurementWeightChart=renderMeasurementLineChart('measurement-weight-chart',measurementWeightChart,weightData,'rgba(0,200,83,0.92)','kg');
+  measurementWaistChart=renderMeasurementLineChart('measurement-waist-chart',measurementWaistChart,waistData,'rgba(56,189,248,0.9)','cm');
   measurementBfChart=renderMeasurementLineChart('measurement-bf-chart',measurementBfChart,bfData,'rgba(239,68,68,0.9)','%');
 }
 function dateObjToISO(d){
@@ -1854,7 +1854,7 @@ function renderDecisionEngine(){
       '<div class="decision-metric"><div class="dm-lbl">Recovery Avg Sleep</div><div class="dm-val">'+(!latest||latest.avgSleepHours===null?'-':fmtSleep(latest.avgSleepHours))+sleepHoursStatus+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Recovery Avg Score</div><div class="dm-val">'+(!latest||latest.avgSleepScore===null?'-':fmtI(latest.avgSleepScore))+sleepScoreStatus+'</div></div>'+
     '</div>'+
-    (showCalWarning?'<div class="recovery-warning" style="background:var(--info-light);color:var(--info)">Decision confidence reduced due to missing calorie data</div>':'')+
+    (showCalWarning?'<div class="recovery-warning" style="background:rgba(245,158,11,.14);color:var(--warn)">Decision confidence reduced due to missing calorie data</div>':'')+
     (showRecoveryWarning?'<div class="recovery-warning">Recovery warning — last night was very poor.</div>':'')+
     '<div class="decision-final'+decisionClass(decision)+'">'+decision+'</div>';
 }
@@ -2355,13 +2355,13 @@ function renderMacroPie(totals){
   const cPct=Math.round((totals.carb*4/totals.cal)*100)||0;
   const fPct=Math.round((totals.fat*9/totals.cal)*100)||0;
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const tc=isDark?'#b8b0a3':'#6b6b65';
+  const tc=isDark?'#c8d0d8':'#6b6b65';
   if(macroPieChart)macroPieChart.destroy();
   macroPieChart=new Chart(document.getElementById('macro-pie-chart'),{
     type:'pie',
     data:{
       labels:['Protein '+pPct+'%','Carbs '+cPct+'%','Fat '+fPct+'%'],
-      datasets:[{data:[totals.prot*4,totals.carb*4,totals.fat*9],backgroundColor:['#a3a3a3','#7a9b76','#ef4444'],borderWidth:0}]
+      datasets:[{data:[totals.prot*4,totals.carb*4,totals.fat*9],backgroundColor:['#38bdf8','#00c853','#ef4444'],borderWidth:0}]
     },
     options:{maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:tc,font:{size:12},boxWidth:14}}}}
   });
