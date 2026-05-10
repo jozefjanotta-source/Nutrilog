@@ -1718,6 +1718,8 @@ function getMeasurementWeeklyRows(){
       checkpointDate:m.date,
       weekStart:windowDates[0],
       avgCal,
+      calorieDays:loggedDays.length,
+      calorieStatus:loggedDays.length===0?'missing':loggedDays.length<6?'incomplete':'complete',
       avgWeight:m.weight??null,
       latestWaist:m.waist??null,
       avgSleepHours:avgRecoveryForDates(windowDates,'sleepHours'),
@@ -1751,9 +1753,10 @@ function renderMeasurementWeeklySummary(){
     '</div>'+
     olderRows.map(r=>{
       const label=dayLabel(r.checkpointDate);
+      const calCell=r.calorieStatus==='missing'?'Not enough':(r.avgCal===null?'-':fmtI(r.avgCal)+(r.calorieStatus==='incomplete'?' *':''));
       return'<div class="measurement-week-row">'+
         '<div class="measurement-week-label">'+label+'</div>'+
-        '<div class="measurement-week-cell">'+(r.avgCal===null?'-':fmtI(r.avgCal))+'</div>'+
+        '<div class="measurement-week-cell">'+calCell+'</div>'+
         '<div class="measurement-week-cell">'+fmtSleep(r.avgSleepHours)+'</div>'+
         '<div class="measurement-week-cell">'+(r.avgSleepScore===null?'-':fmtI(r.avgSleepScore))+'</div>'+
         '<div class="measurement-week-cell">'+(r.avgWeight===null?'-':fmt(r.avgWeight)+' kg')+'</div>'+
@@ -1822,13 +1825,15 @@ function renderDecisionEngine(){
   const saturdayStatus=!rules?statusBadge('missing','warn'):(saturdayCal>rules.saturdayCalorieCap?statusBadge('over cap','bad'):statusBadge('ok','ok'));
   const sleepHoursStatus=!latest||latest.avgSleepHours===null?statusBadge('missing','warn'):(latest.avgSleepHours<RECOVERY_RULES.minSleepHours?statusBadge('low','bad'):statusBadge('ok','ok'));
   const sleepScoreStatus=!latest||latest.avgSleepScore===null?statusBadge('missing','warn'):(latest.avgSleepScore<RECOVERY_RULES.minSleepScore?statusBadge('low','bad'):statusBadge('ok','ok'));
+  const calText=!latest?'-':latest.calorieStatus==='missing'?'Not enough food log data for this checkpoint week':fmtI(latest.avgCal)+(latest.calorieStatus==='incomplete'?' '+statusBadge('Incomplete calorie week','warn'):'');
+  const showCalWarning=latest&&latest.calorieStatus!=='complete';
   const latestSleep=latestRecovery?(latestRecovery.sleepHoursDecimal??latestRecovery.sleepHours):null;
   const showRecoveryWarning=latestRecovery&&((latestSleep!==null&&latestSleep<4.5)||(latestRecovery.sleepScore!==null&&latestRecovery.sleepScore<60));
   body.innerHTML=
     '<div class="decision-grid">'+
       '<div class="decision-metric"><div class="dm-lbl">Checkpoint date</div><div class="dm-val">'+latestLabel+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Goal active on checkpoint date</div><div class="dm-val">'+(phase||'No goal set before this checkpoint')+(!phase?statusBadge('missing','bad'):'')+'</div></div>'+
-      '<div class="decision-metric"><div class="dm-lbl">Avg Calories (Sun-Fri, from Food Log)</div><div class="dm-val">'+(latest&&latest.avgCal!==null?fmtI(latest.avgCal):'-')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Avg Calories (Sun-Fri, from Food Log)</div><div class="dm-val">'+calText+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Avg weight</div><div class="dm-val">'+(latest&&latest.avgWeight!==null?fmt(latest.avgWeight)+' kg':'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Weight change</div><div class="dm-val">'+(latest?fmtChange(latest.weightChange,' kg'):'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Waist change</div><div class="dm-val">'+(latest?fmtChange(latest.waistChange,' cm'):'-')+'</div></div>'+
@@ -1837,6 +1842,7 @@ function renderDecisionEngine(){
       '<div class="decision-metric"><div class="dm-lbl">Recovery Avg Sleep</div><div class="dm-val">'+(!latest||latest.avgSleepHours===null?'-':fmtSleep(latest.avgSleepHours))+sleepHoursStatus+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Recovery Avg Score</div><div class="dm-val">'+(!latest||latest.avgSleepScore===null?'-':fmtI(latest.avgSleepScore))+sleepScoreStatus+'</div></div>'+
     '</div>'+
+    (showCalWarning?'<div class="recovery-warning" style="background:var(--info-light);color:var(--info)">Decision confidence reduced due to missing calorie data</div>':'')+
     (showRecoveryWarning?'<div class="recovery-warning">Recovery warning — last night was very poor.</div>':'')+
     '<div class="decision-final'+decisionClass(decision)+'">'+decision+'</div>';
 }
