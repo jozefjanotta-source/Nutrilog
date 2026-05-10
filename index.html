@@ -182,13 +182,18 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .measurement-metric .mm-val{font-size:var(--fs-sm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .measurement-actions{display:flex;gap:6px;flex-shrink:0}
 .measurement-weekly{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:16px;overflow-x:auto}
-.measurement-week-row{display:grid;grid-template-columns:1.3fr repeat(5,1fr);gap:8px;align-items:center;min-width:620px;padding:9px 0;border-bottom:.5px solid var(--border);font-size:var(--fs-sm)}
+.measurement-week-row{display:grid;grid-template-columns:1.3fr repeat(7,1fr);gap:8px;align-items:center;min-width:820px;padding:9px 0;border-bottom:.5px solid var(--border);font-size:var(--fs-sm)}
 .measurement-week-row:last-child{border-bottom:none}
 .measurement-week-row.hd{font-size:var(--fs-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.04em;font-weight:600;padding-top:0}
 .measurement-week-label{font-weight:600;color:var(--text)}
 .measurement-week-cell{color:var(--text2);white-space:nowrap}
 .measurement-change.pos{color:var(--danger)}
 .measurement-change.neg{color:var(--accent)}
+.measurement-subtabs{display:flex;background:var(--surface2);border-radius:var(--radius-sm);padding:3px;margin-bottom:16px}
+.measurement-subtab{flex:1;text-align:center;padding:8px;font-size:var(--fs-sm);font-weight:500;border-radius:6px;cursor:pointer;color:var(--text2);border:none;background:none}
+.measurement-subtab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.measurement-panel{display:none}
+.recovery-warning{margin-top:12px;border-radius:var(--radius-sm);padding:11px 12px;background:#fdecea;color:var(--danger);font-size:var(--fs-sm);font-weight:600}
 .decision-card{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px}
 .decision-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
 .decision-metric{background:var(--surface2);border-radius:var(--radius-sm);padding:10px;min-width:0}
@@ -333,76 +338,108 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 
 <!-- MEASUREMENTS -->
 <div id="view-measurements" class="page">
-  <div class="section-hd">Measurements</div>
-  <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
-    <div class="form-row">
-      <div class="form-field"><label>Date</label><input type="date" id="m-date"></div>
-      <div class="form-field"><label>Weight (kg)</label><input type="number" id="m-weight" step="0.1" placeholder="105.0" oninput="updateMeasurementFat()"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-field"><label>Waist (cm)</label><input type="number" id="m-waist" step="0.1" placeholder="98.0"></div>
-      <div class="form-field"><label>BF (%)</label><input type="number" id="m-bf" step="0.1" placeholder="24.0" oninput="updateMeasurementFat()"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-field"><label>Fat (kg)</label><input type="number" id="m-fat" step="0.1" placeholder="25.0" readonly></div>
-      <div class="form-field"><label>Muscle mass (kg)</label><input type="number" id="m-muscle" step="0.1" placeholder="70.0"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-field"><label>Water (%)</label><input type="number" id="m-water" step="0.1" placeholder="52.0"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-field" style="min-width:100%"><label>Comment</label><textarea id="m-comment" rows="3" placeholder="Optional note..."></textarea></div>
-    </div>
-    <div style="display:flex;gap:8px">
-      <button class="btn-primary" id="m-save-btn" style="flex:1" onclick="saveMeasurement()">Save measurement</button>
-      <button class="modal-cancel" id="m-cancel-btn" style="display:none;flex:0 0 auto;padding:12px 14px" onclick="resetMeasurementForm()">Cancel</button>
-    </div>
+  <div class="measurement-subtabs">
+    <button class="measurement-subtab active" id="measure-tab-body" onclick="switchMeasurementArea('body')">Body</button>
+    <button class="measurement-subtab" id="measure-tab-recovery" onclick="switchMeasurementArea('recovery')">Recovery</button>
+    <button class="measurement-subtab" id="measure-tab-decision" onclick="switchMeasurementArea('decision')">Decision</button>
   </div>
-  <div id="measurement-charts" style="display:none">
-    <div class="chart-card" id="measurement-weight-card" style="margin:0 0 14px">
-      <div class="chart-title">Weight trend</div>
-      <div class="chart-wrap"><canvas id="measurement-weight-chart"></canvas></div>
-    </div>
-    <div class="chart-card" id="measurement-waist-card" style="margin:0 0 14px">
-      <div class="chart-title">Waist trend</div>
-      <div class="chart-wrap"><canvas id="measurement-waist-chart"></canvas></div>
-    </div>
-    <div class="chart-card" id="measurement-bf-card" style="margin:0 0 14px">
-      <div class="chart-title">BF% trend</div>
-      <div class="chart-wrap"><canvas id="measurement-bf-chart"></canvas></div>
-    </div>
-  </div>
-  <div id="measurement-weekly-wrap" style="display:none">
-    <div class="section-hd">Weekly summary</div>
-    <div class="measurement-weekly" id="measurement-weekly-summary"></div>
-  </div>
-  <div id="decision-engine-wrap">
-    <div class="section-hd">Decision engine</div>
-    <div class="decision-card">
+
+  <div id="measurement-panel-body" class="measurement-panel">
+    <div class="section-hd">Body</div>
+    <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
       <div class="form-row">
-        <div class="form-field">
-          <label>Goal / Phase</label>
-          <select id="decision-phase" onchange="saveDecisionInputs()">
-            <option value="">Select phase</option>
-            <option>Fat Loss</option>
-            <option>Maintenance</option>
-            <option>Muscle Gain</option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label>Sleep hours</label>
-          <input type="number" id="decision-sleep-hours" step="0.1" placeholder="6.5" oninput="saveDecisionInputs()">
-        </div>
-        <div class="form-field">
-          <label>Sleep score</label>
-          <input type="number" id="decision-sleep-score" step="1" placeholder="80" oninput="saveDecisionInputs()">
-        </div>
+        <div class="form-field"><label>Date</label><input type="date" id="m-date"></div>
+        <div class="form-field"><label>Weight (kg)</label><input type="number" id="m-weight" step="0.1" placeholder="105.0" oninput="updateMeasurementFat()"></div>
       </div>
-      <div id="decision-engine-body"></div>
+      <div class="form-row">
+        <div class="form-field"><label>Waist (cm)</label><input type="number" id="m-waist" step="0.1" placeholder="98.0"></div>
+        <div class="form-field"><label>BF (%)</label><input type="number" id="m-bf" step="0.1" placeholder="24.0" oninput="updateMeasurementFat()"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Fat (kg)</label><input type="number" id="m-fat" step="0.1" placeholder="25.0" readonly></div>
+        <div class="form-field"><label>Muscle mass (kg)</label><input type="number" id="m-muscle" step="0.1" placeholder="70.0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Water (%)</label><input type="number" id="m-water" step="0.1" placeholder="52.0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="min-width:100%"><label>Comment</label><textarea id="m-comment" rows="3" placeholder="Optional note..."></textarea></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" id="m-save-btn" style="flex:1" onclick="saveMeasurement()">Save body</button>
+        <button class="modal-cancel" id="m-cancel-btn" style="display:none;flex:0 0 auto;padding:12px 14px" onclick="resetMeasurementForm()">Cancel</button>
+      </div>
+    </div>
+    <div id="measurement-charts" style="display:none">
+      <div class="chart-card" id="measurement-weight-card" style="margin:0 0 14px">
+        <div class="chart-title">Weight trend</div>
+        <div class="chart-wrap"><canvas id="measurement-weight-chart"></canvas></div>
+      </div>
+      <div class="chart-card" id="measurement-waist-card" style="margin:0 0 14px">
+        <div class="chart-title">Waist trend</div>
+        <div class="chart-wrap"><canvas id="measurement-waist-chart"></canvas></div>
+      </div>
+      <div class="chart-card" id="measurement-bf-card" style="margin:0 0 14px">
+        <div class="chart-title">BF% trend</div>
+        <div class="chart-wrap"><canvas id="measurement-bf-chart"></canvas></div>
+      </div>
+    </div>
+    <div class="section-hd">Body history</div>
+    <div id="measurements-list" class="measurement-list"></div>
+  </div>
+
+  <div id="measurement-panel-recovery" class="measurement-panel">
+    <div class="section-hd">Recovery</div>
+    <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+      <div class="form-row">
+        <div class="form-field"><label>Date</label><input type="date" id="r-date"></div>
+        <div class="form-field"><label>Sleep Hours</label><input type="number" id="r-sleep-hours" step="0.1" placeholder="7.0"></div>
+        <div class="form-field"><label>Sleep Score</label><input type="number" id="r-sleep-score" step="1" placeholder="82"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>HRV optional</label><input type="number" id="r-hrv" step="1" placeholder="45"></div>
+        <div class="form-field"><label>Mood 1-5</label><input type="number" id="r-mood" min="1" max="5" step="1"></div>
+        <div class="form-field"><label>Soreness 1-5</label><input type="number" id="r-soreness" min="1" max="5" step="1"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Performance 1-5</label><input type="number" id="r-performance" min="1" max="5" step="1"></div>
+        <div class="form-field"><label>Cravings 1-5</label><input type="number" id="r-cravings" min="1" max="5" step="1"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="min-width:100%"><label>Comment</label><textarea id="r-comment" rows="3" placeholder="Optional note..."></textarea></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" id="r-save-btn" style="flex:1" onclick="saveRecovery()">Save recovery</button>
+        <button class="modal-cancel" id="r-cancel-btn" style="display:none;flex:0 0 auto;padding:12px 14px" onclick="resetRecoveryForm()">Cancel</button>
+      </div>
+    </div>
+    <div class="section-hd">Recovery history</div>
+    <div id="recovery-list" class="measurement-list"></div>
+  </div>
+
+  <div id="measurement-panel-decision" class="measurement-panel">
+    <div id="measurement-weekly-wrap" style="display:none">
+      <div class="section-hd">Weekly summary</div>
+      <div class="measurement-weekly" id="measurement-weekly-summary"></div>
+    </div>
+    <div id="decision-engine-wrap">
+      <div class="section-hd">Decision</div>
+      <div class="decision-card">
+        <div class="form-row">
+          <div class="form-field">
+            <label>Goal / Phase</label>
+            <select id="decision-phase" onchange="saveDecisionInputs()">
+              <option value="">Select phase</option>
+              <option>Fat Loss</option>
+              <option>Maintenance</option>
+              <option>Muscle Gain</option>
+            </select>
+          </div>
+        </div>
+        <div id="decision-engine-body"></div>
+      </div>
     </div>
   </div>
-  <div class="section-hd">History</div>
-  <div id="measurements-list" class="measurement-list"></div>
 </div>
 
 <!-- MY FOODS -->
@@ -654,7 +691,7 @@ function parseCSVLine(line){
   return result;
 }
 
-const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones'};
+const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',recovery:'nl_recovery',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones'};
 function lsGet(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch(e){return fb}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function todayISO(){
@@ -673,7 +710,8 @@ const state={
   customFoods:lsGet(SK.custom,[]),
   weight:lsGet(SK.weight,{}),
   measurements:lsGet(SK.measurements,[]),
-  decision:lsGet(SK.decision,{phase:'',sleepHours:null,sleepScore:null}),
+  recovery:lsGet(SK.recovery,[]),
+  decision:lsGet(SK.decision,{phase:''}),
   gistToken:lsGet(SK.gist_token,''),
   gistId:lsGet(SK.gist_id,''),
   tombstones:lsGet('nl_tombstones',{}),
@@ -683,6 +721,8 @@ const state={
   chartRange:7,
   selected:new Set(),
   editingMeasurementId:null,
+  editingRecoveryId:null,
+  measurementArea:'body',
   moveMode:false
 };
 function persist(k){lsSet(SK[k],state[k])}
@@ -700,7 +740,7 @@ function switchView(v){
   if(v==='dash'){renderDash();}
   if(v==='log'){state.selected=new Set();renderLog();}
   if(v==='summary'){renderSummaryPage();}
-  if(v==='measurements'){loadDecisionInputs();renderMeasurements();}
+  if(v==='measurements'){loadDecisionInputs();switchMeasurementArea(state.measurementArea||'body');}
   if(v==='custom'){renderCustomList();}
   if(v==='targets'){loadTargetsForm();}
 }
@@ -1279,6 +1319,16 @@ function renderWeightList(){
 function deleteWeight(d){delete state.weight[d];persist('weight');scheduleAutoSync();renderWeightList();renderSummaryPage();}
 
 // ---- MEASUREMENTS ----
+function switchMeasurementArea(area){
+  state.measurementArea=area;
+  ['body','recovery','decision'].forEach(id=>{
+    const panel=document.getElementById('measurement-panel-'+id);
+    const tab=document.getElementById('measure-tab-'+id);
+    if(panel)panel.style.display=id===area?'block':'none';
+    if(tab)tab.classList.toggle('active',id===area);
+  });
+  renderMeasurements();
+}
 function mNum(id){
   const raw=document.getElementById(id).value;
   if(raw==='')return null;
@@ -1305,7 +1355,7 @@ function resetMeasurementForm(){
   state.editingMeasurementId=null;
   document.getElementById('m-date').value=todayISO();
   ['m-weight','m-waist','m-bf','m-fat','m-muscle','m-water','m-comment'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('m-save-btn').textContent='Save measurement';
+  document.getElementById('m-save-btn').textContent='Save body';
   document.getElementById('m-cancel-btn').style.display='none';
 }
 function saveMeasurement(){
@@ -1342,7 +1392,7 @@ function editMeasurement(id){
   document.getElementById('m-water').value=item.water??'';
   document.getElementById('m-comment').value=item.comment||'';
   updateMeasurementFat();
-  document.getElementById('m-save-btn').textContent='Update measurement';
+  document.getElementById('m-save-btn').textContent='Update body';
   document.getElementById('m-cancel-btn').style.display='block';
   document.getElementById('view-measurements').scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -1354,6 +1404,99 @@ function deleteMeasurement(id){
   if(state.editingMeasurementId===id)resetMeasurementForm();
   persist('measurements');
   renderMeasurements();
+}
+function rNum(id){
+  const raw=document.getElementById(id).value;
+  if(raw==='')return null;
+  const n=parseFloat(raw);
+  return Number.isFinite(n)?n:null;
+}
+function clampRating(v){
+  if(v===null)return null;
+  return Math.max(1,Math.min(5,Math.round(v)));
+}
+function resetRecoveryForm(){
+  state.editingRecoveryId=null;
+  document.getElementById('r-date').value=todayISO();
+  ['r-sleep-hours','r-sleep-score','r-hrv','r-mood','r-soreness','r-performance','r-cravings','r-comment'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('r-save-btn').textContent='Save recovery';
+  document.getElementById('r-cancel-btn').style.display='none';
+}
+function saveRecovery(){
+  const date=document.getElementById('r-date').value;
+  if(!date){alert('Please choose a date.');return;}
+  const item={
+    id:state.editingRecoveryId||Date.now(),
+    date,
+    sleepHours:rNum('r-sleep-hours'),
+    sleepScore:rNum('r-sleep-score'),
+    hrv:rNum('r-hrv'),
+    mood:clampRating(rNum('r-mood')),
+    soreness:clampRating(rNum('r-soreness')),
+    performance:clampRating(rNum('r-performance')),
+    cravings:clampRating(rNum('r-cravings')),
+    comment:document.getElementById('r-comment').value.trim()
+  };
+  const idx=state.recovery.findIndex(r=>r.id===state.editingRecoveryId);
+  if(idx>=0)state.recovery[idx]=item;
+  else state.recovery.push(item);
+  persist('recovery');
+  resetRecoveryForm();
+  renderMeasurements();
+}
+function editRecovery(id){
+  const item=state.recovery.find(r=>r.id===id);
+  if(!item)return;
+  state.editingRecoveryId=id;
+  document.getElementById('r-date').value=item.date||todayISO();
+  document.getElementById('r-sleep-hours').value=item.sleepHours??'';
+  document.getElementById('r-sleep-score').value=item.sleepScore??'';
+  document.getElementById('r-hrv').value=item.hrv??'';
+  document.getElementById('r-mood').value=item.mood??'';
+  document.getElementById('r-soreness').value=item.soreness??'';
+  document.getElementById('r-performance').value=item.performance??'';
+  document.getElementById('r-cravings').value=item.cravings??'';
+  document.getElementById('r-comment').value=item.comment||'';
+  document.getElementById('r-save-btn').textContent='Update recovery';
+  document.getElementById('r-cancel-btn').style.display='block';
+  document.getElementById('view-measurements').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function deleteRecovery(id){
+  const item=state.recovery.find(r=>r.id===id);
+  if(!item)return;
+  if(!confirm('Delete recovery for '+dayLabel(item.date)+'?'))return;
+  state.recovery=state.recovery.filter(r=>r.id!==id);
+  if(state.editingRecoveryId===id)resetRecoveryForm();
+  persist('recovery');
+  renderMeasurements();
+}
+function renderRecoveryList(){
+  const list=document.getElementById('recovery-list');
+  if(!list)return;
+  if(!document.getElementById('r-date').value)document.getElementById('r-date').value=todayISO();
+  const entries=[...state.recovery].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.id||0)-(a.id||0));
+  if(!entries.length){list.innerHTML='<div class="empty-log">No recovery entries yet.</div>';return;}
+  list.innerHTML=entries.map(r=>
+    '<div class="measurement-item">'+
+      '<div class="measurement-item-head">'+
+        '<div><div class="measurement-date">'+dayLabel(r.date)+'</div><div style="font-size:var(--fs-xs);color:var(--text3);margin-top:2px">'+escHtml(r.date)+'</div></div>'+
+        '<div class="measurement-actions">'+
+          '<button class="btn-sm" onclick="editRecovery('+JSON.stringify(r.id)+')">Edit</button>'+
+          '<button class="btn-sm-danger" onclick="deleteRecovery('+JSON.stringify(r.id)+')">Delete</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="measurement-grid">'+
+        '<div class="measurement-metric"><div class="mm-lbl">Sleep hours</div><div class="mm-val">'+mVal(r.sleepHours,' h')+'</div></div>'+
+        '<div class="measurement-metric"><div class="mm-lbl">Sleep score</div><div class="mm-val">'+mVal(r.sleepScore,'')+'</div></div>'+
+        '<div class="measurement-metric"><div class="mm-lbl">HRV</div><div class="mm-val">'+mVal(r.hrv,'')+'</div></div>'+
+        '<div class="measurement-metric"><div class="mm-lbl">Mood</div><div class="mm-val">'+mVal(r.mood,' / 5')+'</div></div>'+
+        '<div class="measurement-metric"><div class="mm-lbl">Soreness</div><div class="mm-val">'+mVal(r.soreness,' / 5')+'</div></div>'+
+        '<div class="measurement-metric"><div class="mm-lbl">Performance</div><div class="mm-val">'+mVal(r.performance,' / 5')+'</div></div>'+
+        '<div class="measurement-metric"><div class="mm-lbl">Cravings</div><div class="mm-val">'+mVal(r.cravings,' / 5')+'</div></div>'+
+      '</div>'+
+      (r.comment?'<div class="measurement-comment">'+escHtml(r.comment)+'</div>':'')+
+    '</div>'
+  ).join('');
 }
 function getMeasurementChartData(key){
   const entries=[...state.measurements]
@@ -1437,13 +1580,21 @@ function changeClass(v){
 }
 function getMeasurementWeeklyRows(){
   const groups={};
+  const recoveryGroups={};
   state.measurements.filter(m=>m.date).forEach(m=>{
     const wk=weekStartISO(m.date);
     if(!groups[wk])groups[wk]=[];
     groups[wk].push(m);
   });
-  const rows=Object.keys(groups).sort().map(wk=>{
-    const entries=groups[wk].sort((a,b)=>a.date.localeCompare(b.date)||(a.id||0)-(b.id||0));
+  state.recovery.filter(r=>r.date).forEach(r=>{
+    const wk=weekStartISO(r.date);
+    if(!recoveryGroups[wk])recoveryGroups[wk]=[];
+    recoveryGroups[wk].push(r);
+  });
+  const weekKeys=[...new Set([...Object.keys(groups),...Object.keys(recoveryGroups)])].sort();
+  const rows=weekKeys.map(wk=>{
+    const entries=(groups[wk]||[]).sort((a,b)=>a.date.localeCompare(b.date)||(a.id||0)-(b.id||0));
+    const recoveryEntries=(recoveryGroups[wk]||[]).sort((a,b)=>a.date.localeCompare(b.date)||(a.id||0)-(b.id||0));
     const loggedDays=weekDates(wk).filter(d=>(state.log[d]||[]).length>0);
     const avgCal=loggedDays.length?loggedDays.reduce((a,d)=>a+getTotals(d).cal,0)/loggedDays.length:null;
     return{
@@ -1451,6 +1602,10 @@ function getMeasurementWeeklyRows(){
       avgCal,
       avgWeight:avgMeasurementValue(entries,'weight'),
       latestWaist:latestMeasurementValue(entries,'waist'),
+      avgSleepHours:avgMeasurementValue(recoveryEntries,'sleepHours'),
+      avgSleepScore:avgMeasurementValue(recoveryEntries,'sleepScore'),
+      latestSleepHours:latestMeasurementValue(recoveryEntries,'sleepHours'),
+      latestSleepScore:latestMeasurementValue(recoveryEntries,'sleepScore'),
       weightChange:null,
       waistChange:null
     };
@@ -1471,13 +1626,15 @@ function renderMeasurementWeeklySummary(){
   if(!rows.length){box.innerHTML='';return;}
   box.innerHTML=
     '<div class="measurement-week-row hd">'+
-      '<div>Week (latest first)</div><div>Avg kcal</div><div>Avg weight</div><div>Latest waist</div><div>Weight change</div><div>Waist change</div>'+
+      '<div>Week (latest first)</div><div>Avg kcal</div><div>Avg sleep</div><div>Sleep score</div><div>Avg weight</div><div>Latest waist</div><div>Weight change</div><div>Waist change</div>'+
     '</div>'+
     rows.map(r=>{
       const label=weekRangeLabel(r.weekStart);
       return'<div class="measurement-week-row">'+
         '<div class="measurement-week-label">'+label+'</div>'+
         '<div class="measurement-week-cell">'+(r.avgCal===null?'-':fmtI(r.avgCal))+'</div>'+
+        '<div class="measurement-week-cell">'+(r.avgSleepHours===null?'-':fmt(r.avgSleepHours)+' h')+'</div>'+
+        '<div class="measurement-week-cell">'+(r.avgSleepScore===null?'-':fmtI(r.avgSleepScore))+'</div>'+
         '<div class="measurement-week-cell">'+(r.avgWeight===null?'-':fmt(r.avgWeight)+' kg')+'</div>'+
         '<div class="measurement-week-cell">'+(r.latestWaist===null?'-':fmt(r.latestWaist)+' cm')+'</div>'+
         '<div class="measurement-week-cell measurement-change'+changeClass(r.weightChange)+'">'+fmtChange(r.weightChange,' kg')+'</div>'+
@@ -1499,18 +1656,12 @@ function dNum(id){
 }
 function loadDecisionInputs(){
   const phase=document.getElementById('decision-phase');
-  const sleepHours=document.getElementById('decision-sleep-hours');
-  const sleepScore=document.getElementById('decision-sleep-score');
-  if(!phase||!sleepHours||!sleepScore)return;
+  if(!phase)return;
   phase.value=state.decision.phase||'';
-  sleepHours.value=state.decision.sleepHours??'';
-  sleepScore.value=state.decision.sleepScore??'';
 }
 function saveDecisionInputs(){
   state.decision={
-    phase:document.getElementById('decision-phase').value,
-    sleepHours:dNum('decision-sleep-hours'),
-    sleepScore:dNum('decision-sleep-score')
+    phase:document.getElementById('decision-phase').value
   };
   persist('decision');
   renderDecisionEngine();
@@ -1534,10 +1685,14 @@ function decisionClass(decision){
   if(decision==='REDUCE CALORIES'||decision==='FIX SATURDAY')return' bad';
   return' warn';
 }
-function buildDecision(latest, phase, sleepHours, sleepScore){
+function latestRecoveryEntry(){
+  const entries=[...state.recovery].filter(r=>r.date).sort((a,b)=>a.date.localeCompare(b.date)||(a.id||0)-(b.id||0));
+  return entries.length?entries[entries.length-1]:null;
+}
+function buildDecision(latest, phase){
   const rules=PHASE_RULES[phase];
   if(!phase||!rules||!latest||latest.weightChange===null||latest.waistChange===null)return'STABILISE';
-  if((sleepHours!==null&&sleepHours<RECOVERY_RULES.minSleepHours)||(sleepScore!==null&&sleepScore<RECOVERY_RULES.minSleepScore))return'STABILISE';
+  if((latest.avgSleepHours!==null&&latest.avgSleepHours<RECOVERY_RULES.minSleepHours)||(latest.avgSleepScore!==null&&latest.avgSleepScore<RECOVERY_RULES.minSleepScore))return'STABILISE';
   const saturdayCal=getTotals(saturdayISOForWeek(latest.weekStart)).cal;
   if(saturdayCal>rules.saturdayCalorieCap)return'FIX SATURDAY';
   if(latest.waistChange>rules.waistGainLimit){
@@ -1555,15 +1710,15 @@ function renderDecisionEngine(){
   const latest=rows[0]||null;
   const phase=state.decision.phase||'';
   const rules=PHASE_RULES[phase]||null;
-  const sleepHours=state.decision.sleepHours;
-  const sleepScore=state.decision.sleepScore;
+  const latestRecovery=latestRecoveryEntry();
   const saturdayDate=latest?saturdayISOForWeek(latest.weekStart):null;
   const saturdayCal=saturdayDate?getTotals(saturdayDate).cal:null;
-  const decision=buildDecision(latest,phase,sleepHours,sleepScore);
+  const decision=buildDecision(latest,phase);
   const latestLabel=latest?weekRangeLabel(latest.weekStart):'-';
   const saturdayStatus=!rules?statusBadge('missing','warn'):(saturdayCal>rules.saturdayCalorieCap?statusBadge('over cap','bad'):statusBadge('ok','ok'));
-  const sleepHoursStatus=sleepHours===null?statusBadge('missing','warn'):(sleepHours<RECOVERY_RULES.minSleepHours?statusBadge('low','bad'):statusBadge('ok','ok'));
-  const sleepScoreStatus=sleepScore===null?statusBadge('missing','warn'):(sleepScore<RECOVERY_RULES.minSleepScore?statusBadge('low','bad'):statusBadge('ok','ok'));
+  const sleepHoursStatus=!latest||latest.avgSleepHours===null?statusBadge('missing','warn'):(latest.avgSleepHours<RECOVERY_RULES.minSleepHours?statusBadge('low','bad'):statusBadge('ok','ok'));
+  const sleepScoreStatus=!latest||latest.avgSleepScore===null?statusBadge('missing','warn'):(latest.avgSleepScore<RECOVERY_RULES.minSleepScore?statusBadge('low','bad'):statusBadge('ok','ok'));
+  const showRecoveryWarning=latestRecovery&&((latestRecovery.sleepHours!==null&&latestRecovery.sleepHours<4.5)||(latestRecovery.sleepScore!==null&&latestRecovery.sleepScore<60));
   body.innerHTML=
     '<div class="decision-grid">'+
       '<div class="decision-metric"><div class="dm-lbl">Current phase</div><div class="dm-val">'+(phase||'-')+(!phase?statusBadge('missing','bad'):'')+'</div></div>'+
@@ -1573,16 +1728,19 @@ function renderDecisionEngine(){
       '<div class="decision-metric"><div class="dm-lbl">Weight change</div><div class="dm-val">'+(latest?fmtChange(latest.weightChange,' kg'):'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Waist change</div><div class="dm-val">'+(latest?fmtChange(latest.waistChange,' cm'):'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Saturday calories</div><div class="dm-val">'+(saturdayCal===null?'-':fmtI(saturdayCal))+(rules?' / '+rules.saturdayCalorieCap:'')+saturdayStatus+'</div></div>'+
-      '<div class="decision-metric"><div class="dm-lbl">Sleep hours</div><div class="dm-val">'+(sleepHours===null?'-':fmt(sleepHours))+sleepHoursStatus+'</div></div>'+
-      '<div class="decision-metric"><div class="dm-lbl">Sleep score</div><div class="dm-val">'+(sleepScore===null?'-':fmtI(sleepScore))+sleepScoreStatus+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Avg sleep hours</div><div class="dm-val">'+(!latest||latest.avgSleepHours===null?'-':fmt(latest.avgSleepHours))+sleepHoursStatus+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Avg sleep score</div><div class="dm-val">'+(!latest||latest.avgSleepScore===null?'-':fmtI(latest.avgSleepScore))+sleepScoreStatus+'</div></div>'+
     '</div>'+
+    (showRecoveryWarning?'<div class="recovery-warning">Recovery warning — last night was very poor.</div>':'')+
     '<div class="decision-final'+decisionClass(decision)+'">'+decision+'</div>';
 }
 function renderMeasurements(){
   const list=document.getElementById('measurements-list');
   if(!list)return;
   if(!document.getElementById('m-date').value)document.getElementById('m-date').value=todayISO();
+  if(!document.getElementById('r-date').value)document.getElementById('r-date').value=todayISO();
   renderMeasurementCharts();
+  renderRecoveryList();
   renderMeasurementWeeklySummary();
   renderDecisionEngine();
   const entries=[...state.measurements].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||b.id-a.id);
@@ -2076,6 +2234,7 @@ function initApp(){
     VIEWS.forEach(id=>{const el=document.getElementById('view-'+id);if(el)el.style.display='none';});
     document.getElementById('w-date').value=todayISO();
     document.getElementById('m-date').value=todayISO();
+    document.getElementById('r-date').value=todayISO();
     loadTargetsForm();
     loadFoodsCSV();
     switchView('dash');
