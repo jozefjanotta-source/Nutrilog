@@ -193,6 +193,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .measurement-subtab{flex:1;text-align:center;padding:8px;font-size:var(--fs-sm);font-weight:500;border-radius:6px;cursor:pointer;color:var(--text2);border:none;background:none}
 .measurement-subtab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
 .measurement-panel{display:none}
+.history-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .recovery-warning{margin-top:12px;border-radius:var(--radius-sm);padding:11px 12px;background:#fdecea;color:var(--danger);font-size:var(--fs-sm);font-weight:600}
 .decision-card{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px}
 .decision-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
@@ -384,7 +385,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
         <div class="chart-wrap"><canvas id="measurement-bf-chart"></canvas></div>
       </div>
     </div>
-    <div class="section-hd">Body history</div>
+    <div class="section-hd history-head">Body history <button id="body-history-toggle" class="tb-btn" onclick="toggleBodyHistory()" style="font-size:12px;padding:5px 10px;display:none">Show all</button></div>
     <div id="measurements-list" class="measurement-list"></div>
   </div>
 
@@ -393,7 +394,8 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
       <div class="form-row">
         <div class="form-field"><label>Date</label><input type="date" id="r-date"></div>
-        <div class="form-field"><label>Sleep Hours</label><input type="number" id="r-sleep-hours" step="0.1" placeholder="7.0"></div>
+        <div class="form-field"><label>Sleep Hours</label><input type="number" id="r-sleep-hours" min="0" step="1" placeholder="6"></div>
+        <div class="form-field"><label>Sleep Minutes</label><input type="number" id="r-sleep-minutes" min="0" max="59" step="1" placeholder="27"></div>
         <div class="form-field"><label>Sleep Score</label><input type="number" id="r-sleep-score" step="1" placeholder="82"></div>
       </div>
       <div class="form-row">
@@ -413,15 +415,11 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
         <button class="modal-cancel" id="r-cancel-btn" style="display:none;flex:0 0 auto;padding:12px 14px" onclick="resetRecoveryForm()">Cancel</button>
       </div>
     </div>
-    <div class="section-hd">Recovery history</div>
+    <div class="section-hd history-head">Recovery history <button id="recovery-history-toggle" class="tb-btn" onclick="toggleRecoveryHistory()" style="font-size:12px;padding:5px 10px;display:none">Show all</button></div>
     <div id="recovery-list" class="measurement-list"></div>
   </div>
 
   <div id="measurement-panel-decision" class="measurement-panel">
-    <div id="measurement-weekly-wrap" style="display:none">
-      <div class="section-hd">Weekly summary</div>
-      <div class="measurement-weekly" id="measurement-weekly-summary"></div>
-    </div>
     <div id="decision-engine-wrap">
       <div class="section-hd">Decision</div>
       <div class="decision-card">
@@ -438,6 +436,10 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
         </div>
         <div id="decision-engine-body"></div>
       </div>
+    </div>
+    <div id="measurement-weekly-wrap" style="display:none">
+      <div class="section-hd history-head">Weekly history <button id="weekly-history-toggle" class="tb-btn" onclick="toggleWeeklyHistory()" style="font-size:12px;padding:5px 10px">Show all</button></div>
+      <div class="measurement-weekly" id="measurement-weekly-summary" style="display:none"></div>
     </div>
   </div>
 </div>
@@ -723,6 +725,9 @@ const state={
   editingMeasurementId:null,
   editingRecoveryId:null,
   measurementArea:'body',
+  bodyHistoryExpanded:false,
+  recoveryHistoryExpanded:false,
+  weeklyHistoryExpanded:false,
   moveMode:false
 };
 function persist(k){lsSet(SK[k],state[k])}
@@ -1329,6 +1334,9 @@ function switchMeasurementArea(area){
   });
   renderMeasurements();
 }
+function toggleBodyHistory(){state.bodyHistoryExpanded=!state.bodyHistoryExpanded;renderMeasurements();}
+function toggleRecoveryHistory(){state.recoveryHistoryExpanded=!state.recoveryHistoryExpanded;renderRecoveryList();}
+function toggleWeeklyHistory(){state.weeklyHistoryExpanded=!state.weeklyHistoryExpanded;renderMeasurementWeeklySummary();}
 function mNum(id){
   const raw=document.getElementById(id).value;
   if(raw==='')return null;
@@ -1347,6 +1355,13 @@ function updateMeasurementFat(){
 }
 function mVal(v,unit){
   return v===null||v===undefined||v===''?'-':fmt(v)+(unit||'');
+}
+function fmtSleep(decimal,hours,minutes){
+  if(decimal===null||decimal===undefined||decimal==='')return'-';
+  const total=Math.round(decimal*60);
+  const h=hours!==null&&hours!==undefined&&hours!==''?hours:Math.floor(total/60);
+  const m=minutes!==null&&minutes!==undefined&&minutes!==''?minutes:total%60;
+  return Math.max(0,Math.round(h))+'h '+String(Math.max(0,Math.round(m))).padStart(2,'0')+'m';
 }
 function escHtml(s){
   return String(s||'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -1418,17 +1433,26 @@ function clampRating(v){
 function resetRecoveryForm(){
   state.editingRecoveryId=null;
   document.getElementById('r-date').value=todayISO();
-  ['r-sleep-hours','r-sleep-score','r-hrv','r-mood','r-soreness','r-performance','r-cravings','r-comment'].forEach(id=>document.getElementById(id).value='');
+  ['r-sleep-hours','r-sleep-minutes','r-sleep-score','r-hrv','r-mood','r-soreness','r-performance','r-cravings','r-comment'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('r-save-btn').textContent='Save recovery';
   document.getElementById('r-cancel-btn').style.display='none';
 }
 function saveRecovery(){
   const date=document.getElementById('r-date').value;
   if(!date){alert('Please choose a date.');return;}
+  const rawSleepHours=rNum('r-sleep-hours');
+  const rawSleepMinutes=rNum('r-sleep-minutes');
+  const hasSleep=rawSleepHours!==null||rawSleepMinutes!==null;
+  const sleepHoursRaw=hasSleep?Math.max(0,Math.round(rawSleepHours||0)):null;
+  const sleepMinutes=hasSleep?Math.max(0,Math.min(59,Math.round(rawSleepMinutes||0))):null;
+  const sleepHoursDecimal=hasSleep?Number((sleepHoursRaw+sleepMinutes/60).toFixed(2)):null;
   const item={
     id:state.editingRecoveryId||Date.now(),
     date,
-    sleepHours:rNum('r-sleep-hours'),
+    sleepHours:sleepHoursDecimal,
+    sleepHoursDecimal,
+    sleepHoursRaw,
+    sleepMinutes,
     sleepScore:rNum('r-sleep-score'),
     hrv:rNum('r-hrv'),
     mood:clampRating(rNum('r-mood')),
@@ -1449,7 +1473,9 @@ function editRecovery(id){
   if(!item)return;
   state.editingRecoveryId=id;
   document.getElementById('r-date').value=item.date||todayISO();
-  document.getElementById('r-sleep-hours').value=item.sleepHours??'';
+  const totalMinutes=Math.round((item.sleepHours??0)*60);
+  document.getElementById('r-sleep-hours').value=item.sleepHoursRaw??(item.sleepHours===null||item.sleepHours===undefined?'':Math.floor(totalMinutes/60));
+  document.getElementById('r-sleep-minutes').value=item.sleepMinutes??(item.sleepHours===null||item.sleepHours===undefined?'':totalMinutes%60);
   document.getElementById('r-sleep-score').value=item.sleepScore??'';
   document.getElementById('r-hrv').value=item.hrv??'';
   document.getElementById('r-mood').value=item.mood??'';
@@ -1475,8 +1501,11 @@ function renderRecoveryList(){
   if(!list)return;
   if(!document.getElementById('r-date').value)document.getElementById('r-date').value=todayISO();
   const entries=[...state.recovery].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.id||0)-(a.id||0));
+  const shown=state.recoveryHistoryExpanded?entries:entries.slice(0,5);
+  const btn=document.getElementById('recovery-history-toggle');
+  if(btn){btn.style.display=entries.length>5?'block':'none';btn.textContent=state.recoveryHistoryExpanded?'Hide older':'Show all';}
   if(!entries.length){list.innerHTML='<div class="empty-log">No recovery entries yet.</div>';return;}
-  list.innerHTML=entries.map(r=>
+  list.innerHTML=shown.map(r=>
     '<div class="measurement-item">'+
       '<div class="measurement-item-head">'+
         '<div><div class="measurement-date">'+dayLabel(r.date)+'</div><div style="font-size:var(--fs-xs);color:var(--text3);margin-top:2px">'+escHtml(r.date)+'</div></div>'+
@@ -1486,7 +1515,7 @@ function renderRecoveryList(){
         '</div>'+
       '</div>'+
       '<div class="measurement-grid">'+
-        '<div class="measurement-metric"><div class="mm-lbl">Sleep hours</div><div class="mm-val">'+mVal(r.sleepHours,' h')+'</div></div>'+
+        '<div class="measurement-metric"><div class="mm-lbl">Sleep</div><div class="mm-val">'+fmtSleep(r.sleepHoursDecimal??r.sleepHours,r.sleepHoursRaw,r.sleepMinutes)+'</div></div>'+
         '<div class="measurement-metric"><div class="mm-lbl">Sleep score</div><div class="mm-val">'+mVal(r.sleepScore,'')+'</div></div>'+
         '<div class="measurement-metric"><div class="mm-lbl">HRV</div><div class="mm-val">'+mVal(r.hrv,'')+'</div></div>'+
         '<div class="measurement-metric"><div class="mm-lbl">Mood</div><div class="mm-val">'+mVal(r.mood,' / 5')+'</div></div>'+
@@ -1622,18 +1651,22 @@ function renderMeasurementWeeklySummary(){
   const box=document.getElementById('measurement-weekly-summary');
   if(!wrap||!box)return;
   const rows=getMeasurementWeeklyRows();
-  wrap.style.display=rows.length?'block':'none';
-  if(!rows.length){box.innerHTML='';return;}
+  const olderRows=rows.slice(1);
+  const btn=document.getElementById('weekly-history-toggle');
+  wrap.style.display=olderRows.length?'block':'none';
+  if(btn)btn.textContent=state.weeklyHistoryExpanded?'Hide older':'Show all';
+  box.style.display=state.weeklyHistoryExpanded?'block':'none';
+  if(!olderRows.length){box.innerHTML='';return;}
   box.innerHTML=
     '<div class="measurement-week-row hd">'+
       '<div>Week (latest first)</div><div>Avg kcal</div><div>Avg sleep</div><div>Sleep score</div><div>Avg weight</div><div>Latest waist</div><div>Weight change</div><div>Waist change</div>'+
     '</div>'+
-    rows.map(r=>{
+    olderRows.map(r=>{
       const label=weekRangeLabel(r.weekStart);
       return'<div class="measurement-week-row">'+
         '<div class="measurement-week-label">'+label+'</div>'+
         '<div class="measurement-week-cell">'+(r.avgCal===null?'-':fmtI(r.avgCal))+'</div>'+
-        '<div class="measurement-week-cell">'+(r.avgSleepHours===null?'-':fmt(r.avgSleepHours)+' h')+'</div>'+
+        '<div class="measurement-week-cell">'+fmtSleep(r.avgSleepHours)+'</div>'+
         '<div class="measurement-week-cell">'+(r.avgSleepScore===null?'-':fmtI(r.avgSleepScore))+'</div>'+
         '<div class="measurement-week-cell">'+(r.avgWeight===null?'-':fmt(r.avgWeight)+' kg')+'</div>'+
         '<div class="measurement-week-cell">'+(r.latestWaist===null?'-':fmt(r.latestWaist)+' cm')+'</div>'+
@@ -1718,7 +1751,8 @@ function renderDecisionEngine(){
   const saturdayStatus=!rules?statusBadge('missing','warn'):(saturdayCal>rules.saturdayCalorieCap?statusBadge('over cap','bad'):statusBadge('ok','ok'));
   const sleepHoursStatus=!latest||latest.avgSleepHours===null?statusBadge('missing','warn'):(latest.avgSleepHours<RECOVERY_RULES.minSleepHours?statusBadge('low','bad'):statusBadge('ok','ok'));
   const sleepScoreStatus=!latest||latest.avgSleepScore===null?statusBadge('missing','warn'):(latest.avgSleepScore<RECOVERY_RULES.minSleepScore?statusBadge('low','bad'):statusBadge('ok','ok'));
-  const showRecoveryWarning=latestRecovery&&((latestRecovery.sleepHours!==null&&latestRecovery.sleepHours<4.5)||(latestRecovery.sleepScore!==null&&latestRecovery.sleepScore<60));
+  const latestSleep=latestRecovery?(latestRecovery.sleepHoursDecimal??latestRecovery.sleepHours):null;
+  const showRecoveryWarning=latestRecovery&&((latestSleep!==null&&latestSleep<4.5)||(latestRecovery.sleepScore!==null&&latestRecovery.sleepScore<60));
   body.innerHTML=
     '<div class="decision-grid">'+
       '<div class="decision-metric"><div class="dm-lbl">Current phase</div><div class="dm-val">'+(phase||'-')+(!phase?statusBadge('missing','bad'):'')+'</div></div>'+
@@ -1728,7 +1762,7 @@ function renderDecisionEngine(){
       '<div class="decision-metric"><div class="dm-lbl">Weight change</div><div class="dm-val">'+(latest?fmtChange(latest.weightChange,' kg'):'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Waist change</div><div class="dm-val">'+(latest?fmtChange(latest.waistChange,' cm'):'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Saturday calories</div><div class="dm-val">'+(saturdayCal===null?'-':fmtI(saturdayCal))+(rules?' / '+rules.saturdayCalorieCap:'')+saturdayStatus+'</div></div>'+
-      '<div class="decision-metric"><div class="dm-lbl">Avg sleep hours</div><div class="dm-val">'+(!latest||latest.avgSleepHours===null?'-':fmt(latest.avgSleepHours))+sleepHoursStatus+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Avg sleep hours</div><div class="dm-val">'+(!latest||latest.avgSleepHours===null?'-':fmtSleep(latest.avgSleepHours))+sleepHoursStatus+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Avg sleep score</div><div class="dm-val">'+(!latest||latest.avgSleepScore===null?'-':fmtI(latest.avgSleepScore))+sleepScoreStatus+'</div></div>'+
     '</div>'+
     (showRecoveryWarning?'<div class="recovery-warning">Recovery warning — last night was very poor.</div>':'')+
@@ -1744,11 +1778,14 @@ function renderMeasurements(){
   renderMeasurementWeeklySummary();
   renderDecisionEngine();
   const entries=[...state.measurements].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||b.id-a.id);
+  const shown=state.bodyHistoryExpanded?entries:entries.slice(0,5);
+  const btn=document.getElementById('body-history-toggle');
+  if(btn){btn.style.display=entries.length>5?'block':'none';btn.textContent=state.bodyHistoryExpanded?'Hide older':'Show all';}
   if(!entries.length){
     list.innerHTML='<div class="empty-log">No measurements yet.</div>';
     return;
   }
-  list.innerHTML=entries.map(m=>
+  list.innerHTML=shown.map(m=>
     '<div class="measurement-item">'+
       '<div class="measurement-item-head">'+
         '<div><div class="measurement-date">'+dayLabel(m.date)+'</div><div style="font-size:var(--fs-xs);color:var(--text3);margin-top:2px">'+escHtml(m.date)+'</div></div>'+
