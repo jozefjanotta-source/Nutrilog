@@ -20,11 +20,12 @@
   --fs:16px;--fs-sm:14px;--fs-xs:12px;--fs-lg:18px;--fs-xl:23px;
 }
 @media(prefers-color-scheme:dark){:root{
-  --bg:#141412;--surface:#1e1e1c;--surface2:#2a2a27;
-  --border:rgba(255,255,255,.10);--border2:rgba(255,255,255,.18);
-  --text:#f0efe9;--text2:#9a9a92;--text3:#606058;
-  --accent:#52b788;--accent-light:#1a2e24;--accent-text:#b7e4c7;
-  --warn:#f4a261;--danger:#e57373;--info:#74b3f0;--info-light:#0e1e30;
+  --bg:#000000;--surface:#111111;--surface2:#1b1b1b;
+  --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+  --text:#f6f3eb;--text2:#c7c0b4;--text3:#81796b;
+  --accent:#f59e0b;--accent-light:#2a1b05;--accent-text:#ffd38a;
+  --warn:#fbbf24;--danger:#ef4444;--danger-light:#2b0d0d;--info:#a3a3a3;--info-light:#232323;
+  --shadow:0 10px 30px rgba(0,0,0,.55);
 }}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif;color:var(--text);font-size:var(--fs)}
@@ -209,6 +210,17 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .decision-final.bad{background:#fdecea;color:var(--danger)}
 .btn-sm{background:var(--surface);border:.5px solid var(--border);color:var(--text2);border-radius:var(--radius-sm);padding:7px 12px;font-size:var(--fs-sm);cursor:pointer}
 .btn-sm:active{background:var(--surface2)}
+@media(prefers-color-scheme:dark){
+  .header{border-bottom:.5px solid rgba(255,255,255,.05)}
+  .tab-bar,.macro-card,.remain-row,.micro-item,.chart-card,.food-item,.results-list,.add-form,.custom-item,.week-stat,.measurement-item,.measurement-weekly,.decision-card,.modal-box{border-color:var(--border);box-shadow:var(--shadow)}
+  .macro-card,.chart-card,.decision-card,.measurement-item,.food-item,.custom-item,.week-stat{padding-top:15px;padding-bottom:15px}
+  .form-field input,.form-field select,.form-field textarea,.search-input{background:#050505;border-color:var(--border2)}
+  .form-field input:focus,.form-field select:focus,.form-field textarea:focus,.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(245,158,11,.16)}
+  .food-item.selected{background:#211604}
+  .btn-primary,.tb-btn.accent{color:#111}
+  .food-item-cb.checked{color:#111}
+  .decision-status.bad,.decision-final.bad,.recovery-warning{background:var(--danger-light)}
+}
 </style>
 </head>
 <body>
@@ -825,10 +837,10 @@ function renderSummaryCards(totals,targetCal){
   const t=state.targets;
   const adjCal=targetCal||t.cal;
   const ms=[
-    {lbl:'Calories',val:fmtI(totals.cal),tgt:t.cal,unit:'kcal',color:'#e4880a'},
-    {lbl:'Protein',val:fmtI(totals.prot),tgt:t.prot,unit:'g',color:'#1a5fa8'},
-    {lbl:'Carbs',val:fmtI(totals.carb),tgt:t.carb,unit:'g',color:'#1d9e75'},
-    {lbl:'Fat',val:fmtI(totals.fat),tgt:t.fat,unit:'g',color:'#c0392b'}
+    {lbl:'Calories',val:fmtI(totals.cal),tgt:t.cal,unit:'kcal',color:'#f59e0b'},
+    {lbl:'Protein',val:fmtI(totals.prot),tgt:t.prot,unit:'g',color:'#a3a3a3'},
+    {lbl:'Carbs',val:fmtI(totals.carb),tgt:t.carb,unit:'g',color:'#7a9b76'},
+    {lbl:'Fat',val:fmtI(totals.fat),tgt:t.fat,unit:'g',color:'#ef4444'}
   ];
   document.getElementById('summary').innerHTML=ms.map(m=>{
     const pct=m.tgt?Math.min(100,m.val/m.tgt*100):0;const over=m.tgt&&m.val>m.tgt;
@@ -845,7 +857,7 @@ function renderRing(totals,targetCal){
   document.getElementById('ring-val').textContent=fmtI(over?totals.cal-t.cal:rem);
   document.getElementById('ring-lbl').textContent=over?'over':'left';
   document.getElementById('ring-val').style.color=over?'var(--danger)':'var(--accent)';
-  const color=over?'#e57373':'#52b788';
+  const color=over?'#ef4444':'#f59e0b';
   try{
     const ctx=document.getElementById('ring-canvas').getContext('2d');
     if(ringChart)ringChart.destroy();
@@ -864,7 +876,7 @@ function renderRing(totals,targetCal){
 
 function renderMealBars(date){
   const mt=getMealTotals(date);const t=state.targets.cal||2200;
-  const meals=['Breakfast','Lunch','Dinner','Snack'];const colors=['#e4880a','#1d9e75','#1a5fa8','#9b59b6'];
+  const meals=['Breakfast','Lunch','Dinner','Snack'];const colors=['#f59e0b','#7a9b76','#a3a3a3','#fbbf24'];
   document.getElementById('meal-bars').innerHTML=meals.map((m,i)=>{
     const cal=mt[m]||0;if(!cal)return'';
     const pct=Math.min(100,cal/t*100);
@@ -890,15 +902,15 @@ function renderDashCalChart(){
   const tgt=state.targets.cal||2200;
   const threshold=tgt*1.1;
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const gc=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#606058':'#9e9e97';
+  const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
+  const tc=isDark?'#b8b0a3':'#9e9e97';
   try{
     if(dashCalChart)dashCalChart.destroy();
     dashCalChart=new Chart(document.getElementById('dash-cal-chart').getContext('2d'),{
       type:'bar',
       data:{labels,datasets:[
-        {data:calData,backgroundColor:calData.map(v=>v>threshold?'rgba(192,57,43,0.8)':v>0?'rgba(45,106,79,0.7)':'rgba(128,128,128,0.2)'),borderRadius:5,label:'Calories'},
-        {type:'line',data:Array(7).fill(tgt),borderColor:'rgba(230,130,0,0.8)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false}
+        {data:calData,backgroundColor:calData.map(v=>v>threshold?'rgba(239,68,68,0.82)':v>0?'rgba(245,158,11,0.78)':'rgba(128,128,128,0.22)'),borderRadius:5,label:'Calories'},
+        {type:'line',data:Array(7).fill(tgt),borderColor:'rgba(251,191,36,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false}
       ]},
       options:{responsive:true,maintainAspectRatio:false,
         plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':'Target: '+tgt}}},
@@ -1269,8 +1281,8 @@ function renderSummaryPage(){
     '<div class="week-stat"><div class="ws-lbl">Avg carbs</div><div class="ws-val">'+avgCarb+'g</div><div class="ws-sub">target: '+state.targets.carb+'g</div></div>'+
     '<div class="week-stat"><div class="ws-lbl">Days logged</div><div class="ws-val">'+daysLogged+'</div><div class="ws-sub">of last '+state.chartRange+'</div></div>';
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const gc=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#606058':'#9e9e97';
+  const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
+  const tc=isDark?'#b8b0a3':'#9e9e97';
   const tgt=state.targets.cal||2200;
   const threshold=tgt*1.1;
   const bo={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:45}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}}}}};
@@ -1278,17 +1290,17 @@ function renderSummaryPage(){
     if(chartCal)chartCal.destroy();
     chartCal=new Chart(document.getElementById('chart-cal').getContext('2d'),{type:'bar',
       data:{labels,datasets:[
-        {data:calData,backgroundColor:calData.map(v=>v>threshold?'rgba(192,57,43,0.8)':v>0?'rgba(45,106,79,0.7)':'rgba(128,128,128,0.2)'),borderRadius:4,label:'Calories'},
-        {type:'line',data:Array(calData.length).fill(tgt),borderColor:'rgba(230,130,0,0.85)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false}
+        {data:calData,backgroundColor:calData.map(v=>v>threshold?'rgba(239,68,68,0.82)':v>0?'rgba(245,158,11,0.78)':'rgba(128,128,128,0.22)'),borderRadius:4,label:'Calories'},
+        {type:'line',data:Array(calData.length).fill(tgt),borderColor:'rgba(251,191,36,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false}
       ]},
       options:{...bo,plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':'Target: '+tgt}}},scales:{...bo.scales,y:{...bo.scales.y,suggestedMax:tgt*1.3,suggestedMin:0}}}
     });
     if(chartMacro)chartMacro.destroy();
     chartMacro=new Chart(document.getElementById('chart-macro').getContext('2d'),{type:'bar',
       data:{labels,datasets:[
-        {label:'Protein',data:protData,backgroundColor:'rgba(26,95,168,0.8)',stack:'s'},
-        {label:'Carbs',data:carbData,backgroundColor:'rgba(29,158,117,0.8)',stack:'s'},
-        {label:'Fat',data:fatData,backgroundColor:'rgba(192,57,43,0.8)',stack:'s'}
+        {label:'Protein',data:protData,backgroundColor:'rgba(163,163,163,0.82)',stack:'s'},
+        {label:'Carbs',data:carbData,backgroundColor:'rgba(122,155,118,0.82)',stack:'s'},
+        {label:'Fat',data:fatData,backgroundColor:'rgba(239,68,68,0.82)',stack:'s'}
       ]},
       options:{...bo,plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{mode:'index',intersect:false}},scales:{x:{...bo.scales.x,stacked:true},y:{...bo.scales.y,stacked:true}}}
     });
@@ -1300,8 +1312,8 @@ function renderSummaryPage(){
 function renderWeeklyAvgChart(){
   // Build last 8 calendar weeks (Mon-Sun), including current partial week
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const gc=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#606058':'#9e9e97';
+  const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
+  const tc=isDark?'#b8b0a3':'#9e9e97';
   const weekLabels=[];
   const weekCalAvg=[];
 
@@ -1342,8 +1354,8 @@ function renderWeeklyAvgChart(){
     chartWeeklyAvg=new Chart(document.getElementById('chart-weekly-avg').getContext('2d'),{
       type:'bar',
       data:{labels:weekLabels,datasets:[
-        {label:'Avg kcal',data:weekCalAvg,backgroundColor:weekCalAvg.map(v=>v>tgt*1.1?'rgba(192,57,43,0.8)':'rgba(45,106,79,0.7)'),borderRadius:4},
-        {type:'line',data:Array(weekLabels.length).fill(tgt),borderColor:'rgba(230,130,0,0.85)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false},
+        {label:'Avg kcal',data:weekCalAvg,backgroundColor:weekCalAvg.map(v=>v>tgt*1.1?'rgba(239,68,68,0.82)':'rgba(245,158,11,0.78)'),borderRadius:4},
+        {type:'line',data:Array(weekLabels.length).fill(tgt),borderColor:'rgba(251,191,36,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false},
       ]},
       options:{responsive:true,maintainAspectRatio:false,
         plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':'Target: '+tgt}}},
@@ -1358,8 +1370,8 @@ function renderWeeklyAvgChart(){
 
 function renderWeightChart(labels,dates){
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const gc=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#606058':'#9e9e97';
+  const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
+  const tc=isDark?'#b8b0a3':'#9e9e97';
   // Use ALL weight entries, not just the current date range
   const allEntries=Object.entries(state.weight).sort((a,b)=>a[0].localeCompare(b[0]));
   const hasData=allEntries.length>0;
@@ -1370,7 +1382,7 @@ function renderWeightChart(labels,dates){
     try{
       if(chartWeight)chartWeight.destroy();
       chartWeight=new Chart(document.getElementById('chart-weight').getContext('2d'),{type:'line',
-        data:{labels:wLabels,datasets:[{data:wData,borderColor:'rgba(45,106,79,0.9)',backgroundColor:'rgba(45,106,79,0.1)',borderWidth:2,pointRadius:5,pointBackgroundColor:'rgba(45,106,79,0.9)',tension:0.3,spanGaps:true}]},
+        data:{labels:wLabels,datasets:[{data:wData,borderColor:'rgba(245,158,11,0.92)',backgroundColor:'rgba(245,158,11,0.12)',borderWidth:2,pointRadius:5,pointBackgroundColor:'rgba(245,158,11,0.92)',tension:0.3,spanGaps:true}]},
         options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.raw+' kg'}}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:45}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}}}}}
       });
     }catch(e){}
@@ -1613,8 +1625,8 @@ function renderMeasurementLineChart(canvasId, chartRef, chartData, color, unit){
   if(chartRef)chartRef.destroy();
   if(!chartData.values.length)return null;
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const gc=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#606058':'#9e9e97';
+  const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
+  const tc=isDark?'#b8b0a3':'#9e9e97';
   try{
     return new Chart(canvas.getContext('2d'),{
       type:'line',
@@ -1634,9 +1646,9 @@ function renderMeasurementCharts(){
   document.getElementById('measurement-weight-card').style.display=weightData.values.length?'block':'none';
   document.getElementById('measurement-waist-card').style.display=waistData.values.length?'block':'none';
   document.getElementById('measurement-bf-card').style.display=bfData.values.length?'block':'none';
-  measurementWeightChart=renderMeasurementLineChart('measurement-weight-chart',measurementWeightChart,weightData,'rgba(45,106,79,0.9)','kg');
-  measurementWaistChart=renderMeasurementLineChart('measurement-waist-chart',measurementWaistChart,waistData,'rgba(26,95,168,0.9)','cm');
-  measurementBfChart=renderMeasurementLineChart('measurement-bf-chart',measurementBfChart,bfData,'rgba(192,57,43,0.9)','%');
+  measurementWeightChart=renderMeasurementLineChart('measurement-weight-chart',measurementWeightChart,weightData,'rgba(245,158,11,0.92)','kg');
+  measurementWaistChart=renderMeasurementLineChart('measurement-waist-chart',measurementWaistChart,waistData,'rgba(122,155,118,0.9)','cm');
+  measurementBfChart=renderMeasurementLineChart('measurement-bf-chart',measurementBfChart,bfData,'rgba(239,68,68,0.9)','%');
 }
 function dateObjToISO(d){
   const yyyy=d.getFullYear();
@@ -2343,13 +2355,13 @@ function renderMacroPie(totals){
   const cPct=Math.round((totals.carb*4/totals.cal)*100)||0;
   const fPct=Math.round((totals.fat*9/totals.cal)*100)||0;
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const tc=isDark?'#9a9a92':'#6b6b65';
+  const tc=isDark?'#b8b0a3':'#6b6b65';
   if(macroPieChart)macroPieChart.destroy();
   macroPieChart=new Chart(document.getElementById('macro-pie-chart'),{
     type:'pie',
     data:{
       labels:['Protein '+pPct+'%','Carbs '+cPct+'%','Fat '+fPct+'%'],
-      datasets:[{data:[totals.prot*4,totals.carb*4,totals.fat*9],backgroundColor:['#1a5fa8','#1d9e75','#c0392b'],borderWidth:0}]
+      datasets:[{data:[totals.prot*4,totals.carb*4,totals.fat*9],backgroundColor:['#a3a3a3','#7a9b76','#ef4444'],borderWidth:0}]
     },
     options:{maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:tc,font:{size:12},boxWidth:14}}}}
   });
