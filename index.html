@@ -385,7 +385,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
         <div class="chart-wrap"><canvas id="measurement-bf-chart"></canvas></div>
       </div>
     </div>
-    <div class="section-hd history-head">Body history <button id="body-history-toggle" class="tb-btn" onclick="toggleBodyHistory()" style="font-size:12px;padding:5px 10px;display:none">Show all</button></div>
+    <div class="section-hd history-head">Body history <button id="body-history-toggle" class="tb-btn" onclick="toggleBodyHistory()" style="font-size:12px;padding:5px 10px;display:none">Show all body history</button></div>
     <div id="measurements-list" class="measurement-list"></div>
   </div>
 
@@ -713,7 +713,7 @@ const state={
   weight:lsGet(SK.weight,{}),
   measurements:lsGet(SK.measurements,[]),
   recovery:lsGet(SK.recovery,[]),
-  decision:lsGet(SK.decision,{phase:''}),
+  decision:lsGet(SK.decision,{phase:'',goalHistory:[]}),
   gistToken:lsGet(SK.gist_token,''),
   gistId:lsGet(SK.gist_id,''),
   tombstones:lsGet('nl_tombstones',{}),
@@ -1707,14 +1707,32 @@ function dNum(id){
 function loadDecisionInputs(){
   const phase=document.getElementById('decision-phase');
   if(!phase)return;
-  phase.value=state.decision.phase||'';
+  if(!Array.isArray(state.decision.goalHistory))state.decision.goalHistory=[];
+  if(state.decision.phase&&!state.decision.goalHistory.length){
+    state.decision.goalHistory.push({phase:state.decision.phase,effectiveDate:todayISO(),ts:Date.now()});
+    persist('decision');
+  }
+  phase.value=getActiveGoalForDate(todayISO())||'';
 }
 function saveDecisionInputs(){
+  const phase=document.getElementById('decision-phase').value;
+  const effectiveDate=todayISO();
+  if(!Array.isArray(state.decision.goalHistory))state.decision.goalHistory=[];
+  const existing=state.decision.goalHistory.find(g=>g.effectiveDate===effectiveDate);
+  if(existing){existing.phase=phase;existing.ts=Date.now();}
+  else state.decision.goalHistory.push({phase,effectiveDate,ts:Date.now()});
   state.decision={
-    phase:document.getElementById('decision-phase').value
+    phase,
+    goalHistory:state.decision.goalHistory
   };
   persist('decision');
   renderDecisionEngine();
+}
+function getActiveGoalForDate(iso){
+  const history=(state.decision.goalHistory||[])
+    .filter(g=>g.effectiveDate&&g.effectiveDate<=iso)
+    .sort((a,b)=>a.effectiveDate.localeCompare(b.effectiveDate)||(a.ts||0)-(b.ts||0));
+  return history.length?history[history.length-1].phase||'':'';
 }
 function statusBadge(text,cls){
   return'<span class="decision-status '+cls+'">'+text+'</span>';
@@ -1747,7 +1765,7 @@ function renderDecisionEngine(){
   if(!body)return;
   const rows=getMeasurementWeeklyRows();
   const latest=rows[0]||null;
-  const phase=state.decision.phase||'';
+  const phase=latest?getActiveGoalForDate(latest.checkpointDate):'';
   const rules=PHASE_RULES[phase]||null;
   const latestRecovery=latestRecoveryEntry();
   const saturdayDate=latest?latest.checkpointDate:null;
@@ -1761,16 +1779,16 @@ function renderDecisionEngine(){
   const showRecoveryWarning=latestRecovery&&((latestSleep!==null&&latestSleep<4.5)||(latestRecovery.sleepScore!==null&&latestRecovery.sleepScore<60));
   body.innerHTML=
     '<div class="decision-grid">'+
-      '<div class="decision-metric"><div class="dm-lbl">Current phase</div><div class="dm-val">'+(phase||'-')+(!phase?statusBadge('missing','bad'):'')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Checkpoint date</div><div class="dm-val">'+latestLabel+'</div></div>'+
-      '<div class="decision-metric"><div class="dm-lbl">Avg calories (Sun-Fri)</div><div class="dm-val">'+(latest&&latest.avgCal!==null?fmtI(latest.avgCal):'-')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Goal active on checkpoint date</div><div class="dm-val">'+(phase||'No goal set for this checkpoint')+(!phase?statusBadge('missing','bad'):'')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Avg Calories (Sun-Fri, from Food Log)</div><div class="dm-val">'+(latest&&latest.avgCal!==null?fmtI(latest.avgCal):'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Avg weight</div><div class="dm-val">'+(latest&&latest.avgWeight!==null?fmt(latest.avgWeight)+' kg':'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Weight change</div><div class="dm-val">'+(latest?fmtChange(latest.weightChange,' kg'):'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Waist change</div><div class="dm-val">'+(latest?fmtChange(latest.waistChange,' cm'):'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Saturday control</div><div class="dm-val">'+(saturdayCal===null?'-':fmtI(saturdayCal))+(rules?' / '+rules.saturdayCalorieCap:'')+saturdayStatus+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Previous Saturday note</div><div class="dm-val">'+(latest?escHtml(latest.previousSaturdayNote):'-')+'</div></div>'+
-      '<div class="decision-metric"><div class="dm-lbl">Avg sleep hours</div><div class="dm-val">'+(!latest||latest.avgSleepHours===null?'-':fmtSleep(latest.avgSleepHours))+sleepHoursStatus+'</div></div>'+
-      '<div class="decision-metric"><div class="dm-lbl">Avg sleep score</div><div class="dm-val">'+(!latest||latest.avgSleepScore===null?'-':fmtI(latest.avgSleepScore))+sleepScoreStatus+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Recovery Avg Sleep</div><div class="dm-val">'+(!latest||latest.avgSleepHours===null?'-':fmtSleep(latest.avgSleepHours))+sleepHoursStatus+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Recovery Avg Score</div><div class="dm-val">'+(!latest||latest.avgSleepScore===null?'-':fmtI(latest.avgSleepScore))+sleepScoreStatus+'</div></div>'+
     '</div>'+
     (showRecoveryWarning?'<div class="recovery-warning">Recovery warning — last night was very poor.</div>':'')+
     '<div class="decision-final'+decisionClass(decision)+'">'+decision+'</div>';
@@ -1785,9 +1803,11 @@ function renderMeasurements(){
   renderMeasurementWeeklySummary();
   renderDecisionEngine();
   const entries=[...state.measurements].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||b.id-a.id);
-  const shown=state.bodyHistoryExpanded?entries:entries.slice(0,5);
+  const bodyDates=[...new Set(entries.map(e=>e.date).filter(Boolean))];
+  const visibleDates=new Set(state.bodyHistoryExpanded?bodyDates:bodyDates.slice(0,2));
+  const shown=state.bodyHistoryExpanded?entries:entries.filter(e=>visibleDates.has(e.date));
   const btn=document.getElementById('body-history-toggle');
-  if(btn){btn.style.display=entries.length>5?'block':'none';btn.textContent=state.bodyHistoryExpanded?'Hide older':'Show all';}
+  if(btn){btn.style.display=bodyDates.length>2?'block':'none';btn.textContent=state.bodyHistoryExpanded?'Hide older body history':'Show all body history';}
   if(!entries.length){
     list.innerHTML='<div class="empty-log">No measurements yet.</div>';
     return;
@@ -1815,8 +1835,11 @@ function renderMeasurements(){
 }
 
 // ---- EXPORT / IMPORT ----
+function dataPayload(){
+  return {v:3,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,measurements:state.measurements,recovery:state.recovery,decision:state.decision,tombstones:state.tombstones};
+}
 function exportData(){
-  const payload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,tombstones:state.tombstones});
+  const payload=JSON.stringify(dataPayload());
   const encoded=btoa(unescape(encodeURIComponent(payload)));
   navigator.clipboard.writeText(encoded).then(()=>{
     const m=document.getElementById('export-msg');m.style.display='block';setTimeout(()=>m.style.display='none',4000);
@@ -1830,7 +1853,10 @@ function importData(){
     const p=JSON.parse(decodeURIComponent(escape(atob(raw))));
     if(!p.targets)throw new Error();
     state.targets=p.targets;state.log=p.log||{};state.customFoods=p.customFoods||[];state.weight=p.weight||{};
-    persist('targets');persist('log');persist('custom');persist('weight');
+    state.measurements=p.measurements||state.measurements||[];
+    state.recovery=p.recovery||state.recovery||[];
+    state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
+    persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('decision');
     document.getElementById('import-input').value='';
     msg.style.display='block';msg.style.color='var(--accent)';msg.textContent='Imported - all data updated.';
     setTimeout(()=>msg.style.display='none',4000);loadTargetsForm();
@@ -1894,10 +1920,7 @@ async function gistSync(direction){
   state.gistToken=tokenInput;
   lsSet(SK.gist_token, tokenInput);
 
-  const payload=JSON.stringify({
-    v:2,targets:state.targets,log:state.log,
-    customFoods:state.customFoods,weight:state.weight
-  });
+  const payload=JSON.stringify(dataPayload());
 
   const headers={'Authorization':'token '+tokenInput,'Content-Type':'application/json'};
 
@@ -1923,7 +1946,7 @@ async function gistSync(direction){
           }
         }catch(e){}
       }
-      const mergedPayload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,tombstones:state.tombstones});
+      const mergedPayload=JSON.stringify(dataPayload());
       const body={description:'NutriLog data',public:false,files:{'nutrilog.json':{content:mergedPayload}}};
       let resp, data;
       if(state.gistId){
@@ -1967,8 +1990,11 @@ async function gistSync(direction){
         if(!p.targets) throw new Error('Invalid data in gist');
         state.targets=p.targets;state.log=p.log||{};
         state.customFoods=p.customFoods||[];state.weight=p.weight||{};
+        state.measurements=p.measurements||state.measurements||[];
+        state.recovery=p.recovery||state.recovery||[];
+        state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
         state.tombstones=p.tombstones||{};
-        persist('targets');persist('log');persist('custom');persist('weight');
+        persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('decision');
         lsSet('nl_tombstones',state.tombstones);
       }
       // Load foods
@@ -2093,7 +2119,7 @@ async function silentPush(){
       }
     }
     // Just overwrite remote with local state — no merge
-    const payload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,tombstones:state.tombstones});
+    const payload=JSON.stringify(dataPayload());
     const body={description:'NutriLog data',public:false,files:{'nutrilog.json':{content:payload}}};
     const resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
     if(resp.ok){showSyncStatus('synced');}
@@ -2152,7 +2178,10 @@ function restoreBackup(i){
     if(!p.targets)throw new Error('Invalid backup');
     state.targets=p.targets;state.log=p.log||{};
     state.customFoods=p.customFoods||[];state.weight=p.weight||{};
-    persist('targets');persist('log');persist('custom');persist('weight');
+    state.measurements=p.measurements||state.measurements||[];
+    state.recovery=p.recovery||state.recovery||[];
+    state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
+    persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('decision');
     loadTargetsForm();renderDash();
     alert('Restored successfully!');
   }catch(e){alert('Restore failed: '+e.message);}
@@ -2299,7 +2328,10 @@ function initApp(){
               state.targets=p.targets;
               state.log=mergedLog;
               state.customFoods=p.customFoods||[];state.weight=p.weight||{};
-              persist('targets');persist('log');persist('custom');persist('weight');
+              state.measurements=p.measurements||state.measurements||[];
+              state.recovery=p.recovery||state.recovery||[];
+              state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
+              persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('decision');
               lsSet('nl_tombstones',state.tombstones);
               renderDash();loadTargetsForm();
             }
