@@ -189,6 +189,18 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .measurement-week-cell{color:var(--text2);white-space:nowrap}
 .measurement-change.pos{color:var(--danger)}
 .measurement-change.neg{color:var(--accent)}
+.decision-card{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px}
+.decision-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+.decision-metric{background:var(--surface2);border-radius:var(--radius-sm);padding:10px;min-width:0}
+.decision-metric .dm-lbl{font-size:var(--fs-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.decision-metric .dm-val{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.5}
+.decision-status{display:inline-block;border-radius:4px;padding:2px 6px;margin-left:5px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.decision-status.ok{background:var(--accent-light);color:var(--accent-text)}
+.decision-status.warn{background:var(--info-light);color:var(--info)}
+.decision-status.bad{background:#fdecea;color:var(--danger)}
+.decision-final{margin-top:12px;border-radius:var(--radius-sm);padding:13px 14px;background:var(--accent-light);color:var(--accent-text);font-size:var(--fs-lg);font-weight:700}
+.decision-final.warn{background:var(--info-light);color:var(--info)}
+.decision-final.bad{background:#fdecea;color:var(--danger)}
 .btn-sm{background:var(--surface);border:.5px solid var(--border);color:var(--text2);border-radius:var(--radius-sm);padding:7px 12px;font-size:var(--fs-sm);cursor:pointer}
 .btn-sm:active{background:var(--surface2)}
 </style>
@@ -363,6 +375,31 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
   <div id="measurement-weekly-wrap" style="display:none">
     <div class="section-hd">Weekly summary</div>
     <div class="measurement-weekly" id="measurement-weekly-summary"></div>
+  </div>
+  <div id="decision-engine-wrap">
+    <div class="section-hd">Decision engine</div>
+    <div class="decision-card">
+      <div class="form-row">
+        <div class="form-field">
+          <label>Goal / Phase</label>
+          <select id="decision-phase" onchange="saveDecisionInputs()">
+            <option value="">Select phase</option>
+            <option>Fat Loss</option>
+            <option>Maintenance</option>
+            <option>Muscle Gain</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Sleep hours</label>
+          <input type="number" id="decision-sleep-hours" step="0.1" placeholder="6.5" oninput="saveDecisionInputs()">
+        </div>
+        <div class="form-field">
+          <label>Sleep score</label>
+          <input type="number" id="decision-sleep-score" step="1" placeholder="80" oninput="saveDecisionInputs()">
+        </div>
+      </div>
+      <div id="decision-engine-body"></div>
+    </div>
   </div>
   <div class="section-hd">History</div>
   <div id="measurements-list" class="measurement-list"></div>
@@ -617,7 +654,7 @@ function parseCSVLine(line){
   return result;
 }
 
-const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones'};
+const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones'};
 function lsGet(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch(e){return fb}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function todayISO(){
@@ -636,6 +673,7 @@ const state={
   customFoods:lsGet(SK.custom,[]),
   weight:lsGet(SK.weight,{}),
   measurements:lsGet(SK.measurements,[]),
+  decision:lsGet(SK.decision,{phase:'',sleepHours:null,sleepScore:null}),
   gistToken:lsGet(SK.gist_token,''),
   gistId:lsGet(SK.gist_id,''),
   tombstones:lsGet('nl_tombstones',{}),
@@ -662,7 +700,7 @@ function switchView(v){
   if(v==='dash'){renderDash();}
   if(v==='log'){state.selected=new Set();renderLog();}
   if(v==='summary'){renderSummaryPage();}
-  if(v==='measurements'){renderMeasurements();}
+  if(v==='measurements'){loadDecisionInputs();renderMeasurements();}
   if(v==='custom'){renderCustomList();}
   if(v==='targets'){loadTargetsForm();}
 }
@@ -1436,10 +1474,7 @@ function renderMeasurementWeeklySummary(){
       '<div>Week (latest first)</div><div>Avg kcal</div><div>Avg weight</div><div>Latest waist</div><div>Weight change</div><div>Waist change</div>'+
     '</div>'+
     rows.map(r=>{
-      const start=new Date(r.weekStart+'T12:00:00');
-      const end=new Date(r.weekStart+'T12:00:00');
-      end.setDate(start.getDate()+6);
-      const label=start.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' - '+end.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+      const label=weekRangeLabel(r.weekStart);
       return'<div class="measurement-week-row">'+
         '<div class="measurement-week-label">'+label+'</div>'+
         '<div class="measurement-week-cell">'+(r.avgCal===null?'-':fmtI(r.avgCal))+'</div>'+
@@ -1450,12 +1485,106 @@ function renderMeasurementWeeklySummary(){
       '</div>';
     }).join('');
 }
+const PHASE_RULES={
+  'Fat Loss':{minWeightChange:-1.0,maxWeightChange:0.0,waistGainLimit:0.0,saturdayCalorieCap:2200},
+  'Maintenance':{minWeightChange:-0.3,maxWeightChange:0.3,waistGainLimit:0.3,saturdayCalorieCap:2400},
+  'Muscle Gain':{minWeightChange:0.0,maxWeightChange:0.5,waistGainLimit:0.0,saturdayCalorieCap:2500}
+};
+const RECOVERY_RULES={minSleepHours:6.5,minSleepScore:80};
+function dNum(id){
+  const raw=document.getElementById(id).value;
+  if(raw==='')return null;
+  const n=parseFloat(raw);
+  return Number.isFinite(n)?n:null;
+}
+function loadDecisionInputs(){
+  const phase=document.getElementById('decision-phase');
+  const sleepHours=document.getElementById('decision-sleep-hours');
+  const sleepScore=document.getElementById('decision-sleep-score');
+  if(!phase||!sleepHours||!sleepScore)return;
+  phase.value=state.decision.phase||'';
+  sleepHours.value=state.decision.sleepHours??'';
+  sleepScore.value=state.decision.sleepScore??'';
+}
+function saveDecisionInputs(){
+  state.decision={
+    phase:document.getElementById('decision-phase').value,
+    sleepHours:dNum('decision-sleep-hours'),
+    sleepScore:dNum('decision-sleep-score')
+  };
+  persist('decision');
+  renderDecisionEngine();
+}
+function saturdayISOForWeek(weekStart){
+  const d=new Date(weekStart+'T12:00:00');
+  d.setDate(d.getDate()+5);
+  return dateObjToISO(d);
+}
+function weekRangeLabel(weekStart){
+  const start=new Date(weekStart+'T12:00:00');
+  const end=new Date(weekStart+'T12:00:00');
+  end.setDate(start.getDate()+6);
+  return start.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' - '+end.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+}
+function statusBadge(text,cls){
+  return'<span class="decision-status '+cls+'">'+text+'</span>';
+}
+function decisionClass(decision){
+  if(decision==='OK - KEEP CALORIES')return'';
+  if(decision==='REDUCE CALORIES'||decision==='FIX SATURDAY')return' bad';
+  return' warn';
+}
+function buildDecision(latest, phase, sleepHours, sleepScore){
+  const rules=PHASE_RULES[phase];
+  if(!phase||!rules||!latest||latest.weightChange===null||latest.waistChange===null)return'STABILISE';
+  if((sleepHours!==null&&sleepHours<RECOVERY_RULES.minSleepHours)||(sleepScore!==null&&sleepScore<RECOVERY_RULES.minSleepScore))return'STABILISE';
+  const saturdayCal=getTotals(saturdayISOForWeek(latest.weekStart)).cal;
+  if(saturdayCal>rules.saturdayCalorieCap)return'FIX SATURDAY';
+  if(latest.waistChange>rules.waistGainLimit){
+    if(latest.weightChange>rules.maxWeightChange)return'REDUCE CALORIES';
+    return'STABILISE';
+  }
+  if(latest.weightChange<rules.minWeightChange)return'INCREASE CALORIES';
+  if(latest.weightChange>rules.maxWeightChange)return'STABILISE';
+  return'OK - KEEP CALORIES';
+}
+function renderDecisionEngine(){
+  const body=document.getElementById('decision-engine-body');
+  if(!body)return;
+  const rows=getMeasurementWeeklyRows();
+  const latest=rows[0]||null;
+  const phase=state.decision.phase||'';
+  const rules=PHASE_RULES[phase]||null;
+  const sleepHours=state.decision.sleepHours;
+  const sleepScore=state.decision.sleepScore;
+  const saturdayDate=latest?saturdayISOForWeek(latest.weekStart):null;
+  const saturdayCal=saturdayDate?getTotals(saturdayDate).cal:null;
+  const decision=buildDecision(latest,phase,sleepHours,sleepScore);
+  const latestLabel=latest?weekRangeLabel(latest.weekStart):'-';
+  const saturdayStatus=!rules?statusBadge('missing','warn'):(saturdayCal>rules.saturdayCalorieCap?statusBadge('over cap','bad'):statusBadge('ok','ok'));
+  const sleepHoursStatus=sleepHours===null?statusBadge('missing','warn'):(sleepHours<RECOVERY_RULES.minSleepHours?statusBadge('low','bad'):statusBadge('ok','ok'));
+  const sleepScoreStatus=sleepScore===null?statusBadge('missing','warn'):(sleepScore<RECOVERY_RULES.minSleepScore?statusBadge('low','bad'):statusBadge('ok','ok'));
+  body.innerHTML=
+    '<div class="decision-grid">'+
+      '<div class="decision-metric"><div class="dm-lbl">Current phase</div><div class="dm-val">'+(phase||'-')+(!phase?statusBadge('missing','bad'):'')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Latest week</div><div class="dm-val">'+latestLabel+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Avg calories</div><div class="dm-val">'+(latest&&latest.avgCal!==null?fmtI(latest.avgCal):'-')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Avg weight</div><div class="dm-val">'+(latest&&latest.avgWeight!==null?fmt(latest.avgWeight)+' kg':'-')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Weight change</div><div class="dm-val">'+(latest?fmtChange(latest.weightChange,' kg'):'-')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Waist change</div><div class="dm-val">'+(latest?fmtChange(latest.waistChange,' cm'):'-')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Saturday calories</div><div class="dm-val">'+(saturdayCal===null?'-':fmtI(saturdayCal))+(rules?' / '+rules.saturdayCalorieCap:'')+saturdayStatus+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Sleep hours</div><div class="dm-val">'+(sleepHours===null?'-':fmt(sleepHours))+sleepHoursStatus+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Sleep score</div><div class="dm-val">'+(sleepScore===null?'-':fmtI(sleepScore))+sleepScoreStatus+'</div></div>'+
+    '</div>'+
+    '<div class="decision-final'+decisionClass(decision)+'">'+decision+'</div>';
+}
 function renderMeasurements(){
   const list=document.getElementById('measurements-list');
   if(!list)return;
   if(!document.getElementById('m-date').value)document.getElementById('m-date').value=todayISO();
   renderMeasurementCharts();
   renderMeasurementWeeklySummary();
+  renderDecisionEngine();
   const entries=[...state.measurements].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||b.id-a.id);
   if(!entries.length){
     list.innerHTML='<div class="empty-log">No measurements yet.</div>';
