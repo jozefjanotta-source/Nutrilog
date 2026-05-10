@@ -423,17 +423,6 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     <div id="decision-engine-wrap">
       <div class="section-hd">Decision</div>
       <div class="decision-card">
-        <div class="form-row">
-          <div class="form-field">
-            <label>Goal / Phase</label>
-            <select id="decision-phase" onchange="saveDecisionInputs()">
-              <option value="">Select phase</option>
-              <option>Fat Loss</option>
-              <option>Maintenance</option>
-              <option>Muscle Gain</option>
-            </select>
-          </div>
-        </div>
         <div id="decision-engine-body"></div>
       </div>
     </div>
@@ -483,6 +472,29 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     </div>
     <button class="btn-primary" onclick="saveTargets()">Save</button>
     <div class="save-msg" id="save-msg">Saved</div>
+  </div>
+  <div class="section-hd">Goal History</div>
+  <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+    <div class="decision-grid" style="margin-top:0;margin-bottom:14px">
+      <div class="decision-metric"><div class="dm-lbl">Current active goal</div><div class="dm-val" id="goal-current">-</div></div>
+      <div class="decision-metric"><div class="dm-lbl">Upcoming future goal</div><div class="dm-val" id="goal-upcoming">-</div></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Effective Date</label><input type="date" id="goal-date"></div>
+      <div class="form-field"><label>Goal / Phase</label>
+        <select id="goal-phase">
+          <option value="">Select phase</option>
+          <option>Fat Loss</option>
+          <option>Maintenance</option>
+          <option>Muscle Gain</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="btn-primary" id="goal-save-btn" style="flex:1" onclick="saveGoalEntry()">Add goal entry</button>
+      <button class="modal-cancel" id="goal-cancel-btn" style="display:none;flex:0 0 auto;padding:12px 14px" onclick="resetGoalForm()">Cancel</button>
+    </div>
+    <div id="goal-history-list"></div>
   </div>
   <div class="section-hd">Sync between devices</div>
   <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px">
@@ -693,7 +705,7 @@ function parseCSVLine(line){
   return result;
 }
 
-const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',recovery:'nl_recovery',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones'};
+const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',recovery:'nl_recovery',goalHistory:'nl_goal_history',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones'};
 function lsGet(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch(e){return fb}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function todayISO(){
@@ -713,6 +725,7 @@ const state={
   weight:lsGet(SK.weight,{}),
   measurements:lsGet(SK.measurements,[]),
   recovery:lsGet(SK.recovery,[]),
+  goalHistory:lsGet(SK.goalHistory,null)||(lsGet(SK.decision,{goalHistory:[]}).goalHistory||[]),
   decision:lsGet(SK.decision,{phase:'',goalHistory:[]}),
   gistToken:lsGet(SK.gist_token,''),
   gistId:lsGet(SK.gist_id,''),
@@ -724,6 +737,7 @@ const state={
   selected:new Set(),
   editingMeasurementId:null,
   editingRecoveryId:null,
+  editingGoalIndex:null,
   measurementArea:'body',
   bodyHistoryExpanded:false,
   recoveryHistoryExpanded:false,
@@ -745,7 +759,7 @@ function switchView(v){
   if(v==='dash'){renderDash();}
   if(v==='log'){state.selected=new Set();renderLog();}
   if(v==='summary'){renderSummaryPage();}
-  if(v==='measurements'){loadDecisionInputs();switchMeasurementArea(state.measurementArea||'body');}
+  if(v==='measurements'){switchMeasurementArea(state.measurementArea||'body');}
   if(v==='custom'){renderCustomList();}
   if(v==='targets'){loadTargetsForm();}
 }
@@ -1145,11 +1159,68 @@ function loadTargetsForm(){
   const gid=state.gistId;
   document.getElementById('gist-id-display').textContent=gid?'Gist ID: '+gid:'No gist created yet.';
   const fdc=document.getElementById('foods-db-count');if(fdc)fdc.textContent=DB.length+' foods loaded';
+  renderGoalHistorySettings();
   renderBackupList();
 }
 function saveTargets(){
   ['cal','prot','carb','fat','fiber'].forEach(k=>state.targets[k]=parseFloat(document.getElementById('t-'+k).value)||0);
   persist('targets');scheduleAutoSync();const m=document.getElementById('save-msg');m.style.display='block';setTimeout(()=>m.style.display='none',2000);
+}
+
+function resetGoalForm(){
+  state.editingGoalIndex=null;
+  const d=document.getElementById('goal-date');
+  const p=document.getElementById('goal-phase');
+  if(d)d.value=todayISO();
+  if(p)p.value='';
+  document.getElementById('goal-save-btn').textContent='Add goal entry';
+  document.getElementById('goal-cancel-btn').style.display='none';
+}
+function saveGoalEntry(){
+  const effectiveDate=document.getElementById('goal-date').value;
+  const phase=document.getElementById('goal-phase').value;
+  if(!effectiveDate||!phase){alert('Please choose an effective date and goal.');return;}
+  const entry={effectiveDate,phase,ts:Date.now()};
+  if(state.editingGoalIndex!==null)state.goalHistory[state.editingGoalIndex]=entry;
+  else state.goalHistory.push(entry);
+  state.goalHistory.sort((a,b)=>a.effectiveDate.localeCompare(b.effectiveDate)||(a.ts||0)-(b.ts||0));
+  persist('goalHistory');scheduleAutoSync();
+  resetGoalForm();
+  renderGoalHistorySettings();
+}
+function editGoalEntry(i){
+  const g=state.goalHistory[i];if(!g)return;
+  state.editingGoalIndex=i;
+  document.getElementById('goal-date').value=g.effectiveDate||todayISO();
+  document.getElementById('goal-phase').value=g.phase||'';
+  document.getElementById('goal-save-btn').textContent='Update goal entry';
+  document.getElementById('goal-cancel-btn').style.display='block';
+}
+function deleteGoalEntry(i){
+  const g=state.goalHistory[i];if(!g)return;
+  if(!confirm('Delete goal entry for '+g.effectiveDate+'?'))return;
+  state.goalHistory.splice(i,1);
+  persist('goalHistory');scheduleAutoSync();
+  resetGoalForm();
+  renderGoalHistorySettings();
+}
+function renderGoalHistorySettings(){
+  if(!Array.isArray(state.goalHistory))state.goalHistory=[];
+  state.goalHistory.sort((a,b)=>(a.effectiveDate||'').localeCompare(b.effectiveDate||'')||(a.ts||0)-(b.ts||0));
+  const today=todayISO();
+  const current=getActiveGoalForDate(today);
+  const future=[...state.goalHistory].filter(g=>g.effectiveDate>today).sort((a,b)=>a.effectiveDate.localeCompare(b.effectiveDate))[0];
+  const curEl=document.getElementById('goal-current');
+  const upEl=document.getElementById('goal-upcoming');
+  if(curEl)curEl.textContent=current||'No current goal';
+  if(upEl)upEl.textContent=future?future.phase+' from '+future.effectiveDate:'No upcoming goal';
+  if(!document.getElementById('goal-date').value)resetGoalForm();
+  const list=document.getElementById('goal-history-list');
+  if(!list)return;
+  if(!state.goalHistory.length){list.innerHTML='<div class="empty-log" style="padding:20px">No goal history yet.</div>';return;}
+  list.innerHTML=state.goalHistory.map((g,i)=>
+    '<div class="custom-item"><div class="custom-item-info"><div class="custom-item-name">'+escHtml(g.phase||'-')+'</div><div class="custom-item-meta">Effective '+escHtml(g.effectiveDate||'-')+'</div></div><button class="btn-sm" onclick="editGoalEntry('+i+')">Edit</button><button class="btn-sm-danger" onclick="deleteGoalEntry('+i+')">Delete</button></div>'
+  ).join('');
 }
 
 // ---- SUMMARY ----
@@ -1704,32 +1775,8 @@ function dNum(id){
   const n=parseFloat(raw);
   return Number.isFinite(n)?n:null;
 }
-function loadDecisionInputs(){
-  const phase=document.getElementById('decision-phase');
-  if(!phase)return;
-  if(!Array.isArray(state.decision.goalHistory))state.decision.goalHistory=[];
-  if(state.decision.phase&&!state.decision.goalHistory.length){
-    state.decision.goalHistory.push({phase:state.decision.phase,effectiveDate:todayISO(),ts:Date.now()});
-    persist('decision');
-  }
-  phase.value=getActiveGoalForDate(todayISO())||'';
-}
-function saveDecisionInputs(){
-  const phase=document.getElementById('decision-phase').value;
-  const effectiveDate=todayISO();
-  if(!Array.isArray(state.decision.goalHistory))state.decision.goalHistory=[];
-  const existing=state.decision.goalHistory.find(g=>g.effectiveDate===effectiveDate);
-  if(existing){existing.phase=phase;existing.ts=Date.now();}
-  else state.decision.goalHistory.push({phase,effectiveDate,ts:Date.now()});
-  state.decision={
-    phase,
-    goalHistory:state.decision.goalHistory
-  };
-  persist('decision');
-  renderDecisionEngine();
-}
 function getActiveGoalForDate(iso){
-  const history=(state.decision.goalHistory||[])
+  const history=(state.goalHistory||[])
     .filter(g=>g.effectiveDate&&g.effectiveDate<=iso)
     .sort((a,b)=>a.effectiveDate.localeCompare(b.effectiveDate)||(a.ts||0)-(b.ts||0));
   return history.length?history[history.length-1].phase||'':'';
@@ -1780,7 +1827,7 @@ function renderDecisionEngine(){
   body.innerHTML=
     '<div class="decision-grid">'+
       '<div class="decision-metric"><div class="dm-lbl">Checkpoint date</div><div class="dm-val">'+latestLabel+'</div></div>'+
-      '<div class="decision-metric"><div class="dm-lbl">Goal active on checkpoint date</div><div class="dm-val">'+(phase||'No goal set for this checkpoint')+(!phase?statusBadge('missing','bad'):'')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Goal active on checkpoint date</div><div class="dm-val">'+(phase||'No goal set before this checkpoint')+(!phase?statusBadge('missing','bad'):'')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Avg Calories (Sun-Fri, from Food Log)</div><div class="dm-val">'+(latest&&latest.avgCal!==null?fmtI(latest.avgCal):'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Avg weight</div><div class="dm-val">'+(latest&&latest.avgWeight!==null?fmt(latest.avgWeight)+' kg':'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Weight change</div><div class="dm-val">'+(latest?fmtChange(latest.weightChange,' kg'):'-')+'</div></div>'+
@@ -1836,7 +1883,7 @@ function renderMeasurements(){
 
 // ---- EXPORT / IMPORT ----
 function dataPayload(){
-  return {v:3,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,measurements:state.measurements,recovery:state.recovery,decision:state.decision,tombstones:state.tombstones};
+  return {v:3,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,measurements:state.measurements,recovery:state.recovery,goalHistory:state.goalHistory,decision:state.decision,tombstones:state.tombstones};
 }
 function exportData(){
   const payload=JSON.stringify(dataPayload());
@@ -1855,8 +1902,9 @@ function importData(){
     state.targets=p.targets;state.log=p.log||{};state.customFoods=p.customFoods||[];state.weight=p.weight||{};
     state.measurements=p.measurements||state.measurements||[];
     state.recovery=p.recovery||state.recovery||[];
+    state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
     state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
-    persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('decision');
+    persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('goalHistory');persist('decision');
     document.getElementById('import-input').value='';
     msg.style.display='block';msg.style.color='var(--accent)';msg.textContent='Imported - all data updated.';
     setTimeout(()=>msg.style.display='none',4000);loadTargetsForm();
@@ -1992,9 +2040,10 @@ async function gistSync(direction){
         state.customFoods=p.customFoods||[];state.weight=p.weight||{};
         state.measurements=p.measurements||state.measurements||[];
         state.recovery=p.recovery||state.recovery||[];
+        state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
         state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
         state.tombstones=p.tombstones||{};
-        persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('decision');
+        persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('goalHistory');persist('decision');
         lsSet('nl_tombstones',state.tombstones);
       }
       // Load foods
@@ -2180,8 +2229,9 @@ function restoreBackup(i){
     state.customFoods=p.customFoods||[];state.weight=p.weight||{};
     state.measurements=p.measurements||state.measurements||[];
     state.recovery=p.recovery||state.recovery||[];
+    state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
     state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
-    persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('decision');
+    persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('goalHistory');persist('decision');
     loadTargetsForm();renderDash();
     alert('Restored successfully!');
   }catch(e){alert('Restore failed: '+e.message);}
@@ -2330,8 +2380,9 @@ function initApp(){
               state.customFoods=p.customFoods||[];state.weight=p.weight||{};
               state.measurements=p.measurements||state.measurements||[];
               state.recovery=p.recovery||state.recovery||[];
+              state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
               state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
-              persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('decision');
+              persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('goalHistory');persist('decision');
               lsSet('nl_tombstones',state.tombstones);
               renderDash();loadTargetsForm();
             }
