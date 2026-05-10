@@ -36,6 +36,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .tab-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:680px;background:var(--surface);border-top:.5px solid var(--border);display:flex;height:var(--tab-h);padding-bottom:var(--safe-bottom);z-index:20}
 .tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:none;background:none;color:var(--text3);font-size:11px;font-weight:500;padding-top:6px}
 .tab-item.active{color:var(--accent)}.tab-icon{font-size:22px;line-height:1}
+.tab-item span:last-child{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .page{display:none;padding:16px}
 /* DATE NAV */
 .date-nav{display:flex;align-items:center;gap:8px;padding:8px 16px 12px}
@@ -134,8 +135,9 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .form-row{display:flex;gap:8px;margin-bottom:12px;align-items:flex-end;flex-wrap:wrap}
 .form-field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:100px}
 .form-field label{font-size:var(--fs-sm);color:var(--text2);font-weight:500}
-.form-field input,.form-field select{padding:10px 11px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs);outline:none;width:100%}
-.form-field input:focus,.form-field select:focus{border-color:var(--accent)}
+.form-field input,.form-field select,.form-field textarea{padding:10px 11px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs);outline:none;width:100%;font-family:inherit}
+.form-field input:focus,.form-field select:focus,.form-field textarea:focus{border-color:var(--accent)}
+.form-field textarea{resize:vertical;line-height:1.4}
 .preview-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
 .preview-item{background:var(--surface2);border-radius:var(--radius-sm);padding:12px;text-align:center}
 .preview-item .pv{font-size:20px;font-weight:700}
@@ -168,6 +170,27 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .weight-entry{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-sm)}
 .weight-entry-date{color:var(--text2)}
 .weight-entry-val{font-weight:600}
+/* MEASUREMENTS */
+.measurement-list{display:flex;flex-direction:column;gap:8px}
+.measurement-item{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius-sm);padding:13px 14px}
+.measurement-item-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:9px}
+.measurement-date{font-size:var(--fs);font-weight:600}
+.measurement-comment{font-size:var(--fs-sm);color:var(--text2);line-height:1.5;margin-top:10px;white-space:pre-wrap}
+.measurement-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.measurement-metric{background:var(--surface2);border-radius:var(--radius-sm);padding:9px 10px;min-width:0}
+.measurement-metric .mm-lbl{font-size:var(--fs-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+.measurement-metric .mm-val{font-size:var(--fs-sm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.measurement-actions{display:flex;gap:6px;flex-shrink:0}
+.measurement-weekly{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:16px;overflow-x:auto}
+.measurement-week-row{display:grid;grid-template-columns:1.3fr repeat(5,1fr);gap:8px;align-items:center;min-width:620px;padding:9px 0;border-bottom:.5px solid var(--border);font-size:var(--fs-sm)}
+.measurement-week-row:last-child{border-bottom:none}
+.measurement-week-row.hd{font-size:var(--fs-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.04em;font-weight:600;padding-top:0}
+.measurement-week-label{font-weight:600;color:var(--text)}
+.measurement-week-cell{color:var(--text2);white-space:nowrap}
+.measurement-change.pos{color:var(--danger)}
+.measurement-change.neg{color:var(--accent)}
+.btn-sm{background:var(--surface);border:.5px solid var(--border);color:var(--text2);border-radius:var(--radius-sm);padding:7px 12px;font-size:var(--fs-sm);cursor:pointer}
+.btn-sm:active{background:var(--surface2)}
 </style>
 </head>
 <body>
@@ -296,6 +319,55 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
   </div>
 </div>
 
+<!-- MEASUREMENTS -->
+<div id="view-measurements" class="page">
+  <div class="section-hd">Measurements</div>
+  <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+    <div class="form-row">
+      <div class="form-field"><label>Date</label><input type="date" id="m-date"></div>
+      <div class="form-field"><label>Weight (kg)</label><input type="number" id="m-weight" step="0.1" placeholder="105.0" oninput="updateMeasurementFat()"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Waist (cm)</label><input type="number" id="m-waist" step="0.1" placeholder="98.0"></div>
+      <div class="form-field"><label>BF (%)</label><input type="number" id="m-bf" step="0.1" placeholder="24.0" oninput="updateMeasurementFat()"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Fat (kg)</label><input type="number" id="m-fat" step="0.1" placeholder="25.0" readonly></div>
+      <div class="form-field"><label>Muscle mass (kg)</label><input type="number" id="m-muscle" step="0.1" placeholder="70.0"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Water (%)</label><input type="number" id="m-water" step="0.1" placeholder="52.0"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field" style="min-width:100%"><label>Comment</label><textarea id="m-comment" rows="3" placeholder="Optional note..."></textarea></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary" id="m-save-btn" style="flex:1" onclick="saveMeasurement()">Save measurement</button>
+      <button class="modal-cancel" id="m-cancel-btn" style="display:none;flex:0 0 auto;padding:12px 14px" onclick="resetMeasurementForm()">Cancel</button>
+    </div>
+  </div>
+  <div id="measurement-charts" style="display:none">
+    <div class="chart-card" id="measurement-weight-card" style="margin:0 0 14px">
+      <div class="chart-title">Weight trend</div>
+      <div class="chart-wrap"><canvas id="measurement-weight-chart"></canvas></div>
+    </div>
+    <div class="chart-card" id="measurement-waist-card" style="margin:0 0 14px">
+      <div class="chart-title">Waist trend</div>
+      <div class="chart-wrap"><canvas id="measurement-waist-chart"></canvas></div>
+    </div>
+    <div class="chart-card" id="measurement-bf-card" style="margin:0 0 14px">
+      <div class="chart-title">BF% trend</div>
+      <div class="chart-wrap"><canvas id="measurement-bf-chart"></canvas></div>
+    </div>
+  </div>
+  <div id="measurement-weekly-wrap" style="display:none">
+    <div class="section-hd">Weekly summary</div>
+    <div class="measurement-weekly" id="measurement-weekly-summary"></div>
+  </div>
+  <div class="section-hd">History</div>
+  <div id="measurements-list" class="measurement-list"></div>
+</div>
+
 <!-- MY FOODS -->
 <div id="view-custom" class="page">
   <div class="section-hd">Add custom food</div>
@@ -407,6 +479,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
   <button class="tab-item" id="tab-log" onclick="switchView('log')"><span class="tab-icon">&#128203;</span><span>Log</span></button>
   <button class="tab-item" id="tab-add" onclick="switchView('add')"><span class="tab-icon">&#10133;</span><span>Add food</span></button>
   <button class="tab-item" id="tab-summary" onclick="switchView('summary')"><span class="tab-icon">&#128202;</span><span>Summary</span></button>
+  <button class="tab-item" id="tab-measurements" onclick="switchView('measurements')"><span class="tab-icon">&#128207;</span><span>Measurements</span></button>
   <button class="tab-item" id="tab-custom" onclick="switchView('custom')"><span class="tab-icon">&#129367;</span><span>My foods</span></button>
   <button class="tab-item" id="tab-targets" onclick="switchView('targets')"><span class="tab-icon">&#9881;</span><span>Settings</span></button>
 </div>
@@ -544,7 +617,7 @@ function parseCSVLine(line){
   return result;
 }
 
-const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones'};
+const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones'};
 function lsGet(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch(e){return fb}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function todayISO(){
@@ -562,6 +635,7 @@ const state={
   log:lsGet(SK.log,{}),
   customFoods:lsGet(SK.custom,[]),
   weight:lsGet(SK.weight,{}),
+  measurements:lsGet(SK.measurements,[]),
   gistToken:lsGet(SK.gist_token,''),
   gistId:lsGet(SK.gist_id,''),
   tombstones:lsGet('nl_tombstones',{}),
@@ -570,13 +644,14 @@ const state={
   unitMode:'grams',
   chartRange:7,
   selected:new Set(),
+  editingMeasurementId:null,
   moveMode:false
 };
 function persist(k){lsSet(SK[k],state[k])}
 
-let chartCal=null,chartMacro=null,chartWeight=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null,macroPieChart=null;
+let chartCal=null,chartMacro=null,chartWeight=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null,macroPieChart=null,measurementWeightChart=null,measurementWaistChart=null,measurementBfChart=null;
 
-const VIEWS=['dash','log','add','summary','custom','targets'];
+const VIEWS=['dash','log','add','summary','measurements','custom','targets'];
 function switchView(v){
   VIEWS.forEach(id=>{
     const el=document.getElementById('view-'+id);
@@ -587,6 +662,7 @@ function switchView(v){
   if(v==='dash'){renderDash();}
   if(v==='log'){state.selected=new Set();renderLog();}
   if(v==='summary'){renderSummaryPage();}
+  if(v==='measurements'){renderMeasurements();}
   if(v==='custom'){renderCustomList();}
   if(v==='targets'){loadTargetsForm();}
 }
@@ -1164,6 +1240,249 @@ function renderWeightList(){
 }
 function deleteWeight(d){delete state.weight[d];persist('weight');scheduleAutoSync();renderWeightList();renderSummaryPage();}
 
+// ---- MEASUREMENTS ----
+function mNum(id){
+  const raw=document.getElementById(id).value;
+  if(raw==='')return null;
+  const n=parseFloat(raw);
+  return Number.isFinite(n)?n:null;
+}
+function calcMeasurementFat(){
+  const weight=mNum('m-weight');
+  const bf=mNum('m-bf');
+  if(weight===null||bf===null)return null;
+  return Math.round((weight*bf/100)*10)/10;
+}
+function updateMeasurementFat(){
+  const fat=calcMeasurementFat();
+  document.getElementById('m-fat').value=fat===null?'':fat.toFixed(1);
+}
+function mVal(v,unit){
+  return v===null||v===undefined||v===''?'-':fmt(v)+(unit||'');
+}
+function escHtml(s){
+  return String(s||'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function resetMeasurementForm(){
+  state.editingMeasurementId=null;
+  document.getElementById('m-date').value=todayISO();
+  ['m-weight','m-waist','m-bf','m-fat','m-muscle','m-water','m-comment'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('m-save-btn').textContent='Save measurement';
+  document.getElementById('m-cancel-btn').style.display='none';
+}
+function saveMeasurement(){
+  const date=document.getElementById('m-date').value;
+  if(!date){alert('Please choose a date.');return;}
+  updateMeasurementFat();
+  const item={
+    id:state.editingMeasurementId||Date.now(),
+    date,
+    weight:mNum('m-weight'),
+    waist:mNum('m-waist'),
+    bf:mNum('m-bf'),
+    fat:calcMeasurementFat(),
+    muscle:mNum('m-muscle'),
+    water:mNum('m-water'),
+    comment:document.getElementById('m-comment').value.trim()
+  };
+  const idx=state.measurements.findIndex(m=>m.id===state.editingMeasurementId);
+  if(idx>=0) state.measurements[idx]=item;
+  else state.measurements.push(item);
+  persist('measurements');
+  resetMeasurementForm();
+  renderMeasurements();
+}
+function editMeasurement(id){
+  const item=state.measurements.find(m=>m.id===id);
+  if(!item)return;
+  state.editingMeasurementId=id;
+  document.getElementById('m-date').value=item.date||todayISO();
+  document.getElementById('m-weight').value=item.weight??'';
+  document.getElementById('m-waist').value=item.waist??'';
+  document.getElementById('m-bf').value=item.bf??'';
+  document.getElementById('m-muscle').value=item.muscle??'';
+  document.getElementById('m-water').value=item.water??'';
+  document.getElementById('m-comment').value=item.comment||'';
+  updateMeasurementFat();
+  document.getElementById('m-save-btn').textContent='Update measurement';
+  document.getElementById('m-cancel-btn').style.display='block';
+  document.getElementById('view-measurements').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function deleteMeasurement(id){
+  const item=state.measurements.find(m=>m.id===id);
+  if(!item)return;
+  if(!confirm('Delete measurement for '+dayLabel(item.date)+'?'))return;
+  state.measurements=state.measurements.filter(m=>m.id!==id);
+  if(state.editingMeasurementId===id)resetMeasurementForm();
+  persist('measurements');
+  renderMeasurements();
+}
+function getMeasurementChartData(key){
+  const entries=[...state.measurements]
+    .filter(m=>m.date&&m[key]!==null&&m[key]!==undefined&&m[key]!=='')
+    .sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
+  return{
+    labels:entries.map(m=>new Date(m.date+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})),
+    values:entries.map(m=>m[key])
+  };
+}
+function renderMeasurementLineChart(canvasId, chartRef, chartData, color, unit){
+  const canvas=document.getElementById(canvasId);
+  if(!canvas)return null;
+  if(chartRef)chartRef.destroy();
+  if(!chartData.values.length)return null;
+  const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+  const gc=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
+  const tc=isDark?'#606058':'#9e9e97';
+  try{
+    return new Chart(canvas.getContext('2d'),{
+      type:'line',
+      data:{labels:chartData.labels,datasets:[{data:chartData.values,borderColor:color,backgroundColor:color.replace('0.9','0.12'),borderWidth:2,pointRadius:5,pointBackgroundColor:color,tension:0.3,spanGaps:true}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>fmt(ctx.raw)+' '+unit}}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:45}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}}}}}
+    });
+  }catch(e){return null;}
+}
+function renderMeasurementCharts(){
+  const box=document.getElementById('measurement-charts');
+  if(!box)return;
+  const weightData=getMeasurementChartData('weight');
+  const waistData=getMeasurementChartData('waist');
+  const bfData=getMeasurementChartData('bf');
+  const hasCharts=weightData.values.length||waistData.values.length||bfData.values.length;
+  box.style.display=hasCharts?'block':'none';
+  document.getElementById('measurement-weight-card').style.display=weightData.values.length?'block':'none';
+  document.getElementById('measurement-waist-card').style.display=waistData.values.length?'block':'none';
+  document.getElementById('measurement-bf-card').style.display=bfData.values.length?'block':'none';
+  measurementWeightChart=renderMeasurementLineChart('measurement-weight-chart',measurementWeightChart,weightData,'rgba(45,106,79,0.9)','kg');
+  measurementWaistChart=renderMeasurementLineChart('measurement-waist-chart',measurementWaistChart,waistData,'rgba(26,95,168,0.9)','cm');
+  measurementBfChart=renderMeasurementLineChart('measurement-bf-chart',measurementBfChart,bfData,'rgba(192,57,43,0.9)','%');
+}
+function dateObjToISO(d){
+  const yyyy=d.getFullYear();
+  const mm=String(d.getMonth()+1).padStart(2,'0');
+  const dd=String(d.getDate()).padStart(2,'0');
+  return yyyy+'-'+mm+'-'+dd;
+}
+function weekStartISO(iso){
+  const d=new Date(iso+'T12:00:00');
+  const day=d.getDay();
+  d.setDate(d.getDate()+(day===0?-6:1-day));
+  return dateObjToISO(d);
+}
+function weekDates(startISO){
+  const start=new Date(startISO+'T12:00:00');
+  const dates=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(start);
+    d.setDate(start.getDate()+i);
+    dates.push(dateObjToISO(d));
+  }
+  return dates;
+}
+function avgMeasurementValue(entries,key){
+  const vals=entries.map(m=>m[key]).filter(v=>v!==null&&v!==undefined&&v!=='');
+  return vals.length?vals.reduce((a,v)=>a+v,0)/vals.length:null;
+}
+function latestMeasurementValue(entries,key){
+  const vals=entries.filter(m=>m[key]!==null&&m[key]!==undefined&&m[key]!=='').sort((a,b)=>a.date.localeCompare(b.date)||(a.id||0)-(b.id||0));
+  return vals.length?vals[vals.length-1][key]:null;
+}
+function fmtChange(v,unit){
+  if(v===null||v===undefined)return'-';
+  const n=fmt(v);
+  const prefix=n>0?'+':'';
+  return prefix+n+(unit||'');
+}
+function changeClass(v){
+  if(v===null||v===undefined||v===0)return'';
+  return v>0?' pos':' neg';
+}
+function getMeasurementWeeklyRows(){
+  const groups={};
+  state.measurements.filter(m=>m.date).forEach(m=>{
+    const wk=weekStartISO(m.date);
+    if(!groups[wk])groups[wk]=[];
+    groups[wk].push(m);
+  });
+  const rows=Object.keys(groups).sort().map(wk=>{
+    const entries=groups[wk].sort((a,b)=>a.date.localeCompare(b.date)||(a.id||0)-(b.id||0));
+    const loggedDays=weekDates(wk).filter(d=>(state.log[d]||[]).length>0);
+    const avgCal=loggedDays.length?loggedDays.reduce((a,d)=>a+getTotals(d).cal,0)/loggedDays.length:null;
+    return{
+      weekStart:wk,
+      avgCal,
+      avgWeight:avgMeasurementValue(entries,'weight'),
+      latestWaist:latestMeasurementValue(entries,'waist'),
+      weightChange:null,
+      waistChange:null
+    };
+  });
+  rows.forEach((row,i)=>{
+    const prev=rows[i-1];
+    if(prev&&row.avgWeight!==null&&prev.avgWeight!==null)row.weightChange=row.avgWeight-prev.avgWeight;
+    if(prev&&row.latestWaist!==null&&prev.latestWaist!==null)row.waistChange=row.latestWaist-prev.latestWaist;
+  });
+  return rows.reverse();
+}
+function renderMeasurementWeeklySummary(){
+  const wrap=document.getElementById('measurement-weekly-wrap');
+  const box=document.getElementById('measurement-weekly-summary');
+  if(!wrap||!box)return;
+  const rows=getMeasurementWeeklyRows();
+  wrap.style.display=rows.length?'block':'none';
+  if(!rows.length){box.innerHTML='';return;}
+  box.innerHTML=
+    '<div class="measurement-week-row hd">'+
+      '<div>Week (latest first)</div><div>Avg kcal</div><div>Avg weight</div><div>Latest waist</div><div>Weight change</div><div>Waist change</div>'+
+    '</div>'+
+    rows.map(r=>{
+      const start=new Date(r.weekStart+'T12:00:00');
+      const end=new Date(r.weekStart+'T12:00:00');
+      end.setDate(start.getDate()+6);
+      const label=start.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' - '+end.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+      return'<div class="measurement-week-row">'+
+        '<div class="measurement-week-label">'+label+'</div>'+
+        '<div class="measurement-week-cell">'+(r.avgCal===null?'-':fmtI(r.avgCal))+'</div>'+
+        '<div class="measurement-week-cell">'+(r.avgWeight===null?'-':fmt(r.avgWeight)+' kg')+'</div>'+
+        '<div class="measurement-week-cell">'+(r.latestWaist===null?'-':fmt(r.latestWaist)+' cm')+'</div>'+
+        '<div class="measurement-week-cell measurement-change'+changeClass(r.weightChange)+'">'+fmtChange(r.weightChange,' kg')+'</div>'+
+        '<div class="measurement-week-cell measurement-change'+changeClass(r.waistChange)+'">'+fmtChange(r.waistChange,' cm')+'</div>'+
+      '</div>';
+    }).join('');
+}
+function renderMeasurements(){
+  const list=document.getElementById('measurements-list');
+  if(!list)return;
+  if(!document.getElementById('m-date').value)document.getElementById('m-date').value=todayISO();
+  renderMeasurementCharts();
+  renderMeasurementWeeklySummary();
+  const entries=[...state.measurements].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||b.id-a.id);
+  if(!entries.length){
+    list.innerHTML='<div class="empty-log">No measurements yet.</div>';
+    return;
+  }
+  list.innerHTML=entries.map(m=>
+    '<div class="measurement-item">'+
+      '<div class="measurement-item-head">'+
+        '<div><div class="measurement-date">'+dayLabel(m.date)+'</div><div style="font-size:var(--fs-xs);color:var(--text3);margin-top:2px">'+escHtml(m.date)+'</div></div>'+
+        '<div class="measurement-actions">'+
+          '<button class="btn-sm" onclick="editMeasurement('+JSON.stringify(m.id)+')">Edit</button>'+
+          '<button class="btn-sm-danger" onclick="deleteMeasurement('+JSON.stringify(m.id)+')">Delete</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="measurement-grid">'+
+        '<div class="measurement-metric"><div class="mm-lbl">Weight</div><div class="mm-val">'+mVal(m.weight,' kg')+'</div></div>'+
+        '<div class="measurement-metric"><div class="mm-lbl">Waist</div><div class="mm-val">'+mVal(m.waist,' cm')+'</div></div>'+
+        '<div class="measurement-metric"><div class="mm-lbl">BF</div><div class="mm-val">'+mVal(m.bf,' %')+'</div></div>'+
+        '<div class="measurement-metric"><div class="mm-lbl">Fat</div><div class="mm-val">'+mVal(m.fat,' kg')+'</div></div>'+
+        '<div class="measurement-metric"><div class="mm-lbl">Muscle mass</div><div class="mm-val">'+mVal(m.muscle,' kg')+'</div></div>'+
+        '<div class="measurement-metric"><div class="mm-lbl">Water</div><div class="mm-val">'+mVal(m.water,' %')+'</div></div>'+
+      '</div>'+
+      (m.comment?'<div class="measurement-comment">'+escHtml(m.comment)+'</div>':'')+
+    '</div>'
+  ).join('');
+}
+
 // ---- EXPORT / IMPORT ----
 function exportData(){
   const payload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,tombstones:state.tombstones});
@@ -1627,6 +1946,7 @@ function initApp(){
     cleanupData();
     VIEWS.forEach(id=>{const el=document.getElementById('view-'+id);if(el)el.style.display='none';});
     document.getElementById('w-date').value=todayISO();
+    document.getElementById('m-date').value=todayISO();
     loadTargetsForm();
     loadFoodsCSV();
     switchView('dash');
