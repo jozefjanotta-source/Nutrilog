@@ -1607,34 +1607,51 @@ function changeClass(v){
   if(v===null||v===undefined||v===0)return'';
   return v>0?' pos':' neg';
 }
+function isSaturday(iso){return new Date(iso+'T12:00:00').getDay()===6;}
+function checkpointWindowDates(saturdayISO){
+  const sat=new Date(saturdayISO+'T12:00:00');
+  const dates=[];
+  for(let i=6;i>=1;i--){
+    const d=new Date(sat);
+    d.setDate(sat.getDate()-i);
+    dates.push(dateObjToISO(d));
+  }
+  return dates;
+}
+function avgRecoveryForDates(dates,key){
+  const allowed=new Set(dates);
+  const vals=state.recovery.filter(r=>allowed.has(r.date)&&r[key]!==null&&r[key]!==undefined&&r[key]!=='').map(r=>r[key]);
+  return vals.length?vals.reduce((a,v)=>a+v,0)/vals.length:null;
+}
+function previousSaturdayISO(saturdayISO){
+  const d=new Date(saturdayISO+'T12:00:00');
+  d.setDate(d.getDate()-7);
+  return dateObjToISO(d);
+}
+function saturdayMeasurementForDate(iso){
+  const entries=state.measurements.filter(m=>m.date===iso).sort((a,b)=>(a.id||0)-(b.id||0));
+  return entries.length?entries[entries.length-1]:null;
+}
 function getMeasurementWeeklyRows(){
-  const groups={};
-  const recoveryGroups={};
-  state.measurements.filter(m=>m.date).forEach(m=>{
-    const wk=weekStartISO(m.date);
-    if(!groups[wk])groups[wk]=[];
-    groups[wk].push(m);
-  });
-  state.recovery.filter(r=>r.date).forEach(r=>{
-    const wk=weekStartISO(r.date);
-    if(!recoveryGroups[wk])recoveryGroups[wk]=[];
-    recoveryGroups[wk].push(r);
-  });
-  const weekKeys=[...new Set([...Object.keys(groups),...Object.keys(recoveryGroups)])].sort();
-  const rows=weekKeys.map(wk=>{
-    const entries=(groups[wk]||[]).sort((a,b)=>a.date.localeCompare(b.date)||(a.id||0)-(b.id||0));
-    const recoveryEntries=(recoveryGroups[wk]||[]).sort((a,b)=>a.date.localeCompare(b.date)||(a.id||0)-(b.id||0));
-    const loggedDays=weekDates(wk).filter(d=>(state.log[d]||[]).length>0);
+  const checkpoints=state.measurements
+    .filter(m=>m.date&&isSaturday(m.date))
+    .sort((a,b)=>a.date.localeCompare(b.date)||(a.id||0)-(b.id||0));
+  const rows=checkpoints.map(m=>{
+    const windowDates=checkpointWindowDates(m.date);
+    const loggedDays=windowDates.filter(d=>(state.log[d]||[]).length>0);
     const avgCal=loggedDays.length?loggedDays.reduce((a,d)=>a+getTotals(d).cal,0)/loggedDays.length:null;
+    const prevSat=previousSaturdayISO(m.date);
+    const prevMeasurement=saturdayMeasurementForDate(prevSat);
+    const prevNote=(prevMeasurement&&prevMeasurement.comment)?prevMeasurement.comment.trim():'';
     return{
-      weekStart:wk,
+      checkpointDate:m.date,
+      weekStart:windowDates[0],
       avgCal,
-      avgWeight:avgMeasurementValue(entries,'weight'),
-      latestWaist:latestMeasurementValue(entries,'waist'),
-      avgSleepHours:avgMeasurementValue(recoveryEntries,'sleepHours'),
-      avgSleepScore:avgMeasurementValue(recoveryEntries,'sleepScore'),
-      latestSleepHours:latestMeasurementValue(recoveryEntries,'sleepHours'),
-      latestSleepScore:latestMeasurementValue(recoveryEntries,'sleepScore'),
+      avgWeight:m.weight??null,
+      latestWaist:m.waist??null,
+      avgSleepHours:avgRecoveryForDates(windowDates,'sleepHours'),
+      avgSleepScore:avgRecoveryForDates(windowDates,'sleepScore'),
+      previousSaturdayNote:prevNote||'No previous Saturday note',
       weightChange:null,
       waistChange:null
     };
@@ -1659,10 +1676,10 @@ function renderMeasurementWeeklySummary(){
   if(!olderRows.length){box.innerHTML='';return;}
   box.innerHTML=
     '<div class="measurement-week-row hd">'+
-      '<div>Week (latest first)</div><div>Avg kcal</div><div>Avg sleep</div><div>Sleep score</div><div>Avg weight</div><div>Latest waist</div><div>Weight change</div><div>Waist change</div>'+
+      '<div>Checkpoint</div><div>Avg kcal</div><div>Avg sleep</div><div>Sleep score</div><div>Weight</div><div>Waist</div><div>Weight change</div><div>Waist change</div>'+
     '</div>'+
     olderRows.map(r=>{
-      const label=weekRangeLabel(r.weekStart);
+      const label=dayLabel(r.checkpointDate);
       return'<div class="measurement-week-row">'+
         '<div class="measurement-week-label">'+label+'</div>'+
         '<div class="measurement-week-cell">'+(r.avgCal===null?'-':fmtI(r.avgCal))+'</div>'+
@@ -1699,17 +1716,6 @@ function saveDecisionInputs(){
   persist('decision');
   renderDecisionEngine();
 }
-function saturdayISOForWeek(weekStart){
-  const d=new Date(weekStart+'T12:00:00');
-  d.setDate(d.getDate()+5);
-  return dateObjToISO(d);
-}
-function weekRangeLabel(weekStart){
-  const start=new Date(weekStart+'T12:00:00');
-  const end=new Date(weekStart+'T12:00:00');
-  end.setDate(start.getDate()+6);
-  return start.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' - '+end.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-}
 function statusBadge(text,cls){
   return'<span class="decision-status '+cls+'">'+text+'</span>';
 }
@@ -1726,7 +1732,7 @@ function buildDecision(latest, phase){
   const rules=PHASE_RULES[phase];
   if(!phase||!rules||!latest||latest.weightChange===null||latest.waistChange===null)return'STABILISE';
   if((latest.avgSleepHours!==null&&latest.avgSleepHours<RECOVERY_RULES.minSleepHours)||(latest.avgSleepScore!==null&&latest.avgSleepScore<RECOVERY_RULES.minSleepScore))return'STABILISE';
-  const saturdayCal=getTotals(saturdayISOForWeek(latest.weekStart)).cal;
+  const saturdayCal=getTotals(latest.checkpointDate).cal;
   if(saturdayCal>rules.saturdayCalorieCap)return'FIX SATURDAY';
   if(latest.waistChange>rules.waistGainLimit){
     if(latest.weightChange>rules.maxWeightChange)return'REDUCE CALORIES';
@@ -1744,10 +1750,10 @@ function renderDecisionEngine(){
   const phase=state.decision.phase||'';
   const rules=PHASE_RULES[phase]||null;
   const latestRecovery=latestRecoveryEntry();
-  const saturdayDate=latest?saturdayISOForWeek(latest.weekStart):null;
+  const saturdayDate=latest?latest.checkpointDate:null;
   const saturdayCal=saturdayDate?getTotals(saturdayDate).cal:null;
   const decision=buildDecision(latest,phase);
-  const latestLabel=latest?weekRangeLabel(latest.weekStart):'-';
+  const latestLabel=latest?dayLabel(latest.checkpointDate):'-';
   const saturdayStatus=!rules?statusBadge('missing','warn'):(saturdayCal>rules.saturdayCalorieCap?statusBadge('over cap','bad'):statusBadge('ok','ok'));
   const sleepHoursStatus=!latest||latest.avgSleepHours===null?statusBadge('missing','warn'):(latest.avgSleepHours<RECOVERY_RULES.minSleepHours?statusBadge('low','bad'):statusBadge('ok','ok'));
   const sleepScoreStatus=!latest||latest.avgSleepScore===null?statusBadge('missing','warn'):(latest.avgSleepScore<RECOVERY_RULES.minSleepScore?statusBadge('low','bad'):statusBadge('ok','ok'));
@@ -1756,12 +1762,13 @@ function renderDecisionEngine(){
   body.innerHTML=
     '<div class="decision-grid">'+
       '<div class="decision-metric"><div class="dm-lbl">Current phase</div><div class="dm-val">'+(phase||'-')+(!phase?statusBadge('missing','bad'):'')+'</div></div>'+
-      '<div class="decision-metric"><div class="dm-lbl">Latest week</div><div class="dm-val">'+latestLabel+'</div></div>'+
-      '<div class="decision-metric"><div class="dm-lbl">Avg calories</div><div class="dm-val">'+(latest&&latest.avgCal!==null?fmtI(latest.avgCal):'-')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Checkpoint date</div><div class="dm-val">'+latestLabel+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Avg calories (Sun-Fri)</div><div class="dm-val">'+(latest&&latest.avgCal!==null?fmtI(latest.avgCal):'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Avg weight</div><div class="dm-val">'+(latest&&latest.avgWeight!==null?fmt(latest.avgWeight)+' kg':'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Weight change</div><div class="dm-val">'+(latest?fmtChange(latest.weightChange,' kg'):'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Waist change</div><div class="dm-val">'+(latest?fmtChange(latest.waistChange,' cm'):'-')+'</div></div>'+
-      '<div class="decision-metric"><div class="dm-lbl">Saturday calories</div><div class="dm-val">'+(saturdayCal===null?'-':fmtI(saturdayCal))+(rules?' / '+rules.saturdayCalorieCap:'')+saturdayStatus+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Saturday control</div><div class="dm-val">'+(saturdayCal===null?'-':fmtI(saturdayCal))+(rules?' / '+rules.saturdayCalorieCap:'')+saturdayStatus+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Previous Saturday note</div><div class="dm-val">'+(latest?escHtml(latest.previousSaturdayNote):'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Avg sleep hours</div><div class="dm-val">'+(!latest||latest.avgSleepHours===null?'-':fmtSleep(latest.avgSleepHours))+sleepHoursStatus+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Avg sleep score</div><div class="dm-val">'+(!latest||latest.avgSleepScore===null?'-':fmtI(latest.avgSleepScore))+sleepScoreStatus+'</div></div>'+
     '</div>'+
