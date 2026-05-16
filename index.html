@@ -717,7 +717,7 @@ function parseCSVLine(line){
   return result;
 }
 
-const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',recovery:'nl_recovery',goalHistory:'nl_goal_history',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones'};
+const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',recovery:'nl_recovery',goalHistory:'nl_goal_history',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones',measurementTombstones:'nl_measurement_tombstones'};
 function lsGet(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch(e){return fb}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function todayISO(){
@@ -742,6 +742,7 @@ const state={
   gistToken:lsGet(SK.gist_token,''),
   gistId:lsGet(SK.gist_id,''),
   tombstones:lsGet('nl_tombstones',{}),
+  measurementTombstones:lsGet(SK.measurementTombstones,[]),
   currentDate:todayISO(),
   pendingFood:null,
   unitMode:'grams',
@@ -757,6 +758,53 @@ const state={
   moveMode:false
 };
 function persist(k){lsSet(SK[k],state[k])}
+
+function measurementKey(item){
+  if(!item)return'';
+  if(item.id!==null&&item.id!==undefined&&item.id!=='')return'id:'+String(item.id);
+  return 'body:'+[
+    item.date||'',
+    item.weight??'',
+    item.waist??'',
+    item.bf??'',
+    item.muscle??'',
+    item.water??'',
+    item.comment||''
+  ].join('|');
+}
+function measurementIdMatches(item,id){
+  return item&&item.id!==null&&item.id!==undefined&&id!==null&&id!==undefined&&String(item.id)===String(id);
+}
+function preferMeasurement(next,current,preferNextOnTie){
+  if(!current)return true;
+  const nt=next&&next.updatedAt?Date.parse(next.updatedAt):NaN;
+  const ct=current&&current.updatedAt?Date.parse(current.updatedAt):NaN;
+  if(Number.isFinite(nt)&&Number.isFinite(ct))return nt>=ct;
+  if(Number.isFinite(nt)&&!Number.isFinite(ct))return true;
+  if(!Number.isFinite(nt)&&Number.isFinite(ct))return false;
+  return preferNextOnTie;
+}
+function mergeBodyMeasurements(incoming,incomingTombstones){
+  const tombs=new Set([...(state.measurementTombstones||[]),...(incomingTombstones||[])].map(String));
+  const byKey=new Map();
+  const add=(items,preferOnTie)=>{
+    (Array.isArray(items)?items:[]).forEach(item=>{
+      const key=measurementKey(item);
+      if(!key||tombs.has(key))return;
+      const current=byKey.get(key);
+      if(preferMeasurement(item,current,preferOnTie))byKey.set(key,item);
+    });
+  };
+  add(incoming,false);
+  add(state.measurements,true);
+  state.measurementTombstones=[...tombs];
+  state.measurements=[...byKey.values()];
+}
+function saveBodyMeasurements(){
+  persist('measurements');
+  persist('measurementTombstones');
+  scheduleAutoSync();
+}
 
 let chartCal=null,chartMacro=null,chartWeight=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null,macroPieChart=null,measurementWeightChart=null,measurementWaistChart=null,measurementBfChart=null;
 
@@ -1469,17 +1517,18 @@ function saveMeasurement(){
     fat:calcMeasurementFat(),
     muscle:mNum('m-muscle'),
     water:mNum('m-water'),
-    comment:document.getElementById('m-comment').value.trim()
+    comment:document.getElementById('m-comment').value.trim(),
+    updatedAt:new Date().toISOString()
   };
-  const idx=state.measurements.findIndex(m=>m.id===state.editingMeasurementId);
+  const idx=state.measurements.findIndex(m=>measurementIdMatches(m,state.editingMeasurementId));
   if(idx>=0) state.measurements[idx]=item;
   else state.measurements.push(item);
-  persist('measurements');
+  saveBodyMeasurements();
   resetMeasurementForm();
   renderMeasurements();
 }
 function editMeasurement(id){
-  const item=state.measurements.find(m=>m.id===id);
+  const item=state.measurements.find(m=>measurementIdMatches(m,id));
   if(!item)return;
   state.editingMeasurementId=id;
   document.getElementById('m-date').value=item.date||todayISO();
@@ -1495,12 +1544,14 @@ function editMeasurement(id){
   document.getElementById('view-measurements').scrollIntoView({behavior:'smooth',block:'start'});
 }
 function deleteMeasurement(id){
-  const item=state.measurements.find(m=>m.id===id);
+  const item=state.measurements.find(m=>measurementIdMatches(m,id));
   if(!item)return;
   if(!confirm('Delete measurement for '+dayLabel(item.date)+'?'))return;
-  state.measurements=state.measurements.filter(m=>m.id!==id);
+  const key=measurementKey(item);
+  if(key&&!state.measurementTombstones.includes(key))state.measurementTombstones.push(key);
+  state.measurements=state.measurements.filter(m=>measurementKey(m)!==key);
   if(state.editingMeasurementId===id)resetMeasurementForm();
-  persist('measurements');
+  saveBodyMeasurements();
   renderMeasurements();
 }
 function rNum(id){
@@ -1901,7 +1952,7 @@ function renderMeasurements(){
 
 // ---- EXPORT / IMPORT ----
 function dataPayload(){
-  return {v:3,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,measurements:state.measurements,recovery:state.recovery,goalHistory:state.goalHistory,decision:state.decision,tombstones:state.tombstones};
+  return {v:3,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,measurements:state.measurements,measurementTombstones:state.measurementTombstones,recovery:state.recovery,goalHistory:state.goalHistory,decision:state.decision,tombstones:state.tombstones};
 }
 function exportData(){
   const payload=JSON.stringify(dataPayload());
@@ -1918,11 +1969,11 @@ function importData(){
     const p=JSON.parse(decodeURIComponent(escape(atob(raw))));
     if(!p.targets)throw new Error();
     state.targets=p.targets;state.log=p.log||{};state.customFoods=p.customFoods||[];state.weight=p.weight||{};
-    state.measurements=p.measurements||state.measurements||[];
+    mergeBodyMeasurements(p.measurements,p.measurementTombstones);
     state.recovery=p.recovery||state.recovery||[];
     state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
     state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
-    persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('goalHistory');persist('decision');
+    persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
     document.getElementById('import-input').value='';
     msg.style.display='block';msg.style.color='var(--accent)';msg.textContent='Imported - all data updated.';
     setTimeout(()=>msg.style.display='none',4000);loadTargetsForm();
@@ -2002,7 +2053,9 @@ async function gistSync(direction){
             if(remoteData.files&&remoteData.files['nutrilog.json']){
               const remote=JSON.parse(remoteData.files['nutrilog.json'].content);
               if(remote.log) state.log=mergeLogData(state.log,remote.log,remote.tombstones||{});
+              mergeBodyMeasurements(remote.measurements,remote.measurementTombstones);
               persist('log');
+              persist('measurements');persist('measurementTombstones');
               // Save backup
               const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
               backups.unshift({ts:new Date().toISOString(),data:remoteData.files['nutrilog.json'].content});
@@ -2056,12 +2109,12 @@ async function gistSync(direction){
         if(!p.targets) throw new Error('Invalid data in gist');
         state.targets=p.targets;state.log=p.log||{};
         state.customFoods=p.customFoods||[];state.weight=p.weight||{};
-        state.measurements=p.measurements||state.measurements||[];
+        mergeBodyMeasurements(p.measurements,p.measurementTombstones);
         state.recovery=p.recovery||state.recovery||[];
         state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
         state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
         state.tombstones=p.tombstones||{};
-        persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('goalHistory');persist('decision');
+        persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
         lsSet('nl_tombstones',state.tombstones);
       }
       // Load foods
@@ -2246,10 +2299,11 @@ function restoreBackup(i){
     state.targets=p.targets;state.log=p.log||{};
     state.customFoods=p.customFoods||[];state.weight=p.weight||{};
     state.measurements=p.measurements||state.measurements||[];
+    state.measurementTombstones=p.measurementTombstones||[];
     state.recovery=p.recovery||state.recovery||[];
     state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
     state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
-    persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('goalHistory');persist('decision');
+    persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
     loadTargetsForm();renderDash();
     alert('Restored successfully!');
   }catch(e){alert('Restore failed: '+e.message);}
@@ -2396,11 +2450,11 @@ function initApp(){
               state.targets=p.targets;
               state.log=mergedLog;
               state.customFoods=p.customFoods||[];state.weight=p.weight||{};
-              state.measurements=p.measurements||state.measurements||[];
+              mergeBodyMeasurements(p.measurements,p.measurementTombstones);
               state.recovery=p.recovery||state.recovery||[];
               state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
               state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
-              persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('recovery');persist('goalHistory');persist('decision');
+              persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
               lsSet('nl_tombstones',state.tombstones);
               renderDash();loadTargetsForm();
             }
