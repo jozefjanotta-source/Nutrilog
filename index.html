@@ -844,6 +844,10 @@ function switchView(v){
 function jumpToDate(iso){
   if(!iso)return;
   state.currentDate=iso;
+  ['date-picker-dash','date-picker-log'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.value=iso;
+  });
   state.selected=new Set();
   renderDash();renderLog();
 }
@@ -854,9 +858,7 @@ function changeDay(d){
   const yyyy=dt.getFullYear();
   const mm=String(dt.getMonth()+1).padStart(2,'0');
   const dd=String(dt.getDate()).padStart(2,'0');
-  state.currentDate=yyyy+'-'+mm+'-'+dd;
-  state.selected=new Set();
-  renderDash();renderLog();
+  jumpToDate(yyyy+'-'+mm+'-'+dd);
 }
 function dayLabel(iso){
   const today=todayISO();
@@ -1111,10 +1113,8 @@ function confirmCopyMove(){
   persist('log');scheduleAutoSync();
   document.getElementById('modal').style.display='none';
   const moved=state.moveMode;
-  state.currentDate=targetDate;
+  jumpToDate(targetDate);
   switchView('log');
-  renderLog();
-  renderDash();
   showToast((moved?'Moved':'Copied')+' to '+targetDate);
 }
 
