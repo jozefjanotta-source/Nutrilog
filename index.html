@@ -158,6 +158,8 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 /* TARGETS */
 .target-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
 .save-msg{font-size:var(--fs-sm);color:var(--accent);margin-top:10px;display:none}
+.toast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%) translateY(8px);background:rgba(28,28,30,.94);color:#fff;padding:9px 14px;border-radius:999px;font-size:var(--fs-sm);font-weight:600;box-shadow:var(--shadow);z-index:120;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 /* SUMMARY PAGE */
 .range-toggle{display:flex;background:var(--surface2);border-radius:var(--radius-sm);padding:3px;margin-bottom:16px}
 .range-btn{flex:1;text-align:center;padding:8px;font-size:var(--fs-sm);font-weight:500;border-radius:6px;cursor:pointer;color:var(--text2);border:none;background:none}
@@ -759,6 +761,21 @@ const state={
 };
 function persist(k){lsSet(SK[k],state[k])}
 
+let toastTimer=null;
+function showToast(msg,ms=1600){
+  let el=document.getElementById('toast');
+  if(!el){
+    el=document.createElement('div');
+    el.id='toast';
+    el.className='toast';
+    document.body.appendChild(el);
+  }
+  el.textContent=msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),ms);
+}
+
 function measurementKey(item){
   if(!item)return'';
   if(item.id!==null&&item.id!==undefined&&item.id!=='')return'id:'+String(item.id);
@@ -1051,8 +1068,8 @@ function isTombstoned(date, entry){
 
 function deleteSelected(){
   if(!state.selected.size)return;
-  if(!confirm('Delete '+state.selected.size+' item(s)?')){return;}
   const entries=state.log[state.currentDate]||[];
+  const removedCount=state.selected.size;
   const selectedIndices=[...state.selected];
   recordTombstones(state.currentDate, entries, selectedIndices);
   state.log[state.currentDate]=entries.filter((_,i)=>!state.selected.has(i));
@@ -1060,6 +1077,7 @@ function deleteSelected(){
   persist('log');scheduleAutoSync();
   renderLog();
   renderDash();
+  showToast(removedCount===1?'Deleted':'Deleted '+removedCount);
 }
 
 function showCopyModal(isMove){
@@ -1080,19 +1098,24 @@ function confirmCopyMove(){
   const targetDate=document.getElementById('modal-date').value;
   const targetMeal=document.getElementById('modal-meal').value;
   if(!targetDate)return;
+  const sourceDate=state.currentDate;
   const entries=state.log[state.currentDate]||[];
   const toProcess=entries.filter((_,i)=>state.selected.has(i));
   const toCopy=toProcess.map(e=>({...e,meal:targetMeal||e.meal}));
   if(!state.log[targetDate])state.log[targetDate]=[];
   state.log[targetDate].push(...toCopy);
   if(state.moveMode){
-    state.log[state.currentDate]=entries.filter((_,i)=>!state.selected.has(i));
+    state.log[sourceDate]=entries.filter((_,i)=>!state.selected.has(i));
   }
   state.selected=new Set();
   persist('log');scheduleAutoSync();
   document.getElementById('modal').style.display='none';
+  const moved=state.moveMode;
+  state.currentDate=targetDate;
+  switchView('log');
   renderLog();
   renderDash();
+  showToast((moved?'Moved':'Copied')+' to '+targetDate);
 }
 
 // ---- SEARCH ----
@@ -1186,6 +1209,7 @@ function addToLog(){
   persist('log');scheduleAutoSync();state.pendingFood=null;clearSearch();
   document.getElementById('add-panel').style.display='none';
   switchView('log');
+  showToast('Saved');
 }
 
 // ---- CUSTOM FOODS ----
@@ -1239,7 +1263,8 @@ function resetGoalForm(){
 function saveGoalEntry(){
   const effectiveDate=document.getElementById('goal-date').value;
   const phase=document.getElementById('goal-phase').value;
-  if(!effectiveDate||!phase){alert('Please choose an effective date and goal.');return;}
+  if(!effectiveDate||!phase){showToast('Choose date and goal');return;}
+  const isEdit=state.editingGoalIndex!==null;
   const entry={effectiveDate,phase,ts:Date.now()};
   if(state.editingGoalIndex!==null)state.goalHistory[state.editingGoalIndex]=entry;
   else state.goalHistory.push(entry);
@@ -1247,6 +1272,7 @@ function saveGoalEntry(){
   persist('goalHistory');scheduleAutoSync();
   resetGoalForm();
   renderGoalHistorySettings();
+  showToast(isEdit?'Updated':'Saved');
 }
 function editGoalEntry(i){
   const g=state.goalHistory[i];if(!g)return;
@@ -1258,11 +1284,11 @@ function editGoalEntry(i){
 }
 function deleteGoalEntry(i){
   const g=state.goalHistory[i];if(!g)return;
-  if(!confirm('Delete goal entry for '+g.effectiveDate+'?'))return;
   state.goalHistory.splice(i,1);
   persist('goalHistory');scheduleAutoSync();
   resetGoalForm();
   renderGoalHistorySettings();
+  showToast('Deleted');
 }
 function renderGoalHistorySettings(){
   if(!Array.isArray(state.goalHistory))state.goalHistory=[];
@@ -1506,7 +1532,8 @@ function resetMeasurementForm(){
 }
 function saveMeasurement(){
   const date=document.getElementById('m-date').value;
-  if(!date){alert('Please choose a date.');return;}
+  if(!date){showToast('Choose a date');return;}
+  const isEdit=state.editingMeasurementId!==null;
   updateMeasurementFat();
   const item={
     id:state.editingMeasurementId||Date.now(),
@@ -1526,6 +1553,7 @@ function saveMeasurement(){
   saveBodyMeasurements();
   resetMeasurementForm();
   renderMeasurements();
+  showToast(isEdit?'Updated':'Saved');
 }
 function editMeasurement(id){
   const item=state.measurements.find(m=>measurementIdMatches(m,id));
@@ -1546,13 +1574,13 @@ function editMeasurement(id){
 function deleteMeasurement(id){
   const item=state.measurements.find(m=>measurementIdMatches(m,id));
   if(!item)return;
-  if(!confirm('Delete measurement for '+dayLabel(item.date)+'?'))return;
   const key=measurementKey(item);
   if(key&&!state.measurementTombstones.includes(key))state.measurementTombstones.push(key);
   state.measurements=state.measurements.filter(m=>measurementKey(m)!==key);
   if(state.editingMeasurementId===id)resetMeasurementForm();
   saveBodyMeasurements();
   renderMeasurements();
+  showToast('Deleted');
 }
 function rNum(id){
   const raw=document.getElementById(id).value;
@@ -1573,7 +1601,8 @@ function resetRecoveryForm(){
 }
 function saveRecovery(){
   const date=document.getElementById('r-date').value;
-  if(!date){alert('Please choose a date.');return;}
+  if(!date){showToast('Choose a date');return;}
+  const isEdit=state.editingRecoveryId!==null;
   const rawSleepHours=rNum('r-sleep-hours');
   const rawSleepMinutes=rNum('r-sleep-minutes');
   const hasSleep=rawSleepHours!==null||rawSleepMinutes!==null;
@@ -1601,6 +1630,7 @@ function saveRecovery(){
   persist('recovery');
   resetRecoveryForm();
   renderMeasurements();
+  showToast(isEdit?'Updated':'Saved');
 }
 function editRecovery(id){
   const item=state.recovery.find(r=>r.id===id);
@@ -1624,11 +1654,11 @@ function editRecovery(id){
 function deleteRecovery(id){
   const item=state.recovery.find(r=>r.id===id);
   if(!item)return;
-  if(!confirm('Delete recovery for '+dayLabel(item.date)+'?'))return;
   state.recovery=state.recovery.filter(r=>r.id!==id);
   if(state.editingRecoveryId===id)resetRecoveryForm();
   persist('recovery');
   renderMeasurements();
+  showToast('Deleted');
 }
 function renderRecoveryList(){
   const list=document.getElementById('recovery-list');
@@ -2386,12 +2416,13 @@ function editEntry(idx){
   const newAmt=prompt('Update amount for '+item.name+' ('+unit+'):', currentAmt);
   if(newAmt===null)return;
   const n=parseFloat(newAmt);
-  if(isNaN(n)||n<=0){alert('Invalid amount.');return;}
+  if(isNaN(n)||n<=0){showToast('Invalid amount');return;}
   const ratio=n/currentAmt;
   item.cal*=ratio;item.prot*=ratio;item.carb*=ratio;item.fat*=ratio;item.fiber*=ratio;
   item.amountLabel=n+unit;
   persist('log');scheduleAutoSync();
   renderLog();renderDash();
+  showToast('Updated');
 }
 
 // ---- DYNAMIC CALORIE TARGET ----
