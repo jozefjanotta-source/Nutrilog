@@ -386,15 +386,6 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     <div class="chart-title">Macros breakdown</div>
     <div class="chart-wrap"><canvas id="chart-macro"></canvas></div>
   </div>
-  <div class="chart-card" style="margin:0 0 14px">
-    <div class="chart-title">Weight quick log</div>
-    <div class="weight-log-row">
-      <div class="form-field"><label>Date</label><input type="date" id="w-date"></div>
-      <div class="form-field"><label>Weight (kg)</label><input type="number" id="w-val" placeholder="e.g. 105" step="0.1"></div>
-      <button class="btn-primary" style="width:auto;padding:10px 14px;font-size:var(--fs-sm);flex-shrink:0;align-self:flex-end" onclick="addWeight()">Add</button>
-    </div>
-    <div id="weight-list"></div>
-  </div>
 </div>
 
 <!-- MEASUREMENTS -->
@@ -1621,6 +1612,7 @@ function addWeight(){
 function renderWeightList(){
   const entries=Object.entries(state.weight).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,5);
   const list=document.getElementById('weight-list');
+  if(!list)return;
   if(!entries.length){list.innerHTML='<div style="font-size:var(--fs-sm);color:var(--text3);padding:8px 0">No weight entries yet.</div>';return;}
   list.innerHTML=entries.map(([d,v])=>
     '<div class="weight-entry"><span class="weight-entry-date">'+dayLabel(d)+'</span><div style="display:flex;align-items:center;gap:10px"><span class="weight-entry-val">'+v+' kg</span><button class="btn-sm-danger" onclick="deleteWeight(\''+d+'\'  )">x</button></div></div>'
@@ -2657,7 +2649,7 @@ function initApp(){
     // Clean up bloated tombstones immediately
     cleanupData();
     VIEWS.forEach(id=>{const el=document.getElementById('view-'+id);if(el)el.style.display='none';});
-    document.getElementById('w-date').value=todayISO();
+    const wDate=document.getElementById('w-date');if(wDate)wDate.value=todayISO();
     document.getElementById('m-date').value=todayISO();
     document.getElementById('r-date').value=todayISO();
     loadTargetsForm();
