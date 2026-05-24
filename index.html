@@ -103,7 +103,16 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .food-item-meta{font-size:var(--fs-sm);color:var(--text2);margin-top:3px}
 .food-item-cal{font-size:var(--fs-sm);font-weight:600;color:var(--accent);white-space:nowrap}
 .empty-log{text-align:center;padding:48px 20px;color:var(--text3);font-size:var(--fs);line-height:1.7}
-.day-total{background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;margin:0 16px 16px;font-size:var(--fs-sm);color:var(--text2);display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
+.day-total{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin:0 16px 16px;color:var(--text2);display:grid;grid-template-columns:1fr;gap:10px}
+.day-total-main{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.day-total-label{font-size:var(--fs-sm);font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em}
+.day-total-cal{font-size:28px;font-weight:800;color:var(--info);line-height:1}
+.day-total-macros{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.day-total-macro{background:var(--surface2);border-radius:var(--radius-sm);padding:9px 10px;min-width:0}
+.day-total-macro .dt-lbl{font-size:var(--fs-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+.day-total-macro .dt-val{font-size:17px;font-weight:700;color:var(--text);white-space:nowrap}
+.day-total-macro.important .dt-val{color:var(--info)}
+.print-only{display:none}
 /* SELECTION ACTIONS */
 .sel-count{font-size:var(--fs-sm);color:var(--accent);font-weight:600}
 /* MODAL */
@@ -197,6 +206,12 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .measurement-subtab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
 .measurement-panel{display:none}
 .history-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.advanced-recovery{border:.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px;background:var(--surface2)}
+.advanced-recovery summary{cursor:pointer;font-size:var(--fs-sm);font-weight:600;color:var(--text2);list-style:none}
+.advanced-recovery summary::-webkit-details-marker{display:none}
+.advanced-recovery summary::after{content:'+';float:right;color:var(--text3)}
+.advanced-recovery[open] summary{margin-bottom:12px}
+.advanced-recovery[open] summary::after{content:'-'}
 .recovery-warning{margin-top:12px;border-radius:var(--radius-sm);padding:11px 12px;background:#fdecea;color:var(--danger);font-size:var(--fs-sm);font-weight:600}
 .decision-card{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px}
 .decision-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
@@ -222,6 +237,29 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
   .btn-primary,.tb-btn.accent{color:#111}
   .food-item-cb.checked{color:#111}
   .decision-status.bad,.decision-final.bad,.recovery-warning{background:var(--danger-light)}
+}
+@media(max-width:430px){
+  .day-total-macros{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media print{
+  @page{margin:14mm}
+  :root{--bg:#fff;--surface:#fff;--surface2:#f4f6f8;--border:rgba(0,0,0,.18);--text:#111;--text2:#444;--text3:#777;--accent:#111;--info:#1a5fa8}
+  html,body{height:auto;background:#fff;color:#111;display:block;max-width:none;font-size:12pt}
+  .header,.tab-bar,.date-nav,.log-toolbar,.chart-card,.range-toggle,.measurement-subtabs,.modal-overlay,button,.food-item-cb{display:none!important}
+  .scroll-content{display:block;overflow:visible;padding:0}
+  .page,#view-dash,#view-add,#view-summary,#view-measurements,#view-custom,#view-targets{display:none!important}
+  #view-log{display:block!important;padding:0!important}
+  .print-only{display:block!important}
+  .print-title{font-size:20pt;font-weight:800;margin:0 0 4mm}
+  .print-date{font-size:12pt;color:#444;margin-bottom:7mm}
+  .log-section{break-inside:avoid;margin:0 0 7mm}
+  .meal-header{font-size:11pt;color:#111;padding-bottom:2mm;border-bottom:1px solid #ddd;margin-bottom:2mm}
+  .meal-cal-badge{display:inline-block!important;background:none;padding:0;color:#444}
+  .food-item{break-inside:avoid;border:0;border-bottom:1px solid #e1e1e1;border-radius:0;padding:3mm 0;margin:0;box-shadow:none;background:#fff}
+  .food-item-name{white-space:normal;font-size:11pt}
+  .food-item-meta,.food-item-cal{font-size:10pt;color:#222}
+  .day-total{break-inside:avoid;margin:6mm 0 0;border:1px solid #d7d7d7;background:#fff}
+  .day-total-cal{color:#111}
 }
 </style>
 </head>
@@ -270,10 +308,15 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
       <span class="sel-count" id="sel-count"></span>
     </div>
     <div class="log-toolbar-right" id="action-btns">
+      <button class="tb-btn" onclick="printFoodLog()">Print food log</button>
       <button class="tb-btn" onclick="showCopyModal(false)" id="btn-copy" disabled>Copy to...</button>
       <button class="tb-btn" onclick="showCopyModal(true)" id="btn-move" disabled>Move to...</button>
       <button class="tb-btn danger" onclick="deleteSelected()" id="btn-del" disabled>Delete</button>
     </div>
+  </div>
+  <div class="print-only">
+    <div class="print-title">Food log</div>
+    <div class="print-date" id="print-log-date"></div>
   </div>
   <div id="log-body"></div>
 </div>
@@ -340,13 +383,12 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     <div class="chart-wrap"><canvas id="chart-macro"></canvas></div>
   </div>
   <div class="chart-card" style="margin:0 0 14px">
-    <div class="chart-title">Weight tracking</div>
+    <div class="chart-title">Weight quick log</div>
     <div class="weight-log-row">
       <div class="form-field"><label>Date</label><input type="date" id="w-date"></div>
       <div class="form-field"><label>Weight (kg)</label><input type="number" id="w-val" placeholder="e.g. 105" step="0.1"></div>
       <button class="btn-primary" style="width:auto;padding:10px 14px;font-size:var(--fs-sm);flex-shrink:0;align-self:flex-end" onclick="addWeight()">Add</button>
     </div>
-    <div class="chart-wrap" id="weight-chart-wrap" style="display:none"><canvas id="chart-weight"></canvas></div>
     <div id="weight-list"></div>
   </div>
 </div>
@@ -414,13 +456,16 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
       </div>
       <div class="form-row">
         <div class="form-field"><label>HRV optional</label><input type="number" id="r-hrv" step="1" placeholder="45"></div>
+      </div>
+      <details class="advanced-recovery" id="advanced-recovery-fields">
+        <summary>Advanced recovery fields</summary>
+        <div class="form-row">
         <div class="form-field"><label>Mood 1-5</label><input type="number" id="r-mood" min="1" max="5" step="1"></div>
         <div class="form-field"><label>Soreness 1-5</label><input type="number" id="r-soreness" min="1" max="5" step="1"></div>
-      </div>
-      <div class="form-row">
         <div class="form-field"><label>Performance 1-5</label><input type="number" id="r-performance" min="1" max="5" step="1"></div>
         <div class="form-field"><label>Cravings 1-5</label><input type="number" id="r-cravings" min="1" max="5" step="1"></div>
-      </div>
+        </div>
+      </details>
       <div class="form-row">
         <div class="form-field" style="min-width:100%"><label>Comment</label><textarea id="r-comment" rows="3" placeholder="Optional note..."></textarea></div>
       </div>
@@ -429,7 +474,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
         <button class="modal-cancel" id="r-cancel-btn" style="display:none;flex:0 0 auto;padding:12px 14px" onclick="resetRecoveryForm()">Cancel</button>
       </div>
     </div>
-    <div class="section-hd history-head">Recovery history <button id="recovery-history-toggle" class="tb-btn" onclick="toggleRecoveryHistory()" style="font-size:12px;padding:5px 10px;display:none">Show all</button></div>
+    <div class="section-hd history-head">Recovery history <button id="recovery-history-toggle" class="tb-btn" onclick="toggleRecoveryHistory()" style="font-size:12px;padding:5px 10px;display:none">Show all recovery history</button></div>
     <div id="recovery-list" class="measurement-list"></div>
   </div>
 
@@ -823,7 +868,7 @@ function saveBodyMeasurements(){
   scheduleAutoSync();
 }
 
-let chartCal=null,chartMacro=null,chartWeight=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null,macroPieChart=null,measurementWeightChart=null,measurementWaistChart=null,measurementBfChart=null;
+let chartCal=null,chartMacro=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null,macroPieChart=null,measurementWeightChart=null,measurementWaistChart=null,measurementBfChart=null;
 
 const VIEWS=['dash','log','add','summary','measurements','custom','targets'];
 function switchView(v){
@@ -966,34 +1011,76 @@ function renderDashCalChart(){
   }
   const calData=dates.map(d=>fmtI(getTotals(d).cal));
   const labels=dates.map(d=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
-  const tgt=state.targets.cal||2200;
-  const threshold=tgt*1.1;
+  const targetData=dates.map(d=>getCalorieTargetForDate(d));
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
   const tc=isDark?'#c8d0d8':'#9e9e97';
+  const maxTarget=Math.max(0,...targetData.filter(v=>v!==null&&v!==undefined));
+  const suggestedMax=Math.max(...calData,maxTarget,state.targets.cal||0,1)*1.25;
+  const datasets=[
+    {data:calData,backgroundColor:calData.map((v,i)=>{
+      const tgt=targetData[i];
+      return tgt&&v>tgt*1.1?'rgba(239,68,68,0.82)':v>0?'rgba(0,200,83,0.78)':'rgba(128,128,128,0.22)';
+    }),borderRadius:5,label:'Calories'}
+  ];
+  if(targetData.some(v=>v!==null&&v!==undefined)){
+    datasets.push({type:'line',data:targetData,borderColor:'rgba(56,189,248,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false,spanGaps:false});
+  }
   try{
     if(dashCalChart)dashCalChart.destroy();
     dashCalChart=new Chart(document.getElementById('dash-cal-chart').getContext('2d'),{
       type:'bar',
-      data:{labels,datasets:[
-        {data:calData,backgroundColor:calData.map(v=>v>threshold?'rgba(239,68,68,0.82)':v>0?'rgba(0,200,83,0.78)':'rgba(128,128,128,0.22)'),borderRadius:5,label:'Calories'},
-        {type:'line',data:Array(7).fill(tgt),borderColor:'rgba(56,189,248,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false}
-      ]},
+      data:{labels,datasets},
       options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':'Target: '+tgt}}},
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':(ctx.raw==null?'No target':'Target: '+ctx.raw)}}},
         scales:{
           x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:30}},
-          y:{grid:{color:gc},ticks:{color:tc,font:{size:11}},suggestedMax:tgt*1.3,suggestedMin:0}
+          y:{grid:{color:gc},ticks:{color:tc,font:{size:11}},suggestedMax,suggestedMin:0}
         }
       }
     });
   }catch(e){}
 }
 
+function getCalorieTargetEntries(){
+  const sources=[
+    state.targetHistory,
+    state.calorieTargetHistory,
+    state.goalHistory,
+    state.decision&&state.decision.targetHistory,
+    state.decision&&state.decision.goalHistory,
+    lsGet('nl_target_history',[]),
+    lsGet('nl_calorie_target_history',[])
+  ];
+  const entries=[];
+  const addEntry=e=>{
+    if(!e||typeof e!=='object')return;
+    const date=e.effectiveDate||e.effective_from||e.date||e.from||e.startDate;
+    const raw=e.cal??e.calories??e.targetCal??e.targetCalories??e.calorieTarget??e.kcal??(e.targets&&e.targets.cal)??(e.target&&e.target.cal);
+    const cal=parseFloat(raw);
+    if(date&&Number.isFinite(cal)&&cal>0)entries.push({date,cal,ts:e.ts||0});
+  };
+  sources.forEach(src=>{
+    if(Array.isArray(src))src.forEach(addEntry);
+    else addEntry(src);
+  });
+  const seen=new Map();
+  entries.sort((a,b)=>a.date.localeCompare(b.date)||(a.ts||0)-(b.ts||0)).forEach(e=>seen.set(e.date,e));
+  return [...seen.values()];
+}
+
+function getCalorieTargetForDate(iso){
+  const entries=getCalorieTargetEntries();
+  if(!entries.length)return iso>=todayISO()?(state.targets.cal||null):null;
+  const active=entries.filter(e=>e.date<=iso).sort((a,b)=>a.date.localeCompare(b.date)||(a.ts||0)-(b.ts||0));
+  return active.length?active[active.length-1].cal:null;
+}
+
 // ---- LOG PAGE ----
 function renderLog(){
   const lbl=dayLabel(state.currentDate);
   const ldEl=document.getElementById('log-date-label-text');if(ldEl)ldEl.textContent=lbl;
+  const printDate=document.getElementById('print-log-date');if(printDate)printDate.textContent=lbl+' - '+state.currentDate;
   const entries=state.log[state.currentDate]||[];
   const meals=['Breakfast','Lunch','Dinner','Snack'];
   let html='';
@@ -1023,10 +1110,22 @@ function renderLog(){
   if(!entries.length){
     body.innerHTML='<div class="empty-log">Nothing logged '+( lbl.toLowerCase()==='today'?'today':'for '+lbl.toLowerCase())+'.<br>Tap <b>Add food</b> to start.</div>';
   } else {
-    html+='<div class="day-total"><span>Fiber: '+fmt(totals.fiber)+'g</span><span>Total: '+fmtI(totals.cal)+' kcal &nbsp;P '+fmt(totals.prot)+'g &nbsp;C '+fmt(totals.carb)+'g &nbsp;F '+fmt(totals.fat)+'g</span></div>';
+    html+='<div class="day-total">'+
+      '<div class="day-total-main"><div class="day-total-label">Daily total</div><div class="day-total-cal">'+fmtI(totals.cal)+' kcal</div></div>'+
+      '<div class="day-total-macros">'+
+        '<div class="day-total-macro important"><div class="dt-lbl">Protein</div><div class="dt-val">'+fmt(totals.prot)+'g</div></div>'+
+        '<div class="day-total-macro"><div class="dt-lbl">Carbs</div><div class="dt-val">'+fmt(totals.carb)+'g</div></div>'+
+        '<div class="day-total-macro"><div class="dt-lbl">Fat</div><div class="dt-val">'+fmt(totals.fat)+'g</div></div>'+
+        '<div class="day-total-macro important"><div class="dt-lbl">Fiber</div><div class="dt-val">'+fmt(totals.fiber)+'g</div></div>'+
+      '</div>'+
+    '</div>';
     body.innerHTML=html;
   }
   updateSelectionUI();
+}
+
+function printFoodLog(){
+  window.print();
 }
 
 function toggleSelect(idx){
@@ -1265,7 +1364,8 @@ function saveGoalEntry(){
   const phase=document.getElementById('goal-phase').value;
   if(!effectiveDate||!phase){showToast('Choose date and goal');return;}
   const isEdit=state.editingGoalIndex!==null;
-  const entry={effectiveDate,phase,ts:Date.now()};
+  const prev=isEdit?state.goalHistory[state.editingGoalIndex]||{}:{};
+  const entry={...prev,effectiveDate,phase,ts:Date.now()};
   if(state.editingGoalIndex!==null)state.goalHistory[state.editingGoalIndex]=entry;
   else state.goalHistory.push(entry);
   state.goalHistory.sort((a,b)=>a.effectiveDate.localeCompare(b.effectiveDate)||(a.ts||0)-(b.ts||0));
@@ -1357,17 +1457,24 @@ function renderSummaryPage(){
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
   const tc=isDark?'#c8d0d8':'#9e9e97';
-  const tgt=state.targets.cal||2200;
-  const threshold=tgt*1.1;
+  const targetData=dates.map(d=>getCalorieTargetForDate(d));
+  const maxTarget=Math.max(0,...targetData.filter(v=>v!==null&&v!==undefined));
+  const suggestedMax=Math.max(...calData,maxTarget,state.targets.cal||0,1)*1.25;
+  const calDatasets=[
+    {data:calData,backgroundColor:calData.map((v,i)=>{
+      const tgt=targetData[i];
+      return tgt&&v>tgt*1.1?'rgba(239,68,68,0.82)':v>0?'rgba(0,200,83,0.78)':'rgba(128,128,128,0.22)';
+    }),borderRadius:4,label:'Calories'}
+  ];
+  if(targetData.some(v=>v!==null&&v!==undefined)){
+    calDatasets.push({type:'line',data:targetData,borderColor:'rgba(56,189,248,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false,spanGaps:false});
+  }
   const bo={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:45}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}}}}};
   try{
     if(chartCal)chartCal.destroy();
     chartCal=new Chart(document.getElementById('chart-cal').getContext('2d'),{type:'bar',
-      data:{labels,datasets:[
-        {data:calData,backgroundColor:calData.map(v=>v>threshold?'rgba(239,68,68,0.82)':v>0?'rgba(0,200,83,0.78)':'rgba(128,128,128,0.22)'),borderRadius:4,label:'Calories'},
-        {type:'line',data:Array(calData.length).fill(tgt),borderColor:'rgba(56,189,248,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false}
-      ]},
-      options:{...bo,plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':'Target: '+tgt}}},scales:{...bo.scales,y:{...bo.scales.y,suggestedMax:tgt*1.3,suggestedMin:0}}}
+      data:{labels,datasets:calDatasets},
+      options:{...bo,plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':(ctx.raw==null?'No target':'Target: '+ctx.raw)}}},scales:{...bo.scales,y:{...bo.scales.y,suggestedMax,suggestedMin:0}}}
     });
     if(chartMacro)chartMacro.destroy();
     chartMacro=new Chart(document.getElementById('chart-macro').getContext('2d'),{type:'bar',
@@ -1380,7 +1487,7 @@ function renderSummaryPage(){
     });
   }catch(e){}
   renderWeeklyAvgChart();
-  renderWeightChart(labels,dates);renderWeightList();
+  renderWeightList();
 }
 
 function renderWeeklyAvgChart(){
@@ -1390,6 +1497,7 @@ function renderWeeklyAvgChart(){
   const tc=isDark?'#c8d0d8':'#9e9e97';
   const weekLabels=[];
   const weekCalAvg=[];
+  const weekTargetAvg=[];
 
   // Find Monday of current week
   const now=new Date();
@@ -1416,51 +1524,40 @@ function renderWeeklyAvgChart(){
     if(!logged.length) continue;
     const totals=logged.map(d=>getTotals(d));
     const avgCal=Math.round(totals.reduce((a,t)=>a+t.cal,0)/logged.length);
+    const targets=logged.map(d=>getCalorieTargetForDate(d)).filter(v=>v!==null&&v!==undefined);
+    const avgTarget=targets.length?Math.round(targets.reduce((a,v)=>a+v,0)/targets.length):null;
     // Label: Mon DD MMM
     const lbl=weekStart.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
     const isCurrentWeek=w===0;
     weekLabels.push(lbl+(isCurrentWeek?' *':''));
     weekCalAvg.push(avgCal);
+    weekTargetAvg.push(avgTarget);
   }
-  const tgt=state.targets.cal||2200;
+  const maxTarget=Math.max(0,...weekTargetAvg.filter(v=>v!==null&&v!==undefined));
+  const suggestedMax=Math.max(...weekCalAvg,maxTarget,state.targets.cal||0,1)*1.25;
+  const datasets=[
+    {label:'Avg kcal',data:weekCalAvg,backgroundColor:weekCalAvg.map((v,i)=>{
+      const tgt=weekTargetAvg[i];
+      return tgt&&v>tgt*1.1?'rgba(239,68,68,0.82)':'rgba(0,200,83,0.78)';
+    }),borderRadius:4}
+  ];
+  if(weekTargetAvg.some(v=>v!==null&&v!==undefined)){
+    datasets.push({type:'line',data:weekTargetAvg,borderColor:'rgba(56,189,248,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false,spanGaps:false});
+  }
   try{
     if(chartWeeklyAvg)chartWeeklyAvg.destroy();
     chartWeeklyAvg=new Chart(document.getElementById('chart-weekly-avg').getContext('2d'),{
       type:'bar',
-      data:{labels:weekLabels,datasets:[
-        {label:'Avg kcal',data:weekCalAvg,backgroundColor:weekCalAvg.map(v=>v>tgt*1.1?'rgba(239,68,68,0.82)':'rgba(0,200,83,0.78)'),borderRadius:4},
-        {type:'line',data:Array(weekLabels.length).fill(tgt),borderColor:'rgba(56,189,248,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false},
-      ]},
+      data:{labels:weekLabels,datasets},
       options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':'Target: '+tgt}}},
+        plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':(ctx.raw==null?'No target':'Target: '+ctx.raw)}}},
         scales:{
           x:{grid:{color:gc},ticks:{color:tc,font:{size:11}}},
-          y:{grid:{color:gc},ticks:{color:tc,font:{size:11}},suggestedMax:tgt*1.3,suggestedMin:0}
+          y:{grid:{color:gc},ticks:{color:tc,font:{size:11}},suggestedMax,suggestedMin:0}
         }
       }
     });
   }catch(e){}
-}
-
-function renderWeightChart(labels,dates){
-  const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#c8d0d8':'#9e9e97';
-  // Use ALL weight entries, not just the current date range
-  const allEntries=Object.entries(state.weight).sort((a,b)=>a[0].localeCompare(b[0]));
-  const hasData=allEntries.length>0;
-  document.getElementById('weight-chart-wrap').style.display=hasData?'block':'none';
-  if(hasData){
-    const wLabels=allEntries.map(([d])=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
-    const wData=allEntries.map(([,v])=>v);
-    try{
-      if(chartWeight)chartWeight.destroy();
-      chartWeight=new Chart(document.getElementById('chart-weight').getContext('2d'),{type:'line',
-        data:{labels:wLabels,datasets:[{data:wData,borderColor:'rgba(0,200,83,0.92)',backgroundColor:'rgba(0,200,83,0.12)',borderWidth:2,pointRadius:5,pointBackgroundColor:'rgba(0,200,83,0.92)',tension:0.3,spanGaps:true}]},
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.raw+' kg'}}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:45}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}}}}}
-      });
-    }catch(e){}
-  }
 }
 
 function addWeight(){
@@ -1596,6 +1693,7 @@ function resetRecoveryForm(){
   state.editingRecoveryId=null;
   document.getElementById('r-date').value=todayISO();
   ['r-sleep-hours','r-sleep-minutes','r-sleep-score','r-hrv','r-mood','r-soreness','r-performance','r-cravings','r-comment'].forEach(id=>document.getElementById(id).value='');
+  const advanced=document.getElementById('advanced-recovery-fields');if(advanced)advanced.open=false;
   document.getElementById('r-save-btn').textContent='Save recovery';
   document.getElementById('r-cancel-btn').style.display='none';
 }
@@ -1646,6 +1744,8 @@ function editRecovery(id){
   document.getElementById('r-soreness').value=item.soreness??'';
   document.getElementById('r-performance').value=item.performance??'';
   document.getElementById('r-cravings').value=item.cravings??'';
+  const advanced=document.getElementById('advanced-recovery-fields');
+  if(advanced)advanced.open=!!(item.mood||item.soreness||item.performance||item.cravings);
   document.getElementById('r-comment').value=item.comment||'';
   document.getElementById('r-save-btn').textContent='Update recovery';
   document.getElementById('r-cancel-btn').style.display='block';
@@ -1665,9 +1765,9 @@ function renderRecoveryList(){
   if(!list)return;
   if(!document.getElementById('r-date').value)document.getElementById('r-date').value=todayISO();
   const entries=[...state.recovery].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.id||0)-(a.id||0));
-  const shown=state.recoveryHistoryExpanded?entries:entries.slice(0,5);
+  const shown=state.recoveryHistoryExpanded?entries:entries.slice(0,2);
   const btn=document.getElementById('recovery-history-toggle');
-  if(btn){btn.style.display=entries.length>5?'block':'none';btn.textContent=state.recoveryHistoryExpanded?'Hide older':'Show all';}
+  if(btn){btn.style.display=entries.length>2?'block':'none';btn.textContent=state.recoveryHistoryExpanded?'Hide older recovery history':'Show all recovery history';}
   if(!entries.length){list.innerHTML='<div class="empty-log">No recovery entries yet.</div>';return;}
   list.innerHTML=shown.map(r=>
     '<div class="measurement-item">'+
@@ -1682,10 +1782,6 @@ function renderRecoveryList(){
         '<div class="measurement-metric"><div class="mm-lbl">Sleep</div><div class="mm-val">'+fmtSleep(r.sleepHoursDecimal??r.sleepHours,r.sleepHoursRaw,r.sleepMinutes)+'</div></div>'+
         '<div class="measurement-metric"><div class="mm-lbl">Sleep score</div><div class="mm-val">'+mVal(r.sleepScore,'')+'</div></div>'+
         '<div class="measurement-metric"><div class="mm-lbl">HRV</div><div class="mm-val">'+mVal(r.hrv,'')+'</div></div>'+
-        '<div class="measurement-metric"><div class="mm-lbl">Mood</div><div class="mm-val">'+mVal(r.mood,' / 5')+'</div></div>'+
-        '<div class="measurement-metric"><div class="mm-lbl">Soreness</div><div class="mm-val">'+mVal(r.soreness,' / 5')+'</div></div>'+
-        '<div class="measurement-metric"><div class="mm-lbl">Performance</div><div class="mm-val">'+mVal(r.performance,' / 5')+'</div></div>'+
-        '<div class="measurement-metric"><div class="mm-lbl">Cravings</div><div class="mm-val">'+mVal(r.cravings,' / 5')+'</div></div>'+
       '</div>'+
       (r.comment?'<div class="measurement-comment">'+escHtml(r.comment)+'</div>':'')+
     '</div>'
