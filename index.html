@@ -439,6 +439,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
           <button class="tb-btn" onclick="clearBodyChartRange()">All</button>
         </div>
       </div>
+      <div id="body-chart-empty" class="empty-log" style="display:none;padding:18px 12px">No body measurements in selected date range.</div>
       <div class="chart-card" id="measurement-weight-card" style="margin:0 0 14px">
         <div class="chart-title">Weight trend</div>
         <div class="chart-wrap"><canvas id="measurement-weight-chart"></canvas></div>
@@ -1024,7 +1025,7 @@ function renderDashCalChart(){
   }
   const calData=dates.map(d=>fmtI(getTotals(d).cal));
   const labels=dates.map(d=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
-  const targetData=dates.map(d=>getCalorieTargetForDate(d));
+  const targetData=getCalorieTargetSeries(dates);
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
   const tc=isDark?'#c8d0d8':'#9e9e97';
@@ -1068,7 +1069,8 @@ function getCalorieTargetEntries(){
   const entries=[];
   const addEntry=e=>{
     if(!e||typeof e!=='object')return;
-    const date=e.effectiveDate||e.effective_from||e.date||e.from||e.startDate;
+    const rawDate=e.effectiveDate||e.effective_from||e.date||e.from||e.startDate;
+    const date=rawDate?String(rawDate).slice(0,10):'';
     const raw=e.cal??e.calories??e.targetCal??e.targetCalories??e.calorieTarget??e.kcal??e.value??e.targetValue??(e.targets&&e.targets.cal)??(typeof e.target==='object'?e.target.cal:e.target);
     const cal=parseFloat(raw);
     if(date&&Number.isFinite(cal)&&cal>0)entries.push({date,cal,ts:e.ts||0});
@@ -1083,10 +1085,18 @@ function getCalorieTargetEntries(){
 }
 
 function getCalorieTargetForDate(iso){
-  const entries=getCalorieTargetEntries();
-  if(!entries.length)return iso>=todayISO()?(state.targets.cal||null):null;
-  const active=entries.filter(e=>e.date<=iso).sort((a,b)=>a.date.localeCompare(b.date)||(a.ts||0)-(b.ts||0));
+  const chartDate=String(iso||'').slice(0,10);
+  const active=getCalorieTargetEntries().filter(e=>e.date<=chartDate).sort((a,b)=>a.date.localeCompare(b.date)||(a.ts||0)-(b.ts||0));
   return active.length?active[active.length-1].cal:null;
+}
+function getCalorieTargetSeries(dates){
+  const entries=getCalorieTargetEntries();
+  if(!entries.length)return dates.map(()=>null);
+  return dates.map(d=>{
+    const chartDate=String(d||'').slice(0,10);
+    const active=entries.filter(e=>e.date<=chartDate).sort((a,b)=>a.date.localeCompare(b.date)||(a.ts||0)-(b.ts||0));
+    return active.length?active[active.length-1].cal:null;
+  });
 }
 function calorieTargetLine(data){
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
@@ -1489,7 +1499,7 @@ function renderSummaryPage(){
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
   const tc=isDark?'#c8d0d8':'#9e9e97';
-  const targetData=dates.map(d=>getCalorieTargetForDate(d));
+  const targetData=getCalorieTargetSeries(dates);
   const maxTarget=Math.max(0,...targetData.filter(v=>v!==null&&v!==undefined));
   const suggestedMax=Math.max(...calData,maxTarget,state.targets.cal||0,1)*1.25;
   const calDatasets=[
@@ -1839,11 +1849,12 @@ function getMeasurementChartData(key){
   const from=state.bodyChartFrom||'';
   const to=state.bodyChartTo||'';
   const entries=[...state.measurements]
-    .filter(m=>m.date&&m[key]!==null&&m[key]!==undefined&&m[key]!=='')
-    .filter(m=>(!from||m.date>=from)&&(!to||m.date<=to))
-    .sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
+    .map(m=>({...m,chartDate:String(m.date||'').slice(0,10)}))
+    .filter(m=>m.chartDate&&m[key]!==null&&m[key]!==undefined&&m[key]!=='')
+    .filter(m=>(!from||m.chartDate>=from)&&(!to||m.chartDate<=to))
+    .sort((a,b)=>a.chartDate.localeCompare(b.chartDate)||a.id-b.id);
   return{
-    labels:entries.map(m=>new Date(m.date+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})),
+    labels:entries.map(m=>new Date(m.chartDate+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})),
     values:entries.map(m=>m[key])
   };
 }
@@ -1879,7 +1890,10 @@ function renderMeasurementCharts(){
     (m.waist!==null&&m.waist!==undefined&&m.waist!=='')||
     (m.bf!==null&&m.bf!==undefined&&m.bf!=='')
   ));
+  const rangeActive=!!(state.bodyChartFrom||state.bodyChartTo);
+  const empty=document.getElementById('body-chart-empty');
   box.style.display=(hasAnyBodyChartData||state.bodyChartFrom||state.bodyChartTo)?'block':'none';
+  if(empty)empty.style.display=rangeActive&&!hasCharts?'block':'none';
   document.getElementById('measurement-weight-card').style.display=weightData.values.length?'block':'none';
   document.getElementById('measurement-waist-card').style.display=waistData.values.length?'block':'none';
   document.getElementById('measurement-bf-card').style.display=bfData.values.length?'block':'none';
