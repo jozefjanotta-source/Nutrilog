@@ -443,14 +443,17 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
       <div class="chart-card" id="measurement-weight-card" style="margin:0 0 14px">
         <div class="chart-title">Weight trend</div>
         <div class="chart-wrap"><canvas id="measurement-weight-chart"></canvas></div>
+        <div id="measurement-weight-empty" style="display:none;font-size:var(--fs-sm);color:var(--text3);padding-top:8px">No weight data in selected range.</div>
       </div>
       <div class="chart-card" id="measurement-waist-card" style="margin:0 0 14px">
         <div class="chart-title">Waist trend</div>
         <div class="chart-wrap"><canvas id="measurement-waist-chart"></canvas></div>
+        <div id="measurement-waist-empty" style="display:none;font-size:var(--fs-sm);color:var(--text3);padding-top:8px">No waist data in selected range.</div>
       </div>
       <div class="chart-card" id="measurement-bf-card" style="margin:0 0 14px">
         <div class="chart-title">BF% trend</div>
         <div class="chart-wrap"><canvas id="measurement-bf-chart"></canvas></div>
+        <div id="measurement-bf-empty" style="display:none;font-size:var(--fs-sm);color:var(--text3);padding-top:8px">No BF% data in selected range.</div>
       </div>
     </div>
     <div class="section-hd history-head">Body history <button id="body-history-toggle" class="tb-btn" onclick="toggleBodyHistory()" style="font-size:12px;padding:5px 10px;display:none">Show all body history</button></div>
@@ -1091,12 +1094,18 @@ function getCalorieTargetForDate(iso){
 }
 function getCalorieTargetSeries(dates){
   const entries=getCalorieTargetEntries();
-  if(!entries.length)return dates.map(()=>null);
-  return dates.map(d=>{
+  if(!entries.length){
+    const current=parseFloat(state.targets&&state.targets.cal);
+    return Number.isFinite(current)&&current>0?dates.map(()=>current):dates.map(()=>null);
+  }
+  const series=dates.map(d=>{
     const chartDate=String(d||'').slice(0,10);
     const active=entries.filter(e=>e.date<=chartDate).sort((a,b)=>a.date.localeCompare(b.date)||(a.ts||0)-(b.ts||0));
     return active.length?active[active.length-1].cal:null;
   });
+  const visiblePoints=series.filter(v=>v!==null&&v!==undefined).length;
+  const current=parseFloat(state.targets&&state.targets.cal);
+  return visiblePoints>=2||!Number.isFinite(current)||current<=0?series:dates.map(()=>current);
 }
 function calorieTargetLine(data){
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
@@ -1849,7 +1858,7 @@ function getMeasurementChartData(key){
   const from=state.bodyChartFrom||'';
   const to=state.bodyChartTo||'';
   const entries=[...state.measurements]
-    .map(m=>({...m,chartDate:String(m.date||'').slice(0,10)}))
+    .map(m=>({...m,chartDate:measurementISODate(m)}))
     .filter(m=>m.chartDate&&m[key]!==null&&m[key]!==undefined&&m[key]!=='')
     .filter(m=>(!from||m.chartDate>=from)&&(!to||m.chartDate<=to))
     .sort((a,b)=>a.chartDate.localeCompare(b.chartDate)||a.id-b.id);
@@ -1857,6 +1866,23 @@ function getMeasurementChartData(key){
     labels:entries.map(m=>new Date(m.chartDate+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})),
     values:entries.map(m=>m[key])
   };
+}
+function measurementISODate(m){
+  return String((m&&m.date)||'').slice(0,10);
+}
+function measurementHasBodyChartValue(m){
+  return !!measurementISODate(m)&&(
+    (m.weight!==null&&m.weight!==undefined&&m.weight!=='')||
+    (m.waist!==null&&m.waist!==undefined&&m.waist!=='')||
+    (m.bf!==null&&m.bf!==undefined&&m.bf!=='')
+  );
+}
+function measurementInBodyChartRange(m){
+  const d=measurementISODate(m);
+  return !!d&&(!state.bodyChartFrom||d>=state.bodyChartFrom)&&(!state.bodyChartTo||d<=state.bodyChartTo);
+}
+function measurementHasMetricHistory(key){
+  return state.measurements.some(m=>measurementISODate(m)&&m[key]!==null&&m[key]!==undefined&&m[key]!=='');
 }
 function renderMeasurementLineChart(canvasId, chartRef, chartData, color, unit){
   const canvas=document.getElementById(canvasId);
@@ -1885,21 +1911,24 @@ function renderMeasurementCharts(){
   const waistData=getMeasurementChartData('waist');
   const bfData=getMeasurementChartData('bf');
   const hasCharts=weightData.values.length||waistData.values.length||bfData.values.length;
-  const hasAnyBodyChartData=state.measurements.some(m=>m.date&&(
-    (m.weight!==null&&m.weight!==undefined&&m.weight!=='')||
-    (m.waist!==null&&m.waist!==undefined&&m.waist!=='')||
-    (m.bf!==null&&m.bf!==undefined&&m.bf!=='')
-  ));
+  const hasAnyBodyChartData=state.measurements.some(measurementHasBodyChartValue);
+  const hasRecordsInRange=state.measurements.some(m=>measurementHasBodyChartValue(m)&&measurementInBodyChartRange(m));
   const rangeActive=!!(state.bodyChartFrom||state.bodyChartTo);
   const empty=document.getElementById('body-chart-empty');
   box.style.display=(hasAnyBodyChartData||state.bodyChartFrom||state.bodyChartTo)?'block':'none';
-  if(empty)empty.style.display=rangeActive&&!hasCharts?'block':'none';
-  document.getElementById('measurement-weight-card').style.display=weightData.values.length?'block':'none';
-  document.getElementById('measurement-waist-card').style.display=waistData.values.length?'block':'none';
-  document.getElementById('measurement-bf-card').style.display=bfData.values.length?'block':'none';
+  if(empty)empty.style.display=rangeActive&&!hasRecordsInRange?'block':'none';
+  updateMeasurementChartCard('weight',measurementHasMetricHistory('weight'),weightData.values.length);
+  updateMeasurementChartCard('waist',measurementHasMetricHistory('waist'),waistData.values.length);
+  updateMeasurementChartCard('bf',measurementHasMetricHistory('bf'),bfData.values.length);
   measurementWeightChart=renderMeasurementLineChart('measurement-weight-chart',measurementWeightChart,weightData,'rgba(0,200,83,0.92)','kg');
   measurementWaistChart=renderMeasurementLineChart('measurement-waist-chart',measurementWaistChart,waistData,'rgba(56,189,248,0.9)','cm');
   measurementBfChart=renderMeasurementLineChart('measurement-bf-chart',measurementBfChart,bfData,'rgba(239,68,68,0.9)','%');
+}
+function updateMeasurementChartCard(key,hasHistory,hasFilteredData){
+  const card=document.getElementById('measurement-'+key+'-card');
+  const note=document.getElementById('measurement-'+key+'-empty');
+  if(card)card.style.display=hasHistory?'block':'none';
+  if(note)note.style.display=hasHistory&&!hasFilteredData&&(state.bodyChartFrom||state.bodyChartTo)?'block':'none';
 }
 function dateObjToISO(d){
   const yyyy=d.getFullYear();
