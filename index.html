@@ -106,12 +106,12 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .day-total{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin:0 16px 16px;color:var(--text2);display:grid;grid-template-columns:1fr;gap:10px}
 .day-total-main{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .day-total-label{font-size:var(--fs-sm);font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em}
-.day-total-cal{font-size:28px;font-weight:800;color:var(--info);line-height:1}
+.day-total-cal{font-size:17px;font-weight:700;color:#1d4ed8;line-height:1}
 .day-total-macros{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .day-total-macro{background:var(--surface2);border-radius:var(--radius-sm);padding:9px 10px;min-width:0}
 .day-total-macro .dt-lbl{font-size:var(--fs-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
 .day-total-macro .dt-val{font-size:17px;font-weight:700;color:var(--text);white-space:nowrap}
-.day-total-macro.important .dt-val{color:var(--info)}
+.day-total-macro.important .dt-val{color:#1d4ed8}
 .print-only{display:none}
 /* SELECTION ACTIONS */
 .sel-count{font-size:var(--fs-sm);color:var(--accent);font-weight:600}
@@ -206,6 +206,9 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .measurement-subtab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
 .measurement-panel{display:none}
 .history-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.body-chart-filters{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px}
+.body-chart-filters .form-row{margin-bottom:0}
+.body-chart-filters .tb-btn{align-self:flex-end;padding:10px 12px}
 .advanced-recovery{border:.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px;background:var(--surface2)}
 .advanced-recovery summary{cursor:pointer;font-size:var(--fs-sm);font-weight:600;color:var(--text2);list-style:none}
 .advanced-recovery summary::-webkit-details-marker{display:none}
@@ -236,6 +239,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
   .food-item.selected{background:#062414}
   .btn-primary,.tb-btn.accent{color:#111}
   .food-item-cb.checked{color:#111}
+  .day-total-cal,.day-total-macro.important .dt-val{color:#3b82f6}
   .decision-status.bad,.decision-final.bad,.recovery-warning{background:var(--danger-light)}
 }
 @media(max-width:430px){
@@ -428,6 +432,13 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
       </div>
     </div>
     <div id="measurement-charts" style="display:none">
+      <div class="body-chart-filters">
+        <div class="form-row">
+          <div class="form-field"><label>From</label><input type="date" id="body-chart-from" onchange="setBodyChartRange()"></div>
+          <div class="form-field"><label>To</label><input type="date" id="body-chart-to" onchange="setBodyChartRange()"></div>
+          <button class="tb-btn" onclick="clearBodyChartRange()">All</button>
+        </div>
+      </div>
       <div class="chart-card" id="measurement-weight-card" style="margin:0 0 14px">
         <div class="chart-title">Weight trend</div>
         <div class="chart-wrap"><canvas id="measurement-weight-chart"></canvas></div>
@@ -800,6 +811,8 @@ const state={
   editingGoalIndex:null,
   measurementArea:'body',
   bodyHistoryExpanded:false,
+  bodyChartFrom:'',
+  bodyChartTo:'',
   recoveryHistoryExpanded:false,
   weeklyHistoryExpanded:false,
   moveMode:false
@@ -1024,7 +1037,7 @@ function renderDashCalChart(){
     }),borderRadius:5,label:'Calories'}
   ];
   if(targetData.some(v=>v!==null&&v!==undefined)){
-    datasets.push({type:'line',data:targetData,borderColor:'rgba(56,189,248,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false,spanGaps:false});
+    datasets.push(calorieTargetLine(targetData));
   }
   try{
     if(dashCalChart)dashCalChart.destroy();
@@ -1056,7 +1069,7 @@ function getCalorieTargetEntries(){
   const addEntry=e=>{
     if(!e||typeof e!=='object')return;
     const date=e.effectiveDate||e.effective_from||e.date||e.from||e.startDate;
-    const raw=e.cal??e.calories??e.targetCal??e.targetCalories??e.calorieTarget??e.kcal??(e.targets&&e.targets.cal)??(e.target&&e.target.cal);
+    const raw=e.cal??e.calories??e.targetCal??e.targetCalories??e.calorieTarget??e.kcal??e.value??e.targetValue??(e.targets&&e.targets.cal)??(typeof e.target==='object'?e.target.cal:e.target);
     const cal=parseFloat(raw);
     if(date&&Number.isFinite(cal)&&cal>0)entries.push({date,cal,ts:e.ts||0});
   };
@@ -1074,6 +1087,25 @@ function getCalorieTargetForDate(iso){
   if(!entries.length)return iso>=todayISO()?(state.targets.cal||null):null;
   const active=entries.filter(e=>e.date<=iso).sort((a,b)=>a.date.localeCompare(b.date)||(a.ts||0)-(b.ts||0));
   return active.length?active[active.length-1].cal:null;
+}
+function calorieTargetLine(data){
+  const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+  const color=isDark?'#3b82f6':'#1d4ed8';
+  return {
+    type:'line',
+    data,
+    borderColor:color,
+    backgroundColor:color,
+    borderWidth:2,
+    borderDash:[5,4],
+    pointRadius:data.map(v=>v===null||v===undefined?0:3),
+    pointHoverRadius:4,
+    pointBackgroundColor:color,
+    pointBorderColor:color,
+    label:'Target',
+    fill:false,
+    spanGaps:false
+  };
 }
 
 // ---- LOG PAGE ----
@@ -1467,7 +1499,7 @@ function renderSummaryPage(){
     }),borderRadius:4,label:'Calories'}
   ];
   if(targetData.some(v=>v!==null&&v!==undefined)){
-    calDatasets.push({type:'line',data:targetData,borderColor:'rgba(56,189,248,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false,spanGaps:false});
+    calDatasets.push(calorieTargetLine(targetData));
   }
   const bo={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:45}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}}}}};
   try{
@@ -1542,7 +1574,7 @@ function renderWeeklyAvgChart(){
     }),borderRadius:4}
   ];
   if(weekTargetAvg.some(v=>v!==null&&v!==undefined)){
-    datasets.push({type:'line',data:weekTargetAvg,borderColor:'rgba(56,189,248,0.9)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false,spanGaps:false});
+    datasets.push(calorieTargetLine(weekTargetAvg));
   }
   try{
     if(chartWeeklyAvg)chartWeeklyAvg.destroy();
@@ -1591,6 +1623,22 @@ function switchMeasurementArea(area){
 function toggleBodyHistory(){state.bodyHistoryExpanded=!state.bodyHistoryExpanded;renderMeasurements();}
 function toggleRecoveryHistory(){state.recoveryHistoryExpanded=!state.recoveryHistoryExpanded;renderRecoveryList();}
 function toggleWeeklyHistory(){state.weeklyHistoryExpanded=!state.weeklyHistoryExpanded;renderMeasurementWeeklySummary();}
+function setBodyChartRange(){
+  const from=document.getElementById('body-chart-from');
+  const to=document.getElementById('body-chart-to');
+  state.bodyChartFrom=from?from.value:'';
+  state.bodyChartTo=to?to.value:'';
+  renderMeasurementCharts();
+}
+function clearBodyChartRange(){
+  state.bodyChartFrom='';
+  state.bodyChartTo='';
+  const from=document.getElementById('body-chart-from');
+  const to=document.getElementById('body-chart-to');
+  if(from)from.value='';
+  if(to)to.value='';
+  renderMeasurementCharts();
+}
 function mNum(id){
   const raw=document.getElementById(id).value;
   if(raw==='')return null;
@@ -1788,8 +1836,11 @@ function renderRecoveryList(){
   ).join('');
 }
 function getMeasurementChartData(key){
+  const from=state.bodyChartFrom||'';
+  const to=state.bodyChartTo||'';
   const entries=[...state.measurements]
     .filter(m=>m.date&&m[key]!==null&&m[key]!==undefined&&m[key]!=='')
+    .filter(m=>(!from||m.date>=from)&&(!to||m.date<=to))
     .sort((a,b)=>a.date.localeCompare(b.date)||a.id-b.id);
   return{
     labels:entries.map(m=>new Date(m.date+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})),
@@ -1815,11 +1866,20 @@ function renderMeasurementLineChart(canvasId, chartRef, chartData, color, unit){
 function renderMeasurementCharts(){
   const box=document.getElementById('measurement-charts');
   if(!box)return;
+  const from=document.getElementById('body-chart-from');
+  const to=document.getElementById('body-chart-to');
+  if(from&&from.value!==state.bodyChartFrom)from.value=state.bodyChartFrom||'';
+  if(to&&to.value!==state.bodyChartTo)to.value=state.bodyChartTo||'';
   const weightData=getMeasurementChartData('weight');
   const waistData=getMeasurementChartData('waist');
   const bfData=getMeasurementChartData('bf');
   const hasCharts=weightData.values.length||waistData.values.length||bfData.values.length;
-  box.style.display=hasCharts?'block':'none';
+  const hasAnyBodyChartData=state.measurements.some(m=>m.date&&(
+    (m.weight!==null&&m.weight!==undefined&&m.weight!=='')||
+    (m.waist!==null&&m.waist!==undefined&&m.waist!=='')||
+    (m.bf!==null&&m.bf!==undefined&&m.bf!=='')
+  ));
+  box.style.display=(hasAnyBodyChartData||state.bodyChartFrom||state.bodyChartTo)?'block':'none';
   document.getElementById('measurement-weight-card').style.display=weightData.values.length?'block':'none';
   document.getElementById('measurement-waist-card').style.display=waistData.values.length?'block':'none';
   document.getElementById('measurement-bf-card').style.display=bfData.values.length?'block':'none';
