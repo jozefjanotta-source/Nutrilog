@@ -579,6 +579,9 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 <div id="view-targets" class="page">
   <div class="section-hd">Daily targets</div>
   <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+    <div class="form-row">
+      <div class="form-field"><label>Effective Date</label><input type="date" id="t-effective-date"></div>
+    </div>
     <div class="target-grid">
       <div class="form-field"><label>Calories (kcal)</label><input type="number" id="t-cal" oninput="updateTargetMacrosFromCalories()"></div>
       <div class="form-field"><label>Protein (g)</label><input type="number" id="t-prot"></div>
@@ -821,7 +824,7 @@ function parseCSVLine(line){
   return result;
 }
 
-const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',recovery:'nl_recovery',goalHistory:'nl_goal_history',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones',measurementTombstones:'nl_measurement_tombstones'};
+const SK={targets:'nl_targets',targetHistory:'nl_target_history',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',recovery:'nl_recovery',goalHistory:'nl_goal_history',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones',measurementTombstones:'nl_measurement_tombstones'};
 function lsGet(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch(e){return fb}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function todayISO(){
@@ -836,6 +839,7 @@ function fmtI(n){return Math.round(n)}
 
 const state={
   targets:lsGet(SK.targets,{cal:2200,prot:150,carb:200,fat:80,fiber:30}),
+  targetHistory:lsGet(SK.targetHistory,[]),
   log:lsGet(SK.log,{}),
   customFoods:lsGet(SK.custom,[]),
   weight:lsGet(SK.weight,{}),
@@ -934,6 +938,52 @@ function saveBodyMeasurements(){
   persist('measurementTombstones');
   scheduleAutoSync();
 }
+function targetHistoryKey(item){
+  if(!item)return'';
+  return [
+    item.effectiveDate||'',
+    item.calories??'',
+    item.protein??'',
+    item.carbs??'',
+    item.fat??'',
+    item.fiber??'',
+    item.timestamp??item.ts??''
+  ].join('|');
+}
+function normalizeTargetHistoryEntry(e){
+  if(!e||typeof e!=='object')return null;
+  const effectiveDate=String(e.effectiveDate||e.effective_from||e.date||e.from||e.startDate||'').slice(0,10);
+  const calories=parseFloat(e.calories??e.cal??e.targetCal??e.targetCalories??e.calorieTarget??e.kcal??e.value??e.targetValue??(e.targets&&e.targets.cal)??(typeof e.target==='object'?e.target.cal:e.target));
+  if(!effectiveDate||!Number.isFinite(calories)||calories<=0)return null;
+  const protein=parseFloat(e.protein??e.prot??(e.targets&&e.targets.prot));
+  const carbs=parseFloat(e.carbs??e.carb??(e.targets&&e.targets.carb));
+  const fat=parseFloat(e.fat??(e.targets&&e.targets.fat));
+  const fiber=parseFloat(e.fiber??(e.targets&&e.targets.fiber));
+  return{
+    effectiveDate,
+    calories,
+    protein:Number.isFinite(protein)?protein:0,
+    carbs:Number.isFinite(carbs)?carbs:0,
+    fat:Number.isFinite(fat)?fat:0,
+    fiber:Number.isFinite(fiber)?fiber:0,
+    timestamp:e.timestamp||e.ts||0
+  };
+}
+function mergeTargetHistory(...sources){
+  const byKey=new Map();
+  const add=e=>{
+    const item=normalizeTargetHistoryEntry(e);
+    if(item)byKey.set(targetHistoryKey(item),item);
+  };
+  sources.forEach(src=>{
+    if(Array.isArray(src))src.forEach(add);
+    else add(src);
+  });
+  state.targetHistory=[...byKey.values()].sort((a,b)=>a.effectiveDate.localeCompare(b.effectiveDate)||(a.timestamp||0)-(b.timestamp||0));
+}
+function saveTargetHistory(){
+  persist('targetHistory');
+}
 
 let chartCal=null,chartMacro=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null,macroPieChart=null,measurementWeightChart=null,measurementWaistChart=null,measurementBfChart=null;
 
@@ -1013,7 +1063,7 @@ function renderDash(){
 }
 
 function renderSummaryCards(totals,targetCal){
-  const t=state.targets;
+  const t=getTargetsForDate(state.currentDate);
   const adjCal=targetCal||t.cal;
   const ms=[
     {lbl:'Calories',val:fmtI(totals.cal),tgt:t.cal,unit:'kcal',color:'#00c853'},
@@ -1028,7 +1078,7 @@ function renderSummaryCards(totals,targetCal){
 }
 
 function renderRing(totals,targetCal){
-  const t=state.targets;
+  const t=getTargetsForDate(state.currentDate);
   const adjCal=targetCal||t.cal;
   const over=totals.cal>t.cal;
   const rem=Math.max(0,t.cal-totals.cal);
@@ -1054,7 +1104,7 @@ function renderRing(totals,targetCal){
 }
 
 function renderMealBars(date){
-  const mt=getMealTotals(date);const t=state.targets.cal||2200;
+  const mt=getMealTotals(date);const t=getTargetsForDate(date).cal||2200;
   const meals=['Breakfast','Lunch','Dinner','Snack'];const colors=['#00c853','#38bdf8','#00a64a','#f59e0b'];
   document.getElementById('meal-bars').innerHTML=meals.map((m,i)=>{
     const cal=mt[m]||0;if(!cal)return'';
@@ -1109,53 +1159,39 @@ function renderDashCalChart(){
   }catch(e){}
 }
 
-function getCalorieTargetEntries(){
+function getTargetHistoryEntries(){
   const sources=[
     state.targetHistory,
     state.calorieTargetHistory,
-    state.goalHistory,
     state.decision&&state.decision.targetHistory,
-    state.decision&&state.decision.goalHistory,
     lsGet('nl_target_history',[]),
     lsGet('nl_calorie_target_history',[])
   ];
   const entries=[];
-  const addEntry=e=>{
-    if(!e||typeof e!=='object')return;
-    const rawDate=e.effectiveDate||e.effective_from||e.date||e.from||e.startDate;
-    const date=rawDate?String(rawDate).slice(0,10):'';
-    const raw=e.cal??e.calories??e.targetCal??e.targetCalories??e.calorieTarget??e.kcal??e.value??e.targetValue??(e.targets&&e.targets.cal)??(typeof e.target==='object'?e.target.cal:e.target);
-    const cal=parseFloat(raw);
-    if(date&&Number.isFinite(cal)&&cal>0)entries.push({date,cal,ts:e.ts||0});
-  };
   sources.forEach(src=>{
-    if(Array.isArray(src))src.forEach(addEntry);
-    else addEntry(src);
+    if(Array.isArray(src))src.forEach(e=>{const item=normalizeTargetHistoryEntry(e);if(item)entries.push(item);});
+    else{const item=normalizeTargetHistoryEntry(src);if(item)entries.push(item);}
   });
-  const seen=new Map();
-  entries.sort((a,b)=>a.date.localeCompare(b.date)||(a.ts||0)-(b.ts||0)).forEach(e=>seen.set(e.date,e));
-  return [...seen.values()];
+  return entries.sort((a,b)=>a.effectiveDate.localeCompare(b.effectiveDate)||(a.timestamp||0)-(b.timestamp||0));
 }
-
-function getCalorieTargetForDate(iso){
+function getTargetForDate(iso){
   const chartDate=String(iso||'').slice(0,10);
-  const active=getCalorieTargetEntries().filter(e=>e.date<=chartDate).sort((a,b)=>a.date.localeCompare(b.date)||(a.ts||0)-(b.ts||0));
-  return active.length?active[active.length-1].cal:null;
+  const active=getTargetHistoryEntries().filter(e=>e.effectiveDate<=chartDate);
+  return active.length?active[active.length-1]:null;
+}
+function getCalorieTargetForDate(iso){
+  const target=getTargetForDate(iso);
+  return target?target.calories:null;
+}
+function getTargetsForDate(iso){
+  const target=getTargetForDate(iso);
+  if(target)return targetEntryToTargets(target);
+  const chartDate=String(iso||'').slice(0,10);
+  if(chartDate>=todayISO()&&!getTargetHistoryEntries().length)return state.targets;
+  return{cal:0,prot:0,carb:0,fat:0,fiber:0};
 }
 function getCalorieTargetSeries(dates){
-  const entries=getCalorieTargetEntries();
-  if(!entries.length){
-    const current=parseFloat(state.targets&&state.targets.cal);
-    return Number.isFinite(current)&&current>0?dates.map(()=>current):dates.map(()=>null);
-  }
-  const series=dates.map(d=>{
-    const chartDate=String(d||'').slice(0,10);
-    const active=entries.filter(e=>e.date<=chartDate).sort((a,b)=>a.date.localeCompare(b.date)||(a.ts||0)-(b.ts||0));
-    return active.length?active[active.length-1].cal:null;
-  });
-  const visiblePoints=series.filter(v=>v!==null&&v!==undefined).length;
-  const current=parseFloat(state.targets&&state.targets.cal);
-  return visiblePoints>=2||!Number.isFinite(current)||current<=0?series:dates.map(()=>current);
+  return dates.map(d=>getCalorieTargetForDate(d));
 }
 function calorieTargetLine(data){
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
@@ -1443,8 +1479,29 @@ function updateTargetMacrosFromCalories(){
   document.getElementById('t-prot').value=Math.round(cal*0.25/4);
   document.getElementById('t-fat').value=Math.round(cal*0.15/9);
 }
+function targetFormValues(){
+  return{
+    cal:parseFloat(document.getElementById('t-cal').value)||0,
+    prot:parseFloat(document.getElementById('t-prot').value)||0,
+    carb:parseFloat(document.getElementById('t-carb').value)||0,
+    fat:parseFloat(document.getElementById('t-fat').value)||0,
+    fiber:parseFloat(document.getElementById('t-fiber').value)||0
+  };
+}
+function targetEntryToTargets(entry){
+  return{cal:entry.calories||0,prot:entry.protein||0,carb:entry.carbs||0,fat:entry.fat||0,fiber:entry.fiber||0};
+}
+function updateCurrentTargetsFromHistory(){
+  const active=getTargetForDate(todayISO());
+  if(active)state.targets=targetEntryToTargets(active);
+}
 function loadTargetsForm(){
+  mergeTargetHistory(state.targetHistory,state.calorieTargetHistory,state.decision&&state.decision.targetHistory,lsGet('nl_target_history',[]),lsGet('nl_calorie_target_history',[]));
+  saveTargetHistory();
+  updateCurrentTargetsFromHistory();
+  persist('targets');
   ['cal','prot','carb','fat','fiber'].forEach(k=>document.getElementById('t-'+k).value=state.targets[k]);
+  const eff=document.getElementById('t-effective-date');if(eff&&!eff.value)eff.value=todayISO();
   document.getElementById('gist-token-input').value=state.gistToken||'';
   const gid=state.gistId;
   document.getElementById('gist-id-display').textContent=gid?'Gist ID: '+gid:'No gist created yet.';
@@ -1453,8 +1510,13 @@ function loadTargetsForm(){
   renderBackupList();
 }
 function saveTargets(){
-  ['cal','prot','carb','fat','fiber'].forEach(k=>state.targets[k]=parseFloat(document.getElementById('t-'+k).value)||0);
-  persist('targets');scheduleAutoSync();const m=document.getElementById('save-msg');m.style.display='block';setTimeout(()=>m.style.display='none',2000);
+  const effectiveDate=document.getElementById('t-effective-date').value||todayISO();
+  const t=targetFormValues();
+  const entry={effectiveDate,calories:t.cal,protein:t.prot,carbs:t.carb,fat:t.fat,fiber:t.fiber,timestamp:Date.now()};
+  state.targetHistory.push(entry);
+  mergeTargetHistory(state.targetHistory);
+  updateCurrentTargetsFromHistory();
+  persist('targets');saveTargetHistory();scheduleAutoSync();const m=document.getElementById('save-msg');m.style.display='block';setTimeout(()=>m.style.display='none',2000);
 }
 
 function resetGoalForm(){
@@ -1556,10 +1618,13 @@ function renderSummaryPage(){
   const avgCal=daysLogged?Math.round(dates.reduce((a,d)=>a+getTotals(d).cal,0)/daysLogged):0;
   const avgProt=daysLogged?fmtI(dates.reduce((a,d)=>a+getTotals(d).prot,0)/daysLogged):0;
   const avgCarb=daysLogged?fmtI(dates.reduce((a,d)=>a+getTotals(d).carb,0)/daysLogged):0;
+  const activeMacroTargets=dates.map(d=>getTargetsForDate(d)).filter(t=>t.prot||t.carb);
+  const targetProt=activeMacroTargets.length?fmtI(activeMacroTargets.reduce((a,t)=>a+t.prot,0)/activeMacroTargets.length):'-';
+  const targetCarb=activeMacroTargets.length?fmtI(activeMacroTargets.reduce((a,t)=>a+t.carb,0)/activeMacroTargets.length):'-';
   document.getElementById('avg-grid').innerHTML=
     '<div class="week-stat"><div class="ws-lbl">Avg calories</div><div class="ws-val">'+avgCal+'</div><div class="ws-sub">kcal / logged day</div></div>'+
-    '<div class="week-stat"><div class="ws-lbl">Avg protein</div><div class="ws-val">'+avgProt+'g</div><div class="ws-sub">target: '+state.targets.prot+'g</div></div>'+
-    '<div class="week-stat"><div class="ws-lbl">Avg carbs</div><div class="ws-val">'+avgCarb+'g</div><div class="ws-sub">target: '+state.targets.carb+'g</div></div>'+
+    '<div class="week-stat"><div class="ws-lbl">Avg protein</div><div class="ws-val">'+avgProt+'g</div><div class="ws-sub">target: '+targetProt+(targetProt==='-'?'':'g')+'</div></div>'+
+    '<div class="week-stat"><div class="ws-lbl">Avg carbs</div><div class="ws-val">'+avgCarb+'g</div><div class="ws-sub">target: '+targetCarb+(targetCarb==='-'?'':'g')+'</div></div>'+
     '<div class="week-stat"><div class="ws-lbl">Days logged</div><div class="ws-val">'+daysLogged+'</div><div class="ws-sub">of last '+state.chartRange+'</div></div>';
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
@@ -2273,12 +2338,13 @@ function latestRecoveryEntry(){
   const entries=[...state.recovery].filter(r=>r.date).sort((a,b)=>a.date.localeCompare(b.date)||(a.id||0)-(b.id||0));
   return entries.length?entries[entries.length-1]:null;
 }
-function buildDecision(latest, phase){
+function buildDecision(latest, phase, targetCal){
   const rules=PHASE_RULES[phase];
   if(!phase||!rules||!latest||latest.weightChange===null||latest.waistChange===null)return'STABILISE';
+  if(!targetCal)return'STABILISE';
   if((latest.avgSleepHours!==null&&latest.avgSleepHours<RECOVERY_RULES.minSleepHours)||(latest.avgSleepScore!==null&&latest.avgSleepScore<RECOVERY_RULES.minSleepScore))return'STABILISE';
   const saturdayCal=getTotals(latest.checkpointDate).cal;
-  if(saturdayCal>rules.saturdayCalorieCap)return'FIX SATURDAY';
+  if(saturdayCal>targetCal)return'FIX SATURDAY';
   if(latest.waistChange>rules.waistGainLimit){
     if(latest.weightChange>rules.maxWeightChange)return'REDUCE CALORIES';
     return'STABILISE';
@@ -2297,9 +2363,10 @@ function renderDecisionEngine(){
   const latestRecovery=latestRecoveryEntry();
   const saturdayDate=latest?latest.checkpointDate:null;
   const saturdayCal=saturdayDate?getTotals(saturdayDate).cal:null;
-  const decision=buildDecision(latest,phase);
+  const checkpointTarget=saturdayDate?getCalorieTargetForDate(saturdayDate):null;
+  const decision=buildDecision(latest,phase,checkpointTarget);
   const latestLabel=latest?dayLabel(latest.checkpointDate):'-';
-  const saturdayStatus=!rules?statusBadge('missing','warn'):(saturdayCal>rules.saturdayCalorieCap?statusBadge('over cap','bad'):statusBadge('ok','ok'));
+  const saturdayStatus=!rules||!checkpointTarget?statusBadge('missing','warn'):(saturdayCal>checkpointTarget?statusBadge('over cap','bad'):statusBadge('ok','ok'));
   const sleepHoursStatus=!latest||latest.avgSleepHours===null?statusBadge('missing','warn'):(latest.avgSleepHours<RECOVERY_RULES.minSleepHours?statusBadge('low','bad'):statusBadge('ok','ok'));
   const sleepScoreStatus=!latest||latest.avgSleepScore===null?statusBadge('missing','warn'):(latest.avgSleepScore<RECOVERY_RULES.minSleepScore?statusBadge('low','bad'):statusBadge('ok','ok'));
   const calText=!latest?'-':latest.calorieStatus==='missing'?'Not enough food log data for this checkpoint week':fmtI(latest.avgCal)+(latest.calorieStatus==='incomplete'?' '+statusBadge('Incomplete calorie week','warn'):'');
@@ -2314,7 +2381,7 @@ function renderDecisionEngine(){
       '<div class="decision-metric"><div class="dm-lbl">Avg weight</div><div class="dm-val">'+(latest&&latest.avgWeight!==null?fmt(latest.avgWeight)+' kg':'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Weight change</div><div class="dm-val">'+(latest?fmtChange(latest.weightChange,' kg'):'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Waist change</div><div class="dm-val">'+(latest?fmtChange(latest.waistChange,' cm'):'-')+'</div></div>'+
-      '<div class="decision-metric"><div class="dm-lbl">Saturday control</div><div class="dm-val">'+(saturdayCal===null?'-':fmtI(saturdayCal))+(rules?' / '+rules.saturdayCalorieCap:'')+saturdayStatus+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Saturday control</div><div class="dm-val">'+(saturdayCal===null?'-':fmtI(saturdayCal))+(checkpointTarget?' / '+fmtI(checkpointTarget):'')+saturdayStatus+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Previous Saturday note</div><div class="dm-val">'+(latest?escHtml(latest.previousSaturdayNote):'-')+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Recovery Avg Sleep</div><div class="dm-val">'+(!latest||latest.avgSleepHours===null?'-':fmtSleep(latest.avgSleepHours))+sleepHoursStatus+'</div></div>'+
       '<div class="decision-metric"><div class="dm-lbl">Recovery Avg Score</div><div class="dm-val">'+(!latest||latest.avgSleepScore===null?'-':fmtI(latest.avgSleepScore))+sleepScoreStatus+'</div></div>'+
@@ -2345,7 +2412,7 @@ function renderMeasurements(){
 
 // ---- EXPORT / IMPORT ----
 function dataPayload(){
-  return {v:3,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,measurements:state.measurements,measurementTombstones:state.measurementTombstones,recovery:state.recovery,goalHistory:state.goalHistory,decision:state.decision,tombstones:state.tombstones};
+  return {v:3,targets:state.targets,targetHistory:state.targetHistory,log:state.log,customFoods:state.customFoods,weight:state.weight,measurements:state.measurements,measurementTombstones:state.measurementTombstones,recovery:state.recovery,goalHistory:state.goalHistory,decision:state.decision,tombstones:state.tombstones};
 }
 function exportData(){
   const payload=JSON.stringify(dataPayload());
@@ -2362,11 +2429,13 @@ function importData(){
     const p=JSON.parse(decodeURIComponent(escape(atob(raw))));
     if(!p.targets)throw new Error();
     state.targets=p.targets;state.log=p.log||{};state.customFoods=p.customFoods||[];state.weight=p.weight||{};
+    mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
+    updateCurrentTargetsFromHistory();
     mergeBodyMeasurements(p.measurements,p.measurementTombstones);
     state.recovery=p.recovery||state.recovery||[];
     state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
     state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
-    persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
+    persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
     document.getElementById('import-input').value='';
     msg.style.display='block';msg.style.color='var(--accent)';msg.textContent='Imported - all data updated.';
     setTimeout(()=>msg.style.display='none',4000);loadTargetsForm();
@@ -2446,8 +2515,10 @@ async function gistSync(direction){
             if(remoteData.files&&remoteData.files['nutrilog.json']){
               const remote=JSON.parse(remoteData.files['nutrilog.json'].content);
               if(remote.log) state.log=mergeLogData(state.log,remote.log,remote.tombstones||{});
+              mergeTargetHistory(state.targetHistory,remote.targetHistory,remote.calorieTargetHistory,remote.decision&&remote.decision.targetHistory);
+              updateCurrentTargetsFromHistory();
               mergeBodyMeasurements(remote.measurements,remote.measurementTombstones);
-              persist('log');
+              persist('targets');saveTargetHistory();persist('log');
               persist('measurements');persist('measurementTombstones');
               // Save backup
               const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
@@ -2502,12 +2573,14 @@ async function gistSync(direction){
         if(!p.targets) throw new Error('Invalid data in gist');
         state.targets=p.targets;state.log=p.log||{};
         state.customFoods=p.customFoods||[];state.weight=p.weight||{};
+        mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
+        updateCurrentTargetsFromHistory();
         mergeBodyMeasurements(p.measurements,p.measurementTombstones);
         state.recovery=p.recovery||state.recovery||[];
         state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
         state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
         state.tombstones=p.tombstones||{};
-        persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
+        persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
         lsSet('nl_tombstones',state.tombstones);
       }
       // Load foods
@@ -2691,12 +2764,14 @@ function restoreBackup(i){
     if(!p.targets)throw new Error('Invalid backup');
     state.targets=p.targets;state.log=p.log||{};
     state.customFoods=p.customFoods||[];state.weight=p.weight||{};
+    mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
+    updateCurrentTargetsFromHistory();
     state.measurements=p.measurements||state.measurements||[];
     state.measurementTombstones=p.measurementTombstones||[];
     state.recovery=p.recovery||state.recovery||[];
     state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
     state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
-    persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
+    persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
     loadTargetsForm();renderDash();
     alert('Restored successfully!');
   }catch(e){alert('Restore failed: '+e.message);}
@@ -2717,7 +2792,8 @@ function getWeeklyBudget(){
     weekDays.push(d.toISOString().slice(0,10));
   }
   
-  const weeklyTarget=state.targets.cal*7;
+  const activeTarget=getTargetsForDate(state.currentDate).cal||0;
+  const weeklyTarget=activeTarget*7;
   const daysInWeek=7;
   const daysLeft=daysInWeek-daysSinceSunday; // including today
   
@@ -2790,7 +2866,7 @@ function editEntry(idx){
 
 // ---- DYNAMIC CALORIE TARGET ----
 function getAdjustedTarget(){
-  return state.targets.cal; // use base target always
+  return getTargetsForDate(state.currentDate).cal; // use active target for selected date
 }
 
 // ---- MACRO PIE CHART ----
@@ -2844,11 +2920,13 @@ function initApp(){
               state.targets=p.targets;
               state.log=mergedLog;
               state.customFoods=p.customFoods||[];state.weight=p.weight||{};
+              mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
+              updateCurrentTargetsFromHistory();
               mergeBodyMeasurements(p.measurements,p.measurementTombstones);
               state.recovery=p.recovery||state.recovery||[];
               state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
               state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
-              persist('targets');persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
+              persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
               lsSet('nl_tombstones',state.tombstones);
               renderDash();loadTargetsForm();
             }
