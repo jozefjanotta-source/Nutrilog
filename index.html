@@ -86,6 +86,13 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .log-toolbar{display:flex;align-items:center;gap:8px;padding:0 16px 10px;flex-wrap:wrap}
 .log-toolbar-left{display:flex;align-items:center;gap:8px;flex:1}
 .log-toolbar-right{display:flex;gap:6px;flex-wrap:wrap}
+.more-menu-wrap{position:relative}
+.more-menu-wrap summary{list-style:none}
+.more-menu-wrap summary::-webkit-details-marker{display:none}
+.more-menu-btn{min-width:34px;padding:7px 10px}
+.more-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:20;min-width:150px;background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);padding:6px}
+.more-menu-item{width:100%;border:none;background:none;color:var(--text);font:inherit;font-size:var(--fs-sm);text-align:left;padding:9px 10px;border-radius:6px;cursor:pointer}
+.more-menu-item:active{background:var(--surface2)}
 .tb-btn{background:var(--surface);border:.5px solid var(--border2);border-radius:var(--radius-sm);padding:7px 12px;font-size:var(--fs-sm);color:var(--text);cursor:pointer;white-space:nowrap}
 .tb-btn:active{background:var(--surface2)}
 .tb-btn.danger{border-color:var(--danger);color:var(--danger)}
@@ -317,10 +324,15 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
       <span class="sel-count" id="sel-count"></span>
     </div>
     <div class="log-toolbar-right" id="action-btns">
-      <button class="tb-btn" onclick="printFoodLog()">Print food log</button>
       <button class="tb-btn" onclick="showCopyModal(false)" id="btn-copy" disabled>Copy to...</button>
       <button class="tb-btn" onclick="showCopyModal(true)" id="btn-move" disabled>Move to...</button>
       <button class="tb-btn danger" onclick="deleteSelected()" id="btn-del" disabled>Delete</button>
+      <details class="more-menu-wrap">
+        <summary class="tb-btn more-menu-btn" title="More actions" aria-label="More actions">&#8943;</summary>
+        <div class="more-menu">
+          <button class="more-menu-item" onclick="printFoodLog();this.closest('details').removeAttribute('open')">Print food log</button>
+        </div>
+      </details>
     </div>
   </div>
   <div class="print-only">
