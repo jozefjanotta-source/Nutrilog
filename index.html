@@ -529,7 +529,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
   <div class="section-hd">Daily targets</div>
   <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
     <div class="target-grid">
-      <div class="form-field"><label>Calories (kcal)</label><input type="number" id="t-cal"></div>
+      <div class="form-field"><label>Calories (kcal)</label><input type="number" id="t-cal" oninput="updateTargetMacrosFromCalories()"></div>
       <div class="form-field"><label>Protein (g)</label><input type="number" id="t-prot"></div>
       <div class="form-field"><label>Carbs (g)</label><input type="number" id="t-carb"></div>
       <div class="form-field"><label>Fat (g)</label><input type="number" id="t-fat"></div>
@@ -1378,6 +1378,12 @@ function renderCustomList(){
 function deleteCustom(i){state.customFoods.splice(i,1);persist('custom');scheduleAutoSync();renderCustomList();}
 
 // ---- TARGETS ----
+function updateTargetMacrosFromCalories(){
+  const cal=parseFloat(document.getElementById('t-cal').value)||0;
+  document.getElementById('t-carb').value=Math.round(cal*0.60/4);
+  document.getElementById('t-prot').value=Math.round(cal*0.25/4);
+  document.getElementById('t-fat').value=Math.round(cal*0.15/9);
+}
 function loadTargetsForm(){
   ['cal','prot','carb','fat','fiber'].forEach(k=>document.getElementById('t-'+k).value=state.targets[k]);
   document.getElementById('gist-token-input').value=state.gistToken||'';
