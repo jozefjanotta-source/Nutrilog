@@ -206,6 +206,11 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .measurement-subtab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
 .measurement-panel{display:none}
 .history-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.lookup-panel{display:none;background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:14px;margin:12px 0 16px}
+.lookup-panel.active{display:block}
+.lookup-actions{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 12px}
+.lookup-actions .tb-btn{font-size:12px;padding:8px 10px}
+.lookup-results-title{font-size:var(--fs-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 8px}
 .body-chart-filters{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px}
 .body-chart-filters .form-row{margin-bottom:0}
 .body-chart-filters .tb-btn{align-self:flex-end;padding:10px 12px}
@@ -447,8 +452,25 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
         <div id="measurement-bf-empty" style="display:none;font-size:var(--fs-sm);color:var(--text3);padding-top:8px">No BF% data in selected range.</div>
       </div>
     </div>
-    <div class="section-hd history-head">Body history <button id="body-history-toggle" class="tb-btn" onclick="toggleBodyHistory()" style="font-size:12px;padding:5px 10px;display:none">Show all body history</button></div>
+    <div class="section-hd history-head">Latest body entry <button id="body-lookup-toggle" class="tb-btn" onclick="toggleBodyLookup()" style="font-size:12px;padding:5px 10px">Find body entry</button></div>
     <div id="measurements-list" class="measurement-list"></div>
+    <div id="body-lookup-panel" class="lookup-panel">
+      <div class="form-row">
+        <div class="form-field"><label>From date</label><input type="date" id="body-lookup-from" onchange="searchBodyLookup()"></div>
+        <div class="form-field"><label>To date</label><input type="date" id="body-lookup-to" onchange="searchBodyLookup()"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="min-width:100%"><label>Comment search</label><input type="text" id="body-lookup-query" placeholder="Search comments..." oninput="searchBodyLookup()"></div>
+      </div>
+      <div class="lookup-actions">
+        <button class="tb-btn" onclick="setBodyLookupRange(7)">Last 7 days</button>
+        <button class="tb-btn" onclick="setBodyLookupRange(30)">Last 30 days</button>
+        <button class="tb-btn" onclick="setBodyLookupRange(0)">All</button>
+        <button class="btn-primary" style="flex:1;min-width:110px;padding:8px 12px" onclick="searchBodyLookup()">Search</button>
+      </div>
+      <div class="lookup-results-title">Body results</div>
+      <div id="body-lookup-results" class="measurement-list"></div>
+    </div>
   </div>
 
   <div id="measurement-panel-recovery" class="measurement-panel">
@@ -480,8 +502,25 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
         <button class="modal-cancel" id="r-cancel-btn" style="display:none;flex:0 0 auto;padding:12px 14px" onclick="resetRecoveryForm()">Cancel</button>
       </div>
     </div>
-    <div class="section-hd history-head">Recovery history <button id="recovery-history-toggle" class="tb-btn" onclick="toggleRecoveryHistory()" style="font-size:12px;padding:5px 10px;display:none">Show all recovery history</button></div>
+    <div class="section-hd history-head">Today/latest recovery entry <button id="recovery-lookup-toggle" class="tb-btn" onclick="toggleRecoveryLookup()" style="font-size:12px;padding:5px 10px">Find recovery entry</button></div>
     <div id="recovery-list" class="measurement-list"></div>
+    <div id="recovery-lookup-panel" class="lookup-panel">
+      <div class="form-row">
+        <div class="form-field"><label>From date</label><input type="date" id="recovery-lookup-from" onchange="searchRecoveryLookup()"></div>
+        <div class="form-field"><label>To date</label><input type="date" id="recovery-lookup-to" onchange="searchRecoveryLookup()"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="min-width:100%"><label>Comment search</label><input type="text" id="recovery-lookup-query" placeholder="Search comments..." oninput="searchRecoveryLookup()"></div>
+      </div>
+      <div class="lookup-actions">
+        <button class="tb-btn" onclick="setRecoveryLookupRange(7)">Last 7 days</button>
+        <button class="tb-btn" onclick="setRecoveryLookupRange(30)">Last 30 days</button>
+        <button class="tb-btn" onclick="setRecoveryLookupRange(0)">All</button>
+        <button class="btn-primary" style="flex:1;min-width:110px;padding:8px 12px" onclick="searchRecoveryLookup()">Search</button>
+      </div>
+      <div class="lookup-results-title">Recovery results</div>
+      <div id="recovery-lookup-results" class="measurement-list"></div>
+    </div>
   </div>
 
   <div id="measurement-panel-decision" class="measurement-panel">
@@ -805,10 +844,18 @@ const state={
   editingRecoveryId:null,
   editingGoalIndex:null,
   measurementArea:'body',
-  bodyHistoryExpanded:false,
+  bodyLookupOpen:false,
+  bodyLookupSearched:false,
+  bodyLookupFrom:'',
+  bodyLookupTo:'',
+  bodyLookupQuery:'',
   bodyChartFrom:'',
   bodyChartTo:'',
-  recoveryHistoryExpanded:false,
+  recoveryLookupOpen:false,
+  recoveryLookupSearched:false,
+  recoveryLookupFrom:'',
+  recoveryLookupTo:'',
+  recoveryLookupQuery:'',
   weeklyHistoryExpanded:false,
   moveMode:false
 };
@@ -1637,8 +1684,53 @@ function switchMeasurementArea(area){
   });
   renderMeasurements();
 }
-function toggleBodyHistory(){state.bodyHistoryExpanded=!state.bodyHistoryExpanded;renderMeasurements();}
-function toggleRecoveryHistory(){state.recoveryHistoryExpanded=!state.recoveryHistoryExpanded;renderRecoveryList();}
+function toggleBodyLookup(){state.bodyLookupOpen=!state.bodyLookupOpen;renderMeasurements();}
+function toggleRecoveryLookup(){state.recoveryLookupOpen=!state.recoveryLookupOpen;renderRecoveryList();}
+function lookupStartDate(days){
+  const d=new Date(todayISO()+'T12:00:00');
+  d.setDate(d.getDate()-days+1);
+  return dateObjToISO(d);
+}
+function setBodyLookupRange(days){
+  state.bodyLookupOpen=true;
+  state.bodyLookupFrom=days?lookupStartDate(days):'';
+  state.bodyLookupTo=days?todayISO():'';
+  const q=document.getElementById('body-lookup-query');
+  state.bodyLookupQuery=q?q.value.trim():'';
+  state.bodyLookupSearched=true;
+  renderMeasurements();
+}
+function setRecoveryLookupRange(days){
+  state.recoveryLookupOpen=true;
+  state.recoveryLookupFrom=days?lookupStartDate(days):'';
+  state.recoveryLookupTo=days?todayISO():'';
+  const q=document.getElementById('recovery-lookup-query');
+  state.recoveryLookupQuery=q?q.value.trim():'';
+  state.recoveryLookupSearched=true;
+  renderRecoveryList();
+}
+function searchBodyLookup(){
+  const from=document.getElementById('body-lookup-from');
+  const to=document.getElementById('body-lookup-to');
+  const q=document.getElementById('body-lookup-query');
+  state.bodyLookupOpen=true;
+  state.bodyLookupFrom=from?from.value:'';
+  state.bodyLookupTo=to?to.value:'';
+  state.bodyLookupQuery=q?q.value.trim():'';
+  state.bodyLookupSearched=true;
+  renderMeasurements();
+}
+function searchRecoveryLookup(){
+  const from=document.getElementById('recovery-lookup-from');
+  const to=document.getElementById('recovery-lookup-to');
+  const q=document.getElementById('recovery-lookup-query');
+  state.recoveryLookupOpen=true;
+  state.recoveryLookupFrom=from?from.value:'';
+  state.recoveryLookupTo=to?to.value:'';
+  state.recoveryLookupQuery=q?q.value.trim():'';
+  state.recoveryLookupSearched=true;
+  renderRecoveryList();
+}
 function toggleWeeklyHistory(){state.weeklyHistoryExpanded=!state.weeklyHistoryExpanded;renderMeasurementWeeklySummary();}
 function setBodyChartRange(){
   const from=document.getElementById('body-chart-from');
@@ -1825,32 +1917,115 @@ function deleteRecovery(id){
   renderMeasurements();
   showToast('Deleted');
 }
+function sortBodyEntries(){
+  return [...state.measurements].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.id||0)-(a.id||0));
+}
+function sortRecoveryEntries(){
+  return [...state.recovery].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.id||0)-(a.id||0));
+}
+function latestRecoveryForDisplay(entries){
+  const today=todayISO();
+  return entries.find(r=>r.date===today)||entries[0]||null;
+}
+function syncLookupInput(id,value){
+  const el=document.getElementById(id);
+  if(el&&el.value!==(value||''))el.value=value||'';
+}
+function bodyMatchesLookup(m){
+  const d=measurementISODate(m);
+  const q=(state.bodyLookupQuery||'').toLowerCase();
+  return (!state.bodyLookupFrom||d>=state.bodyLookupFrom)&&
+    (!state.bodyLookupTo||d<=state.bodyLookupTo)&&
+    (!q||String(m.comment||'').toLowerCase().includes(q));
+}
+function recoveryMatchesLookup(r){
+  const d=String(r.date||'').slice(0,10);
+  const q=(state.recoveryLookupQuery||'').toLowerCase();
+  return (!state.recoveryLookupFrom||d>=state.recoveryLookupFrom)&&
+    (!state.recoveryLookupTo||d<=state.recoveryLookupTo)&&
+    (!q||String(r.comment||'').toLowerCase().includes(q));
+}
+function renderBodyCard(m){
+  return'<div class="measurement-item">'+
+    '<div class="measurement-item-head">'+
+      '<div><div class="measurement-date">'+dayLabel(m.date)+'</div><div style="font-size:var(--fs-xs);color:var(--text3);margin-top:2px">'+escHtml(m.date)+'</div></div>'+
+      '<div class="measurement-actions">'+
+        '<button class="btn-sm" onclick="editMeasurement('+JSON.stringify(m.id)+')">Edit</button>'+
+        '<button class="btn-sm-danger" onclick="deleteMeasurement('+JSON.stringify(m.id)+')">Delete</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="measurement-grid">'+
+      '<div class="measurement-metric"><div class="mm-lbl">Weight</div><div class="mm-val">'+mVal(m.weight,' kg')+'</div></div>'+
+      '<div class="measurement-metric"><div class="mm-lbl">Waist</div><div class="mm-val">'+mVal(m.waist,' cm')+'</div></div>'+
+      '<div class="measurement-metric"><div class="mm-lbl">BF</div><div class="mm-val">'+mVal(m.bf,' %')+'</div></div>'+
+      '<div class="measurement-metric"><div class="mm-lbl">Fat</div><div class="mm-val">'+mVal(m.fat,' kg')+'</div></div>'+
+      '<div class="measurement-metric"><div class="mm-lbl">Muscle mass</div><div class="mm-val">'+mVal(m.muscle,' kg')+'</div></div>'+
+      '<div class="measurement-metric"><div class="mm-lbl">Water</div><div class="mm-val">'+mVal(m.water,' %')+'</div></div>'+
+    '</div>'+
+    (m.comment?'<div class="measurement-comment">'+escHtml(m.comment)+'</div>':'')+
+  '</div>';
+}
+function renderRecoveryCard(r){
+  return'<div class="measurement-item">'+
+    '<div class="measurement-item-head">'+
+      '<div><div class="measurement-date">'+dayLabel(r.date)+'</div><div style="font-size:var(--fs-xs);color:var(--text3);margin-top:2px">'+escHtml(r.date)+'</div></div>'+
+      '<div class="measurement-actions">'+
+        '<button class="btn-sm" onclick="editRecovery('+JSON.stringify(r.id)+')">Edit</button>'+
+        '<button class="btn-sm-danger" onclick="deleteRecovery('+JSON.stringify(r.id)+')">Delete</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="measurement-grid">'+
+      '<div class="measurement-metric"><div class="mm-lbl">Sleep</div><div class="mm-val">'+fmtSleep(r.sleepHoursDecimal??r.sleepHours,r.sleepHoursRaw,r.sleepMinutes)+'</div></div>'+
+      '<div class="measurement-metric"><div class="mm-lbl">Sleep score</div><div class="mm-val">'+mVal(r.sleepScore,'')+'</div></div>'+
+      '<div class="measurement-metric"><div class="mm-lbl">HRV</div><div class="mm-val">'+mVal(r.hrv,'')+'</div></div>'+
+    '</div>'+
+    (r.comment?'<div class="measurement-comment">'+escHtml(r.comment)+'</div>':'')+
+  '</div>';
+}
+function renderBodyLookup(entries){
+  const panel=document.getElementById('body-lookup-panel');
+  const results=document.getElementById('body-lookup-results');
+  const btn=document.getElementById('body-lookup-toggle');
+  if(btn)btn.textContent=state.bodyLookupOpen?'Hide lookup':'Find body entry';
+  if(panel)panel.classList.toggle('active',!!state.bodyLookupOpen);
+  if(!panel||!results)return;
+  syncLookupInput('body-lookup-from',state.bodyLookupFrom);
+  syncLookupInput('body-lookup-to',state.bodyLookupTo);
+  syncLookupInput('body-lookup-query',state.bodyLookupQuery);
+  if(!state.bodyLookupOpen)return;
+  if(!state.bodyLookupSearched){
+    results.innerHTML='<div class="empty-log">Choose filters or tap Search to find body entries.</div>';
+    return;
+  }
+  const matches=entries.filter(bodyMatchesLookup);
+  results.innerHTML=matches.length?matches.map(renderBodyCard).join(''):'<div class="empty-log">No body entries match those filters.</div>';
+}
+function renderRecoveryLookup(entries){
+  const panel=document.getElementById('recovery-lookup-panel');
+  const results=document.getElementById('recovery-lookup-results');
+  const btn=document.getElementById('recovery-lookup-toggle');
+  if(btn)btn.textContent=state.recoveryLookupOpen?'Hide lookup':'Find recovery entry';
+  if(panel)panel.classList.toggle('active',!!state.recoveryLookupOpen);
+  if(!panel||!results)return;
+  syncLookupInput('recovery-lookup-from',state.recoveryLookupFrom);
+  syncLookupInput('recovery-lookup-to',state.recoveryLookupTo);
+  syncLookupInput('recovery-lookup-query',state.recoveryLookupQuery);
+  if(!state.recoveryLookupOpen)return;
+  if(!state.recoveryLookupSearched){
+    results.innerHTML='<div class="empty-log">Choose filters or tap Search to find recovery entries.</div>';
+    return;
+  }
+  const matches=entries.filter(recoveryMatchesLookup);
+  results.innerHTML=matches.length?matches.map(renderRecoveryCard).join(''):'<div class="empty-log">No recovery entries match those filters.</div>';
+}
 function renderRecoveryList(){
   const list=document.getElementById('recovery-list');
   if(!list)return;
   if(!document.getElementById('r-date').value)document.getElementById('r-date').value=todayISO();
-  const entries=[...state.recovery].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.id||0)-(a.id||0));
-  const shown=state.recoveryHistoryExpanded?entries:entries.slice(0,2);
-  const btn=document.getElementById('recovery-history-toggle');
-  if(btn){btn.style.display=entries.length>2?'block':'none';btn.textContent=state.recoveryHistoryExpanded?'Hide older recovery history':'Show all recovery history';}
-  if(!entries.length){list.innerHTML='<div class="empty-log">No recovery entries yet.</div>';return;}
-  list.innerHTML=shown.map(r=>
-    '<div class="measurement-item">'+
-      '<div class="measurement-item-head">'+
-        '<div><div class="measurement-date">'+dayLabel(r.date)+'</div><div style="font-size:var(--fs-xs);color:var(--text3);margin-top:2px">'+escHtml(r.date)+'</div></div>'+
-        '<div class="measurement-actions">'+
-          '<button class="btn-sm" onclick="editRecovery('+JSON.stringify(r.id)+')">Edit</button>'+
-          '<button class="btn-sm-danger" onclick="deleteRecovery('+JSON.stringify(r.id)+')">Delete</button>'+
-        '</div>'+
-      '</div>'+
-      '<div class="measurement-grid">'+
-        '<div class="measurement-metric"><div class="mm-lbl">Sleep</div><div class="mm-val">'+fmtSleep(r.sleepHoursDecimal??r.sleepHours,r.sleepHoursRaw,r.sleepMinutes)+'</div></div>'+
-        '<div class="measurement-metric"><div class="mm-lbl">Sleep score</div><div class="mm-val">'+mVal(r.sleepScore,'')+'</div></div>'+
-        '<div class="measurement-metric"><div class="mm-lbl">HRV</div><div class="mm-val">'+mVal(r.hrv,'')+'</div></div>'+
-      '</div>'+
-      (r.comment?'<div class="measurement-comment">'+escHtml(r.comment)+'</div>':'')+
-    '</div>'
-  ).join('');
+  const entries=sortRecoveryEntries();
+  const latest=latestRecoveryForDisplay(entries);
+  list.innerHTML=latest?renderRecoveryCard(latest):'<div class="empty-log">No recovery entries yet.</div>';
+  renderRecoveryLookup(entries);
 }
 function getMeasurementChartData(key){
   const from=state.bodyChartFrom||'';
@@ -2145,36 +2320,15 @@ function renderMeasurements(){
   renderRecoveryList();
   renderMeasurementWeeklySummary();
   renderDecisionEngine();
-  const entries=[...state.measurements].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||b.id-a.id);
-  const bodyDates=[...new Set(entries.map(e=>e.date).filter(Boolean))];
-  const visibleDates=new Set(state.bodyHistoryExpanded?bodyDates:bodyDates.slice(0,2));
-  const shown=state.bodyHistoryExpanded?entries:entries.filter(e=>visibleDates.has(e.date));
-  const btn=document.getElementById('body-history-toggle');
-  if(btn){btn.style.display=bodyDates.length>2?'block':'none';btn.textContent=state.bodyHistoryExpanded?'Hide older body history':'Show all body history';}
+  const entries=sortBodyEntries();
+  const latest=entries[0]||null;
   if(!entries.length){
     list.innerHTML='<div class="empty-log">No measurements yet.</div>';
+    renderBodyLookup(entries);
     return;
   }
-  list.innerHTML=shown.map(m=>
-    '<div class="measurement-item">'+
-      '<div class="measurement-item-head">'+
-        '<div><div class="measurement-date">'+dayLabel(m.date)+'</div><div style="font-size:var(--fs-xs);color:var(--text3);margin-top:2px">'+escHtml(m.date)+'</div></div>'+
-        '<div class="measurement-actions">'+
-          '<button class="btn-sm" onclick="editMeasurement('+JSON.stringify(m.id)+')">Edit</button>'+
-          '<button class="btn-sm-danger" onclick="deleteMeasurement('+JSON.stringify(m.id)+')">Delete</button>'+
-        '</div>'+
-      '</div>'+
-      '<div class="measurement-grid">'+
-        '<div class="measurement-metric"><div class="mm-lbl">Weight</div><div class="mm-val">'+mVal(m.weight,' kg')+'</div></div>'+
-        '<div class="measurement-metric"><div class="mm-lbl">Waist</div><div class="mm-val">'+mVal(m.waist,' cm')+'</div></div>'+
-        '<div class="measurement-metric"><div class="mm-lbl">BF</div><div class="mm-val">'+mVal(m.bf,' %')+'</div></div>'+
-        '<div class="measurement-metric"><div class="mm-lbl">Fat</div><div class="mm-val">'+mVal(m.fat,' kg')+'</div></div>'+
-        '<div class="measurement-metric"><div class="mm-lbl">Muscle mass</div><div class="mm-val">'+mVal(m.muscle,' kg')+'</div></div>'+
-        '<div class="measurement-metric"><div class="mm-lbl">Water</div><div class="mm-val">'+mVal(m.water,' %')+'</div></div>'+
-      '</div>'+
-      (m.comment?'<div class="measurement-comment">'+escHtml(m.comment)+'</div>':'')+
-    '</div>'
-  ).join('');
+  list.innerHTML=renderBodyCard(latest);
+  renderBodyLookup(entries);
 }
 
 // ---- EXPORT / IMPORT ----
