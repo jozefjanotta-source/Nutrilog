@@ -646,6 +646,9 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
       <button class="btn-primary" style="flex:1;background:var(--info)" onclick="gistSync('pull')">&#8595; Pull (load from cloud)</button>
     </div>
     <div id="gist-msg" style="display:none;font-size:var(--fs-sm);margin-top:8px"></div>
+    <div style="height:.5px;background:var(--border);margin:14px 0"></div>
+    <div class="section-hd" style="margin-bottom:8px">Sync Status</div>
+    <div id="sync-status-panel" style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;font-size:var(--fs-sm);color:var(--text2)"></div>
     <div id="gist-id-display" style="font-size:11px;color:var(--text3);margin-top:8px;word-break:break-all"></div>
     <div style="height:.5px;background:var(--border);margin:14px 0"></div>
     <div class="section-hd" style="margin-bottom:8px">Restore from backup</div>
@@ -824,7 +827,7 @@ function parseCSVLine(line){
   return result;
 }
 
-const SK={targets:'nl_targets',targetHistory:'nl_target_history',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',recovery:'nl_recovery',goalHistory:'nl_goal_history',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones',measurementTombstones:'nl_measurement_tombstones'};
+const SK={targets:'nl_targets',targetHistory:'nl_target_history',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',recovery:'nl_recovery',goalHistory:'nl_goal_history',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones',measurementTombstones:'nl_measurement_tombstones',syncMeta:'nl_sync_meta'};
 function lsGet(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch(e){return fb}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function todayISO(){
@@ -849,6 +852,7 @@ const state={
   decision:lsGet(SK.decision,{phase:'',goalHistory:[]}),
   gistToken:lsGet(SK.gist_token,''),
   gistId:lsGet(SK.gist_id,''),
+  syncMeta:lsGet(SK.syncMeta,null),
   tombstones:lsGet('nl_tombstones',{}),
   measurementTombstones:lsGet(SK.measurementTombstones,[]),
   currentDate:todayISO(),
@@ -1571,6 +1575,7 @@ function loadTargetsForm(){
   document.getElementById('gist-id-display').textContent=gid?'Gist ID: '+gid:'No gist created yet.';
   const fdc=document.getElementById('foods-db-count');if(fdc)fdc.textContent=DB.length+' foods loaded';
   renderGoalHistorySettings();
+  renderSyncStatusPanel();
   renderBackupList();
 }
 function saveTargets(){
@@ -2480,6 +2485,47 @@ function renderMeasurements(){
 }
 
 // ---- EXPORT / IMPORT ----
+function countFoodLogItems(){
+  return Object.values(state.log||{}).reduce((total,items)=>total+(Array.isArray(items)?items.length:0),0);
+}
+function syncItemCounts(){
+  return{
+    foodLogs:countFoodLogItems(),
+    bodyMeasurements:Array.isArray(state.measurements)?state.measurements.length:0,
+    recoveryEntries:Array.isArray(state.recovery)?state.recovery.length:0,
+    goals:Array.isArray(state.goalHistory)?state.goalHistory.length:0
+  };
+}
+function formatSyncDuration(ms){
+  if(!Number.isFinite(ms))return '-';
+  if(ms<1000)return Math.max(0,Math.round(ms))+' ms';
+  return (ms/1000).toFixed(ms<10000?1:0)+' s';
+}
+function formatSyncTime(ts){
+  if(!ts)return 'Never';
+  try{return new Date(ts).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}catch(e){return ts;}
+}
+function recordSyncSuccess(kind,startMs){
+  state.syncMeta={lastSuccessAt:new Date().toISOString(),lastDurationMs:Date.now()-startMs,kind:kind||'',counts:syncItemCounts()};
+  persist('syncMeta');
+  renderSyncStatusPanel();
+}
+function renderSyncStatusPanel(){
+  const el=document.getElementById('sync-status-panel');
+  if(!el)return;
+  const meta=state.syncMeta||{};
+  const counts=meta.counts||null;
+  const item=(label,value)=>'<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0"><span>'+label+'</span><b style="color:var(--text)">'+value+'</b></div>';
+  el.innerHTML=
+    item('Last successful sync',formatSyncTime(meta.lastSuccessAt))+
+    item('Last sync duration',meta.lastSuccessAt?formatSyncDuration(meta.lastDurationMs):'-')+
+    '<div style="height:.5px;background:var(--border);margin:8px 0"></div>'+
+    '<div style="font-weight:600;color:var(--text);margin-bottom:4px">Items synced</div>'+
+    item('Food logs',counts?counts.foodLogs:'-')+
+    item('Body measurements',counts?counts.bodyMeasurements:'-')+
+    item('Recovery entries',counts?counts.recoveryEntries:'-')+
+    item('Goals',counts?counts.goals:'-');
+}
 function dataPayload(){
   return {v:3,targets:state.targets,targetHistory:state.targetHistory,log:state.log,customFoods:state.customFoods,weight:state.weight,measurements:state.measurements,measurementTombstones:state.measurementTombstones,recovery:state.recovery,goalHistory:state.goalHistory,decision:state.decision,tombstones:state.tombstones};
 }
@@ -2552,6 +2598,7 @@ function uploadFoodsCSV(input){
 
 // ---- GIST SYNC ----
 async function gistSync(direction){
+  const syncStart=Date.now();
   const tokenInput=document.getElementById('gist-token-input').value.trim();
   const msg=document.getElementById('gist-msg');
   msg.style.display='block';
@@ -2612,6 +2659,7 @@ async function gistSync(direction){
       state.gistId=data.id;
       lsSet(SK.gist_id, data.id);
       document.getElementById('gist-id-display').textContent='Gist ID: '+data.id;
+      recordSyncSuccess(direction,syncStart);
       msg.style.color='var(--accent)';
       msg.textContent='Pushed successfully! Share your Gist ID with your other device or just enter the same token and push once.';
     } else {
@@ -2674,6 +2722,7 @@ async function gistSync(direction){
       state.gistId=gistId;
       lsSet(SK.gist_id,gistId);
       document.getElementById('gist-id-display').textContent='Gist ID: '+gistId;
+      recordSyncSuccess(direction,syncStart);
       loadTargetsForm();
     }
   }catch(e){
@@ -2760,6 +2809,7 @@ function cleanupData(){
 
 async function silentPush(){
   if(!state.gistToken||!state.gistId) return;
+  const syncStart=Date.now();
   cleanupData();
   const headers={'Authorization':'token '+state.gistToken,'Content-Type':'application/json'};
   try{
@@ -2783,7 +2833,7 @@ async function silentPush(){
     const payload=JSON.stringify(dataPayload());
     const body={description:'NutriLog data',public:false,files:{'nutrilog.json':{content:payload}}};
     const resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
-    if(resp.ok){showSyncStatus('synced');}
+    if(resp.ok){recordSyncSuccess('auto',syncStart);showSyncStatus('synced');}
   }catch(e){
     showSyncStatus('error');
   }
@@ -2981,6 +3031,7 @@ function initApp(){
     // Auto-pull on startup if configured
     if(state.gistToken&&state.gistId){
       setTimeout(async()=>{
+        const syncStart=Date.now();
         showSyncStatus('syncing');
         const headers={'Authorization':'token '+state.gistToken};
         try{
@@ -3003,6 +3054,7 @@ function initApp(){
               state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
               persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
               lsSet('nl_tombstones',state.tombstones);
+              recordSyncSuccess('startup',syncStart);
               renderDash();loadTargetsForm();
             }
             showSyncStatus('synced');
