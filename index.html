@@ -877,6 +877,70 @@ const state={
 };
 function persist(k){lsSet(SK[k],state[k])}
 
+function recoveryTimestampValue(item){
+  const t=item&&item.updatedAt?Date.parse(item.updatedAt):NaN;
+  if(Number.isFinite(t))return t;
+  const idNum=Number(item&&item.id);
+  if(Number.isFinite(idNum)&&idNum>0)return idNum;
+  const d=item&&item.date?Date.parse(String(item.date).slice(0,10)+'T12:00:00'):NaN;
+  return Number.isFinite(d)?d:0;
+}
+function recoveryFallbackId(item,index){
+  return 'recovery:'+[
+    item&&item.date?String(item.date).slice(0,10):'',
+    item&&item.sleepHours!==undefined?item.sleepHours:'',
+    item&&item.sleepScore!==undefined?item.sleepScore:'',
+    item&&item.hrv!==undefined?item.hrv:'',
+    item&&item.comment?String(item.comment):'',
+    index
+  ].join('|');
+}
+function normalizeRecoveryEntry(item,index){
+  if(!item||typeof item!=='object')return null;
+  const id=item.id!==null&&item.id!==undefined&&item.id!==''?item.id:recoveryFallbackId(item,index);
+  const ts=recoveryTimestampValue({...item,id});
+  return {...item,id,updatedAt:item.updatedAt||(ts?new Date(ts).toISOString():new Date().toISOString())};
+}
+function normalizeRecoveryEntries(items){
+  return (Array.isArray(items)?items:[]).map(normalizeRecoveryEntry).filter(Boolean);
+}
+function recoverySameEntry(a,b){
+  if(!a||!b)return false;
+  const aid=a.id!==null&&a.id!==undefined&&a.id!=='';
+  const bid=b.id!==null&&b.id!==undefined&&b.id!=='';
+  if(aid&&bid&&String(a.id)===String(b.id))return true;
+  return !!a.date&&!!b.date&&String(a.date).slice(0,10)===String(b.date).slice(0,10);
+}
+function preferRecovery(next,current,preferNextOnTie){
+  if(!current)return true;
+  const nt=recoveryTimestampValue(next);
+  const ct=recoveryTimestampValue(current);
+  if(nt!==ct)return nt>ct;
+  return preferNextOnTie;
+}
+function mergeRecoveryData(incoming){
+  const local=normalizeRecoveryEntries(state.recovery);
+  const remote=normalizeRecoveryEntries(incoming);
+  if(!remote.length){
+    state.recovery=local;
+    return;
+  }
+  const merged=[];
+  const add=(items,preferOnTie)=>{
+    items.forEach(item=>{
+      const idx=merged.findIndex(current=>recoverySameEntry(current,item));
+      if(idx<0)merged.push(item);
+      else if(preferRecovery(item,merged[idx],preferOnTie))merged[idx]=item;
+    });
+  };
+  add(remote,false);
+  add(local,true);
+  state.recovery=merged;
+}
+mergeRecoveryData(state.recovery);
+console.log("Recovery count after load:", state.recovery.length);
+persist('recovery');
+
 let toastTimer=null;
 function showToast(msg,ms=1600){
   let el=document.getElementById('toast');
@@ -1935,6 +1999,7 @@ function saveRecovery(){
   const date=document.getElementById('r-date').value;
   if(!date){showToast('Choose a date');return;}
   const isEdit=state.editingRecoveryId!==null;
+  const now=new Date().toISOString();
   const rawSleepHours=rNum('r-sleep-hours');
   const rawSleepMinutes=rNum('r-sleep-minutes');
   const hasSleep=rawSleepHours!==null||rawSleepMinutes!==null;
@@ -1954,12 +2019,15 @@ function saveRecovery(){
     soreness:clampRating(rNum('r-soreness')),
     performance:clampRating(rNum('r-performance')),
     cravings:clampRating(rNum('r-cravings')),
-    comment:document.getElementById('r-comment').value.trim()
+    comment:document.getElementById('r-comment').value.trim(),
+    updatedAt:now
   };
   const idx=state.recovery.findIndex(r=>r.id===state.editingRecoveryId);
   if(idx>=0)state.recovery[idx]=item;
   else state.recovery.push(item);
   persist('recovery');
+  scheduleAutoSync();
+  console.log("Recovery count after save:", state.recovery.length);
   resetRecoveryForm();
   renderMeasurements();
   showToast(isEdit?'Updated':'Saved');
@@ -1991,6 +2059,7 @@ function deleteRecovery(id){
   state.recovery=state.recovery.filter(r=>r.id!==id);
   if(state.editingRecoveryId===id)resetRecoveryForm();
   persist('recovery');
+  scheduleAutoSync();
   renderMeasurements();
   showToast('Deleted');
 }
@@ -2432,7 +2501,7 @@ function importData(){
     mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
     updateCurrentTargetsFromHistory();
     mergeBodyMeasurements(p.measurements,p.measurementTombstones);
-    state.recovery=p.recovery||state.recovery||[];
+    mergeRecoveryData(p.recovery);
     state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
     state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
     persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
@@ -2518,8 +2587,9 @@ async function gistSync(direction){
               mergeTargetHistory(state.targetHistory,remote.targetHistory,remote.calorieTargetHistory,remote.decision&&remote.decision.targetHistory);
               updateCurrentTargetsFromHistory();
               mergeBodyMeasurements(remote.measurements,remote.measurementTombstones);
+              mergeRecoveryData(remote.recovery);
               persist('targets');saveTargetHistory();persist('log');
-              persist('measurements');persist('measurementTombstones');
+              persist('measurements');persist('measurementTombstones');persist('recovery');
               // Save backup
               const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
               backups.unshift({ts:new Date().toISOString(),data:remoteData.files['nutrilog.json'].content});
@@ -2576,7 +2646,7 @@ async function gistSync(direction){
         mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
         updateCurrentTargetsFromHistory();
         mergeBodyMeasurements(p.measurements,p.measurementTombstones);
-        state.recovery=p.recovery||state.recovery||[];
+        mergeRecoveryData(p.recovery);
         state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
         state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
         state.tombstones=p.tombstones||{};
@@ -2702,6 +2772,11 @@ async function silentPush(){
         backups.unshift({ts:new Date().toISOString(),data:remoteData.files['nutrilog.json'].content});
         if(backups.length>7) backups.pop();
         lsSet('nl_backups',JSON.stringify(backups));
+        try{
+          const remote=JSON.parse(remoteData.files['nutrilog.json'].content);
+          mergeRecoveryData(remote.recovery);
+          persist('recovery');
+        }catch(e){}
       }
     }
     // Just overwrite remote with local state — no merge
@@ -2768,7 +2843,7 @@ function restoreBackup(i){
     updateCurrentTargetsFromHistory();
     state.measurements=p.measurements||state.measurements||[];
     state.measurementTombstones=p.measurementTombstones||[];
-    state.recovery=p.recovery||state.recovery||[];
+    mergeRecoveryData(p.recovery);
     state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
     state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
     persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
@@ -2923,7 +2998,7 @@ function initApp(){
               mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
               updateCurrentTargetsFromHistory();
               mergeBodyMeasurements(p.measurements,p.measurementTombstones);
-              state.recovery=p.recovery||state.recovery||[];
+              mergeRecoveryData(p.recovery);
               state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
               state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
               persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
