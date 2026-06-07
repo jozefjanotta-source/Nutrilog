@@ -881,6 +881,48 @@ const state={
 };
 function persist(k){lsSet(SK[k],state[k])}
 
+function createLogEntryId(){
+  return 'log-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
+}
+function logEntryDate(item,date){
+  return String((item&&item.date)||date||'').slice(0,10);
+}
+function logEntryLegacyKey(date,item){
+  if(!item)return'';
+  return [
+    logEntryDate(item,date),
+    item.name||'',
+    item.meal||'',
+    item.amountLabel||'',
+    item.cal??'',
+    item.prot??'',
+    item.carb??'',
+    item.fat??'',
+    item.fiber??''
+  ].join('|');
+}
+function normalizeLogEntry(item,date,index){
+  if(!item||typeof item!=='object')return null;
+  const d=logEntryDate(item,date);
+  const id=item.id||('legacy:'+logEntryLegacyKey(d,item)+'|'+(index??0));
+  const fallbackUpdatedAt=d?new Date(d+'T12:00:00').toISOString():new Date(0).toISOString();
+  return {...item,id,date:d,updatedAt:item.updatedAt||fallbackUpdatedAt};
+}
+function normalizeLogData(log){
+  const out={};
+  Object.entries(log||{}).forEach(([date,items])=>{
+    (Array.isArray(items)?items:[]).forEach((item,index)=>{
+      const normalized=normalizeLogEntry(item,date,index);
+      if(!normalized||!normalized.date)return;
+      if(!out[normalized.date])out[normalized.date]=[];
+      out[normalized.date].push(normalized);
+    });
+  });
+  return out;
+}
+state.log=normalizeLogData(state.log);
+persist('log');
+
 function recoveryTimestampValue(item){
   const t=item&&item.updatedAt?Date.parse(item.updatedAt):NaN;
   if(Number.isFinite(t))return t;
@@ -1361,15 +1403,15 @@ function recordTombstones(date, entries, indices){
   const ts=Date.now();
   indices.forEach(i=>{
     const e=entries[i];
-    if(e) state.tombstones[date].push({key:e.name+'|'+e.meal+'|'+e.amountLabel,ts});
+    if(e) state.tombstones[date].push({id:e.id||'',key:logEntryLegacyKey(date,e),ts});
   });
   lsSet('nl_tombstones',state.tombstones);
 }
 
 function isTombstoned(date, entry){
   const tombs=state.tombstones[date]||[];
-  const key=entry.name+'|'+entry.meal+'|'+entry.amountLabel;
-  return tombs.some(t=>t.key===key);
+  const key=logEntryLegacyKey(date,entry);
+  return tombs.some(t=>(entry.id&&t.id&&String(t.id)===String(entry.id))||t.key===key);
 }
 
 function deleteSelected(){
@@ -1407,7 +1449,11 @@ function confirmCopyMove(){
   const sourceDate=state.currentDate;
   const entries=state.log[state.currentDate]||[];
   const toProcess=entries.filter((_,i)=>state.selected.has(i));
-  const toCopy=toProcess.map(e=>({...e,meal:targetMeal||e.meal}));
+  const now=new Date().toISOString();
+  const toCopy=toProcess.map((e,i)=>{
+    const item=normalizeLogEntry(e,sourceDate,i);
+    return {...item,id:state.moveMode?item.id:createLogEntryId(),date:targetDate,meal:targetMeal||item.meal,updatedAt:now};
+  });
   if(!state.log[targetDate])state.log[targetDate]=[];
   state.log[targetDate].push(...toCopy);
   if(state.moveMode){
@@ -1503,13 +1549,14 @@ function updatePreview(){
 }
 function addToLog(){
   const f=state.pendingFood;if(!f)return;
+  const now=new Date().toISOString();
   const count=parseFloat(document.getElementById('af-amount').value)||0;
   const unit=(f.unit||'g').toLowerCase();
   const isGram=unit==='g'||unit==='ml';
   const r=isGram?count/100:count;
   const meal=document.getElementById('af-meal').value;
   if(!state.log[state.currentDate])state.log[state.currentDate]=[];
-  state.log[state.currentDate].push({name:f.name,meal,amountLabel:getAmountLabel(),cal:f.cal*r,prot:f.prot*r,carb:f.carb*r,fat:f.fat*r,fiber:(f.fiber||0)*r});
+  state.log[state.currentDate].push({id:createLogEntryId(),date:state.currentDate,updatedAt:now,name:f.name,meal,amountLabel:getAmountLabel(),cal:f.cal*r,prot:f.prot*r,carb:f.carb*r,fat:f.fat*r,fiber:(f.fiber||0)*r});
   persist('log');scheduleAutoSync();state.pendingFood=null;clearSearch();
   document.getElementById('add-panel').style.display='none';
   switchView('log');
@@ -2543,7 +2590,7 @@ function importData(){
   try{
     const p=JSON.parse(decodeURIComponent(escape(atob(raw))));
     if(!p.targets)throw new Error();
-    state.targets=p.targets;state.log=p.log||{};state.customFoods=p.customFoods||[];state.weight=p.weight||{};
+    state.targets=p.targets;state.log=normalizeLogData(p.log||{});state.customFoods=p.customFoods||[];state.weight=p.weight||{};
     mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
     updateCurrentTargetsFromHistory();
     mergeBodyMeasurements(p.measurements,p.measurementTombstones);
@@ -2689,7 +2736,8 @@ async function gistSync(direction){
           throw new Error('JSON parse error. Data starts with: '+raw.slice(0,100));
         }
         if(!p.targets) throw new Error('Invalid data in gist');
-        state.targets=p.targets;state.log=p.log||{};
+        const mergedLog=mergeLogData(state.log,p.log||{},p.tombstones||{});
+        state.targets=p.targets;state.log=mergedLog;
         state.customFoods=p.customFoods||[];state.weight=p.weight||{};
         mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
         updateCurrentTargetsFromHistory();
@@ -2697,7 +2745,6 @@ async function gistSync(direction){
         mergeRecoveryData(p.recovery);
         state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
         state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
-        state.tombstones=p.tombstones||{};
         persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
         lsSet('nl_tombstones',state.tombstones);
       }
@@ -2746,9 +2793,10 @@ function mergeLogData(local, remote, remoteTombstones){
   const mergeTombs=(src)=>{
     for(const date in src){
       if(!allTombstones[date]) allTombstones[date]=[];
-      const existing=new Set(allTombstones[date].map(t=>t.key));
+      const existing=new Set(allTombstones[date].map(t=>(t.id?('id:'+t.id):'key:'+t.key)));
       for(const t of src[date]){
-        if(!existing.has(t.key)){allTombstones[date].push(t);existing.add(t.key);}
+        const key=t.id?('id:'+t.id):'key:'+t.key;
+        if(!existing.has(key)){allTombstones[date].push(t);existing.add(key);}
       }
     }
   };
@@ -2759,33 +2807,46 @@ function mergeLogData(local, remote, remoteTombstones){
 
   function tombstonedOn(date, entry){
     const tombs=allTombstones[date]||[];
-    const key=entry.name+'|'+entry.meal+'|'+entry.amountLabel;
-    return tombs.some(t=>t.key===key);
+    const key=logEntryLegacyKey(date,entry);
+    return tombs.some(t=>(entry.id&&t.id&&String(t.id)===String(entry.id))||t.key===key);
+  }
+  function preferLogEntry(next,current,preferNextOnTie){
+    if(!current)return true;
+    const nt=next.updatedAt?Date.parse(next.updatedAt):NaN;
+    const ct=current.updatedAt?Date.parse(current.updatedAt):NaN;
+    if(Number.isFinite(nt)&&Number.isFinite(ct)&&nt!==ct)return nt>ct;
+    if(Number.isFinite(nt)&&!Number.isFinite(ct))return true;
+    if(!Number.isFinite(nt)&&Number.isFinite(ct))return false;
+    return preferNextOnTie;
   }
 
-  const merged={...remote};
-  for(const date in local){
-    if(!merged[date]||merged[date].length===0){
-      // Only take local entries that aren't tombstoned
-      merged[date]=(local[date]||[]).filter(e=>!tombstonedOn(date,e));
-    } else {
-      // Merge: combine both, deduplicate, remove tombstoned
-      const seen=new Set();
-      const combined=[...local[date],...merged[date]];
-      merged[date]=combined.filter(e=>{
-        const key=e.name+'|'+e.meal+'|'+e.amountLabel;
-        if(seen.has(key)||tombstonedOn(date,e)) return false;
-        seen.add(key);
-        return true;
+  const byId=new Map();
+  const addLog=(log,preferOnTie)=>{
+    const normalized=normalizeLogData(log);
+    Object.entries(normalized).forEach(([date,items])=>{
+      items.forEach(item=>{
+        if(tombstonedOn(date,item))return;
+        const current=byId.get(String(item.id));
+        if(preferLogEntry(item,current,preferOnTie))byId.set(String(item.id),item);
       });
-    }
-  }
-  // Also filter remote-only dates through tombstones
-  for(const date in merged){
-    if(!local[date]){
-      merged[date]=(merged[date]||[]).filter(e=>!tombstonedOn(date,e));
-    }
-  }
+    });
+  };
+  addLog(remote,false);
+  addLog(local,true);
+  const merged={};
+  [...byId.values()].forEach(item=>{
+    const date=logEntryDate(item,item.date);
+    if(!date)return;
+    if(!merged[date])merged[date]=[];
+    merged[date].push(item);
+  });
+  Object.keys(merged).forEach(date=>{
+    merged[date].sort((a,b)=>{
+      const am=a.updatedAt?Date.parse(a.updatedAt):0;
+      const bm=b.updatedAt?Date.parse(b.updatedAt):0;
+      return am-bm;
+    });
+  });
   return merged;
 }
 
@@ -2824,6 +2885,11 @@ async function silentPush(){
         lsSet('nl_backups',JSON.stringify(backups));
         try{
           const remote=JSON.parse(remoteData.files['nutrilog.json'].content);
+          if(remote.log){
+            state.log=mergeLogData(state.log,remote.log,remote.tombstones||{});
+            persist('log');
+            lsSet('nl_tombstones',state.tombstones);
+          }
           mergeRecoveryData(remote.recovery);
           persist('recovery');
         }catch(e){}
@@ -2887,7 +2953,7 @@ function restoreBackup(i){
     const b=backups[i];
     const p=JSON.parse(b.data);
     if(!p.targets)throw new Error('Invalid backup');
-    state.targets=p.targets;state.log=p.log||{};
+    state.targets=p.targets;state.log=normalizeLogData(p.log||{});
     state.customFoods=p.customFoods||[];state.weight=p.weight||{};
     mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
     updateCurrentTargetsFromHistory();
@@ -2982,6 +3048,9 @@ function editEntry(idx){
   const n=parseFloat(newAmt);
   if(isNaN(n)||n<=0){showToast('Invalid amount');return;}
   const ratio=n/currentAmt;
+  if(!item.id)item.id=createLogEntryId();
+  item.date=state.currentDate;
+  item.updatedAt=new Date().toISOString();
   item.cal*=ratio;item.prot*=ratio;item.carb*=ratio;item.fat*=ratio;item.fiber*=ratio;
   item.amountLabel=n+unit;
   persist('log');scheduleAutoSync();
