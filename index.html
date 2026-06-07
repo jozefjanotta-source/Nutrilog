@@ -901,6 +901,21 @@ function logEntryLegacyKey(date,item){
     item.fiber??''
   ].join('|');
 }
+function isLegacyLogId(id){
+  return !id||String(id).startsWith('legacy:');
+}
+function logTombstoneMatches(date,entry,tombstone){
+  if(!entry||!tombstone)return false;
+  const entryId=entry.id?String(entry.id):'';
+  const tombstoneId=tombstone.id?String(tombstone.id):'';
+  if(entryId&&tombstoneId&&entryId===tombstoneId)return true;
+
+  // Key-only tombstones are for entries from older app versions that did not
+  // have stable IDs. New copied entries may intentionally match the same food,
+  // meal, amount, and date, so only legacy entries should be removed by key.
+  if(!isLegacyLogId(entryId)||!isLegacyLogId(tombstoneId))return false;
+  return !!tombstone.key&&tombstone.key===logEntryLegacyKey(date,entry);
+}
 function normalizeLogEntry(item,date,index){
   if(!item||typeof item!=='object')return null;
   const d=logEntryDate(item,date);
@@ -1410,8 +1425,7 @@ function recordTombstones(date, entries, indices){
 
 function isTombstoned(date, entry){
   const tombs=state.tombstones[date]||[];
-  const key=logEntryLegacyKey(date,entry);
-  return tombs.some(t=>(entry.id&&t.id&&String(t.id)===String(entry.id))||t.key===key);
+  return tombs.some(t=>logTombstoneMatches(date,entry,t));
 }
 
 function deleteSelected(){
@@ -2807,8 +2821,7 @@ function mergeLogData(local, remote, remoteTombstones){
 
   function tombstonedOn(date, entry){
     const tombs=allTombstones[date]||[];
-    const key=logEntryLegacyKey(date,entry);
-    return tombs.some(t=>(entry.id&&t.id&&String(t.id)===String(entry.id))||t.key===key);
+    return tombs.some(t=>logTombstoneMatches(date,entry,t));
   }
   function preferLogEntry(next,current,preferNextOnTie){
     if(!current)return true;
