@@ -20,11 +20,12 @@
   --fs:16px;--fs-sm:14px;--fs-xs:12px;--fs-lg:18px;--fs-xl:23px;
 }
 @media(prefers-color-scheme:dark){:root{
-  --bg:#141412;--surface:#1e1e1c;--surface2:#2a2a27;
-  --border:rgba(255,255,255,.10);--border2:rgba(255,255,255,.18);
-  --text:#f0efe9;--text2:#9a9a92;--text3:#606058;
-  --accent:#52b788;--accent-light:#1a2e24;--accent-text:#b7e4c7;
-  --warn:#f4a261;--danger:#e57373;--info:#74b3f0;--info-light:#0e1e30;
+  --bg:#000000;--surface:#111111;--surface2:#1b1b1b;
+  --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+  --text:#f5f7fa;--text2:#c8d0d8;--text3:#7f8a96;
+  --accent:#00c853;--accent-light:#062414;--accent-text:#6dffae;
+  --warn:#f59e0b;--danger:#ef4444;--danger-light:#2b0d0d;--info:#38bdf8;--info-light:#061926;
+  --shadow:0 10px 30px rgba(0,0,0,.55);
 }}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif;color:var(--text);font-size:var(--fs)}
@@ -36,6 +37,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .tab-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:680px;background:var(--surface);border-top:.5px solid var(--border);display:flex;height:var(--tab-h);padding-bottom:var(--safe-bottom);z-index:20}
 .tab-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:none;background:none;color:var(--text3);font-size:11px;font-weight:500;padding-top:6px}
 .tab-item.active{color:var(--accent)}.tab-icon{font-size:22px;line-height:1}
+.tab-item span:last-child{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .page{display:none;padding:16px}
 /* DATE NAV */
 .date-nav{display:flex;align-items:center;gap:8px;padding:8px 16px 12px}
@@ -84,6 +86,13 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .log-toolbar{display:flex;align-items:center;gap:8px;padding:0 16px 10px;flex-wrap:wrap}
 .log-toolbar-left{display:flex;align-items:center;gap:8px;flex:1}
 .log-toolbar-right{display:flex;gap:6px;flex-wrap:wrap}
+.more-menu-wrap{position:relative}
+.more-menu-wrap summary{list-style:none}
+.more-menu-wrap summary::-webkit-details-marker{display:none}
+.more-menu-btn{min-width:34px;padding:7px 10px}
+.more-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:20;min-width:150px;background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);padding:6px}
+.more-menu-item{width:100%;border:none;background:none;color:var(--text);font:inherit;font-size:var(--fs-sm);text-align:left;padding:9px 10px;border-radius:6px;cursor:pointer}
+.more-menu-item:active{background:var(--surface2)}
 .tb-btn{background:var(--surface);border:.5px solid var(--border2);border-radius:var(--radius-sm);padding:7px 12px;font-size:var(--fs-sm);color:var(--text);cursor:pointer;white-space:nowrap}
 .tb-btn:active{background:var(--surface2)}
 .tb-btn.danger{border-color:var(--danger);color:var(--danger)}
@@ -99,9 +108,18 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .food-item-info{flex:1;min-width:0}
 .food-item-name{font-size:var(--fs);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .food-item-meta{font-size:var(--fs-sm);color:var(--text2);margin-top:3px}
-.food-item-cal{font-size:var(--fs-sm);font-weight:600;color:var(--warn);white-space:nowrap}
+.food-item-cal{font-size:var(--fs-sm);font-weight:600;color:var(--accent);white-space:nowrap}
 .empty-log{text-align:center;padding:48px 20px;color:var(--text3);font-size:var(--fs);line-height:1.7}
-.day-total{background:var(--surface2);border-radius:var(--radius-sm);padding:12px 14px;margin:0 16px 16px;font-size:var(--fs-sm);color:var(--text2);display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
+.day-total{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin:0 16px 16px;color:var(--text2);display:grid;grid-template-columns:1fr;gap:10px}
+.day-total-main{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.day-total-label{font-size:var(--fs-sm);font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em}
+.day-total-cal{font-size:17px;font-weight:700;color:#1d4ed8;line-height:1}
+.day-total-macros{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.day-total-macro{background:var(--surface2);border-radius:var(--radius-sm);padding:9px 10px;min-width:0}
+.day-total-macro .dt-lbl{font-size:var(--fs-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+.day-total-macro .dt-val{font-size:17px;font-weight:700;color:var(--text);white-space:nowrap}
+.day-total-macro.important .dt-val{color:#1d4ed8}
+.print-only{display:none}
 /* SELECTION ACTIONS */
 .sel-count{font-size:var(--fs-sm);color:var(--accent);font-weight:600}
 /* MODAL */
@@ -123,7 +141,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .result-item:active{background:var(--surface2)}
 .result-name{font-size:var(--fs);font-weight:500;flex:1}
 .result-meta{font-size:var(--fs-sm);color:var(--text2);margin-top:3px}
-.result-cal{font-size:var(--fs-sm);font-weight:600;color:var(--warn)}
+.result-cal{font-size:var(--fs-sm);font-weight:600;color:var(--accent)}
 .tag{display:inline-block;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:4px;vertical-align:middle}
 .tag-builtin{background:var(--info-light);color:var(--info)}
 .tag-custom{background:var(--accent-light);color:var(--accent-text)}
@@ -134,8 +152,9 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .form-row{display:flex;gap:8px;margin-bottom:12px;align-items:flex-end;flex-wrap:wrap}
 .form-field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:100px}
 .form-field label{font-size:var(--fs-sm);color:var(--text2);font-weight:500}
-.form-field input,.form-field select{padding:10px 11px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs);outline:none;width:100%}
-.form-field input:focus,.form-field select:focus{border-color:var(--accent)}
+.form-field input,.form-field select,.form-field textarea{padding:10px 11px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs);outline:none;width:100%;font-family:inherit}
+.form-field input:focus,.form-field select:focus,.form-field textarea:focus{border-color:var(--accent)}
+.form-field textarea{resize:vertical;line-height:1.4}
 .preview-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
 .preview-item{background:var(--surface2);border-radius:var(--radius-sm);padding:12px;text-align:center}
 .preview-item .pv{font-size:20px;font-weight:700}
@@ -155,6 +174,8 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 /* TARGETS */
 .target-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
 .save-msg{font-size:var(--fs-sm);color:var(--accent);margin-top:10px;display:none}
+.toast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%) translateY(8px);background:rgba(28,28,30,.94);color:#fff;padding:9px 14px;border-radius:999px;font-size:var(--fs-sm);font-weight:600;box-shadow:var(--shadow);z-index:120;opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 /* SUMMARY PAGE */
 .range-toggle{display:flex;background:var(--surface2);border-radius:var(--radius-sm);padding:3px;margin-bottom:16px}
 .range-btn{flex:1;text-align:center;padding:8px;font-size:var(--fs-sm);font-weight:500;border-radius:6px;cursor:pointer;color:var(--text2);border:none;background:none}
@@ -168,6 +189,94 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .weight-entry{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-sm)}
 .weight-entry-date{color:var(--text2)}
 .weight-entry-val{font-weight:600}
+/* MEASUREMENTS */
+.measurement-list{display:flex;flex-direction:column;gap:8px}
+.measurement-item{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius-sm);padding:13px 14px}
+.measurement-item-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:9px}
+.measurement-date{font-size:var(--fs);font-weight:600}
+.measurement-comment{font-size:var(--fs-sm);color:var(--text2);line-height:1.5;margin-top:10px;white-space:pre-wrap}
+.measurement-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.measurement-metric{background:var(--surface2);border-radius:var(--radius-sm);padding:9px 10px;min-width:0}
+.measurement-metric .mm-lbl{font-size:var(--fs-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+.measurement-metric .mm-val{font-size:var(--fs-sm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.measurement-actions{display:flex;gap:6px;flex-shrink:0}
+.measurement-weekly{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:16px;overflow-x:auto}
+.measurement-week-row{display:grid;grid-template-columns:1.3fr repeat(7,1fr);gap:8px;align-items:center;min-width:820px;padding:9px 0;border-bottom:.5px solid var(--border);font-size:var(--fs-sm)}
+.measurement-week-row:last-child{border-bottom:none}
+.measurement-week-row.hd{font-size:var(--fs-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.04em;font-weight:600;padding-top:0}
+.measurement-week-label{font-weight:600;color:var(--text)}
+.measurement-week-cell{color:var(--text2);white-space:nowrap}
+.measurement-change.pos{color:var(--danger)}
+.measurement-change.neg{color:var(--accent)}
+.measurement-subtabs{display:flex;background:var(--surface2);border-radius:var(--radius-sm);padding:3px;margin-bottom:16px}
+.measurement-subtab{flex:1;text-align:center;padding:8px;font-size:var(--fs-sm);font-weight:500;border-radius:6px;cursor:pointer;color:var(--text2);border:none;background:none}
+.measurement-subtab.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.measurement-panel{display:none}
+.history-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.lookup-panel{display:none;background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:14px;margin:12px 0 16px}
+.lookup-panel.active{display:block}
+.lookup-actions{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 12px}
+.lookup-actions .tb-btn{font-size:12px;padding:8px 10px}
+.lookup-results-title{font-size:var(--fs-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 8px}
+.body-chart-filters{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:14px}
+.body-chart-filters .form-row{margin-bottom:0}
+.body-chart-filters .tb-btn{align-self:flex-end;padding:10px 12px}
+.advanced-recovery{border:.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px;background:var(--surface2)}
+.advanced-recovery summary{cursor:pointer;font-size:var(--fs-sm);font-weight:600;color:var(--text2);list-style:none}
+.advanced-recovery summary::-webkit-details-marker{display:none}
+.advanced-recovery summary::after{content:'+';float:right;color:var(--text3)}
+.advanced-recovery[open] summary{margin-bottom:12px}
+.advanced-recovery[open] summary::after{content:'-'}
+.recovery-warning{margin-top:12px;border-radius:var(--radius-sm);padding:11px 12px;background:#fdecea;color:var(--danger);font-size:var(--fs-sm);font-weight:600}
+.decision-card{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px}
+.decision-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+.decision-metric{background:var(--surface2);border-radius:var(--radius-sm);padding:10px;min-width:0}
+.decision-metric .dm-lbl{font-size:var(--fs-xs);color:var(--text3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.decision-metric .dm-val{font-size:var(--fs-sm);font-weight:600;color:var(--text);line-height:1.5}
+.decision-status{display:inline-block;border-radius:4px;padding:2px 6px;margin-left:5px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.decision-status.ok{background:var(--accent-light);color:var(--accent-text)}
+.decision-status.warn{background:rgba(245,158,11,.14);color:var(--warn)}
+.decision-status.bad{background:#fdecea;color:var(--danger)}
+.decision-final{margin-top:12px;border-radius:var(--radius-sm);padding:13px 14px;background:var(--accent-light);color:var(--accent-text);font-size:var(--fs-lg);font-weight:700}
+.decision-final.warn{background:rgba(245,158,11,.14);color:var(--warn)}
+.decision-final.bad{background:#fdecea;color:var(--danger)}
+.btn-sm{background:var(--surface);border:.5px solid var(--border);color:var(--text2);border-radius:var(--radius-sm);padding:7px 12px;font-size:var(--fs-sm);cursor:pointer}
+.btn-sm:active{background:var(--surface2)}
+@media(prefers-color-scheme:dark){
+  .header{border-bottom:.5px solid rgba(255,255,255,.05)}
+  .tab-bar,.macro-card,.remain-row,.micro-item,.chart-card,.food-item,.results-list,.add-form,.custom-item,.week-stat,.measurement-item,.measurement-weekly,.decision-card,.modal-box{border-color:var(--border);box-shadow:var(--shadow)}
+  .macro-card,.chart-card,.decision-card,.measurement-item,.food-item,.custom-item,.week-stat{padding-top:15px;padding-bottom:15px}
+  .form-field input,.form-field select,.form-field textarea,.search-input{background:#050505;border-color:var(--border2)}
+  .form-field input:focus,.form-field select:focus,.form-field textarea:focus,.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,200,83,.18)}
+  .food-item.selected{background:#062414}
+  .btn-primary,.tb-btn.accent{color:#111}
+  .food-item-cb.checked{color:#111}
+  .day-total-cal,.day-total-macro.important .dt-val{color:#3b82f6}
+  .decision-status.bad,.decision-final.bad,.recovery-warning{background:var(--danger-light)}
+}
+@media(max-width:430px){
+  .day-total-macros{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media print{
+  @page{margin:14mm}
+  :root{--bg:#fff;--surface:#fff;--surface2:#f4f6f8;--border:rgba(0,0,0,.18);--text:#111;--text2:#444;--text3:#777;--accent:#111;--info:#1a5fa8}
+  html,body{height:auto;background:#fff;color:#111;display:block;max-width:none;font-size:12pt}
+  .header,.tab-bar,.date-nav,.log-toolbar,.chart-card,.range-toggle,.measurement-subtabs,.modal-overlay,button,.food-item-cb{display:none!important}
+  .scroll-content{display:block;overflow:visible;padding:0}
+  .page,#view-dash,#view-add,#view-summary,#view-measurements,#view-custom,#view-targets{display:none!important}
+  #view-log{display:block!important;padding:0!important}
+  .print-only{display:block!important}
+  .print-title{font-size:20pt;font-weight:800;margin:0 0 4mm}
+  .print-date{font-size:12pt;color:#444;margin-bottom:7mm}
+  .log-section{break-inside:avoid;margin:0 0 7mm}
+  .meal-header{font-size:11pt;color:#111;padding-bottom:2mm;border-bottom:1px solid #ddd;margin-bottom:2mm}
+  .meal-cal-badge{display:inline-block!important;background:none;padding:0;color:#444}
+  .food-item{break-inside:avoid;border:0;border-bottom:1px solid #e1e1e1;border-radius:0;padding:3mm 0;margin:0;box-shadow:none;background:#fff}
+  .food-item-name{white-space:normal;font-size:11pt}
+  .food-item-meta,.food-item-cal{font-size:10pt;color:#222}
+  .day-total{break-inside:avoid;margin:6mm 0 0;border:1px solid #d7d7d7;background:#fff}
+  .day-total-cal{color:#111}
+}
 </style>
 </head>
 <body>
@@ -218,7 +327,17 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
       <button class="tb-btn" onclick="showCopyModal(false)" id="btn-copy" disabled>Copy to...</button>
       <button class="tb-btn" onclick="showCopyModal(true)" id="btn-move" disabled>Move to...</button>
       <button class="tb-btn danger" onclick="deleteSelected()" id="btn-del" disabled>Delete</button>
+      <details class="more-menu-wrap">
+        <summary class="tb-btn more-menu-btn" title="More actions" aria-label="More actions">&#8943;</summary>
+        <div class="more-menu">
+          <button class="more-menu-item" onclick="printFoodLog();this.closest('details').removeAttribute('open')">Print food log</button>
+        </div>
+      </details>
     </div>
+  </div>
+  <div class="print-only">
+    <div class="print-title">Food log</div>
+    <div class="print-date" id="print-log-date"></div>
   </div>
   <div id="log-body"></div>
 </div>
@@ -284,25 +403,159 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     <div class="chart-title">Macros breakdown</div>
     <div class="chart-wrap"><canvas id="chart-macro"></canvas></div>
   </div>
-  <div class="chart-card" style="margin:0 0 14px">
-    <div class="chart-title">Weight tracking</div>
-    <div class="weight-log-row">
-      <div class="form-field"><label>Date</label><input type="date" id="w-date"></div>
-      <div class="form-field"><label>Weight (kg)</label><input type="number" id="w-val" placeholder="e.g. 105" step="0.1"></div>
-      <button class="btn-primary" style="width:auto;padding:10px 14px;font-size:var(--fs-sm);flex-shrink:0;align-self:flex-end" onclick="addWeight()">Add</button>
+</div>
+
+<!-- MEASUREMENTS -->
+<div id="view-measurements" class="page">
+  <div class="measurement-subtabs">
+    <button class="measurement-subtab active" id="measure-tab-body" onclick="switchMeasurementArea('body')">Body</button>
+    <button class="measurement-subtab" id="measure-tab-recovery" onclick="switchMeasurementArea('recovery')">Recovery</button>
+    <button class="measurement-subtab" id="measure-tab-decision" onclick="switchMeasurementArea('decision')">Decision</button>
+  </div>
+
+  <div id="measurement-panel-body" class="measurement-panel">
+    <div class="section-hd">Body</div>
+    <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+      <div class="form-row">
+        <div class="form-field"><label>Date</label><input type="date" id="m-date"></div>
+        <div class="form-field"><label>Weight (kg)</label><input type="number" id="m-weight" step="0.1" placeholder="105.0" oninput="updateMeasurementFat()"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Waist (cm)</label><input type="number" id="m-waist" step="0.1" placeholder="98.0"></div>
+        <div class="form-field"><label>BF (%)</label><input type="number" id="m-bf" step="0.1" placeholder="24.0" oninput="updateMeasurementFat()"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Fat (kg)</label><input type="number" id="m-fat" step="0.1" placeholder="25.0" readonly></div>
+        <div class="form-field"><label>Muscle mass (kg)</label><input type="number" id="m-muscle" step="0.1" placeholder="70.0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Water (%)</label><input type="number" id="m-water" step="0.1" placeholder="52.0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="min-width:100%"><label>Comment</label><textarea id="m-comment" rows="3" placeholder="Optional note..."></textarea></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" id="m-save-btn" style="flex:1" onclick="saveMeasurement()">Save body</button>
+        <button class="modal-cancel" id="m-cancel-btn" style="display:none;flex:0 0 auto;padding:12px 14px" onclick="resetMeasurementForm()">Cancel</button>
+      </div>
     </div>
-    <div class="chart-wrap" id="weight-chart-wrap" style="display:none"><canvas id="chart-weight"></canvas></div>
-    <div id="weight-list"></div>
+    <div id="measurement-charts" style="display:none">
+      <div class="body-chart-filters">
+        <div class="form-row">
+          <div class="form-field"><label>From</label><input type="date" id="body-chart-from" onchange="setBodyChartRange()"></div>
+          <div class="form-field"><label>To</label><input type="date" id="body-chart-to" onchange="setBodyChartRange()"></div>
+          <button class="tb-btn" onclick="clearBodyChartRange()">All</button>
+        </div>
+      </div>
+      <div id="body-chart-empty" class="empty-log" style="display:none;padding:18px 12px">No body measurements in selected date range.</div>
+      <div class="chart-card" id="measurement-weight-card" style="margin:0 0 14px">
+        <div class="chart-title">Weight trend</div>
+        <div class="chart-wrap"><canvas id="measurement-weight-chart"></canvas></div>
+        <div id="measurement-weight-empty" style="display:none;font-size:var(--fs-sm);color:var(--text3);padding-top:8px">No weight data in selected range.</div>
+      </div>
+      <div class="chart-card" id="measurement-waist-card" style="margin:0 0 14px">
+        <div class="chart-title">Waist trend</div>
+        <div class="chart-wrap"><canvas id="measurement-waist-chart"></canvas></div>
+        <div id="measurement-waist-empty" style="display:none;font-size:var(--fs-sm);color:var(--text3);padding-top:8px">No waist data in selected range.</div>
+      </div>
+      <div class="chart-card" id="measurement-bf-card" style="margin:0 0 14px">
+        <div class="chart-title">BF% trend</div>
+        <div class="chart-wrap"><canvas id="measurement-bf-chart"></canvas></div>
+        <div id="measurement-bf-empty" style="display:none;font-size:var(--fs-sm);color:var(--text3);padding-top:8px">No BF% data in selected range.</div>
+      </div>
+    </div>
+    <div class="section-hd history-head">Latest body entry <button id="body-lookup-toggle" class="tb-btn" onclick="toggleBodyLookup()" style="font-size:12px;padding:5px 10px">Find body entry</button></div>
+    <div id="measurements-list" class="measurement-list"></div>
+    <div id="body-lookup-panel" class="lookup-panel">
+      <div class="form-row">
+        <div class="form-field"><label>From date</label><input type="date" id="body-lookup-from" onchange="searchBodyLookup()"></div>
+        <div class="form-field"><label>To date</label><input type="date" id="body-lookup-to" onchange="searchBodyLookup()"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="min-width:100%"><label>Comment search</label><input type="text" id="body-lookup-query" placeholder="Search comments..." oninput="searchBodyLookup()"></div>
+      </div>
+      <div class="lookup-actions">
+        <button class="tb-btn" onclick="setBodyLookupRange(7)">Last 7 days</button>
+        <button class="tb-btn" onclick="setBodyLookupRange(30)">Last 30 days</button>
+        <button class="tb-btn" onclick="setBodyLookupRange(0)">All</button>
+        <button class="btn-primary" style="flex:1;min-width:110px;padding:8px 12px" onclick="searchBodyLookup()">Search</button>
+      </div>
+      <div class="lookup-results-title">Body results</div>
+      <div id="body-lookup-results" class="measurement-list"></div>
+    </div>
+  </div>
+
+  <div id="measurement-panel-recovery" class="measurement-panel">
+    <div class="section-hd">Recovery</div>
+    <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+      <div class="form-row">
+        <div class="form-field"><label>Date</label><input type="date" id="r-date"></div>
+        <div class="form-field"><label>Sleep Hours</label><input type="number" id="r-sleep-hours" min="0" step="1" placeholder="6"></div>
+        <div class="form-field"><label>Sleep Minutes</label><input type="number" id="r-sleep-minutes" min="0" max="59" step="1" placeholder="27"></div>
+        <div class="form-field"><label>Sleep Score</label><input type="number" id="r-sleep-score" step="1" placeholder="82"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>HRV optional</label><input type="number" id="r-hrv" step="1" placeholder="45"></div>
+      </div>
+      <details class="advanced-recovery" id="advanced-recovery-fields">
+        <summary>Advanced recovery fields</summary>
+        <div class="form-row">
+        <div class="form-field"><label>Mood 1-5</label><input type="number" id="r-mood" min="1" max="5" step="1"></div>
+        <div class="form-field"><label>Soreness 1-5</label><input type="number" id="r-soreness" min="1" max="5" step="1"></div>
+        <div class="form-field"><label>Performance 1-5</label><input type="number" id="r-performance" min="1" max="5" step="1"></div>
+        <div class="form-field"><label>Cravings 1-5</label><input type="number" id="r-cravings" min="1" max="5" step="1"></div>
+        </div>
+      </details>
+      <div class="form-row">
+        <div class="form-field" style="min-width:100%"><label>Comment</label><textarea id="r-comment" rows="3" placeholder="Optional note..."></textarea></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" id="r-save-btn" style="flex:1" onclick="saveRecovery()">Save recovery</button>
+        <button class="modal-cancel" id="r-cancel-btn" style="display:none;flex:0 0 auto;padding:12px 14px" onclick="resetRecoveryForm()">Cancel</button>
+      </div>
+    </div>
+    <div class="section-hd history-head">Today/latest recovery entry <button id="recovery-lookup-toggle" class="tb-btn" onclick="toggleRecoveryLookup()" style="font-size:12px;padding:5px 10px">Find recovery entry</button></div>
+    <div id="recovery-list" class="measurement-list"></div>
+    <div id="recovery-lookup-panel" class="lookup-panel">
+      <div class="form-row">
+        <div class="form-field"><label>From date</label><input type="date" id="recovery-lookup-from" onchange="searchRecoveryLookup()"></div>
+        <div class="form-field"><label>To date</label><input type="date" id="recovery-lookup-to" onchange="searchRecoveryLookup()"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field" style="min-width:100%"><label>Comment search</label><input type="text" id="recovery-lookup-query" placeholder="Search comments..." oninput="searchRecoveryLookup()"></div>
+      </div>
+      <div class="lookup-actions">
+        <button class="tb-btn" onclick="setRecoveryLookupRange(7)">Last 7 days</button>
+        <button class="tb-btn" onclick="setRecoveryLookupRange(30)">Last 30 days</button>
+        <button class="tb-btn" onclick="setRecoveryLookupRange(0)">All</button>
+        <button class="btn-primary" style="flex:1;min-width:110px;padding:8px 12px" onclick="searchRecoveryLookup()">Search</button>
+      </div>
+      <div class="lookup-results-title">Recovery results</div>
+      <div id="recovery-lookup-results" class="measurement-list"></div>
+    </div>
+  </div>
+
+  <div id="measurement-panel-decision" class="measurement-panel">
+    <div id="decision-engine-wrap">
+      <div class="section-hd">Decision</div>
+      <div class="decision-card">
+        <div id="decision-engine-body"></div>
+      </div>
+    </div>
+    <div id="measurement-weekly-wrap" style="display:none">
+      <div class="section-hd history-head">Weekly history <button id="weekly-history-toggle" class="tb-btn" onclick="toggleWeeklyHistory()" style="font-size:12px;padding:5px 10px">Show all</button></div>
+      <div class="measurement-weekly" id="measurement-weekly-summary" style="display:none"></div>
+    </div>
   </div>
 </div>
 
 <!-- MY FOODS -->
 <div id="view-custom" class="page">
-  <div class="section-hd">Add custom food</div>
+  <div class="section-hd" id="cf-form-title">Add custom food</div>
   <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
     <div class="form-row">
       <div class="form-field" style="flex:2"><label>Name</label><input type="text" id="cf-name" placeholder="e.g. Homemade goulash"></div>
-      <div class="form-field"><label>Kcal / 100g</label><input type="number" id="cf-cal" placeholder="180"></div>
+      <div class="form-field"><label id="cf-cal-label">Kcal / 100g</label><input type="number" id="cf-cal" placeholder="180"></div>
     </div>
     <div class="form-row">
       <div class="form-field"><label>Protein (g)</label><input type="number" id="cf-prot" placeholder="12"></div>
@@ -313,7 +566,8 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     <div class="form-row">
       <div class="form-field"><label>Piece weight (g, optional)</label><input type="number" id="cf-piece" placeholder="e.g. 120"></div>
     </div>
-    <button class="btn-primary" onclick="saveCustomFood()">Save food</button>
+    <button class="btn-primary" id="cf-save-btn" onclick="saveCustomFood()">Save food</button>
+    <button class="btn-sm" id="cf-cancel-btn" onclick="cancelCustomFoodEdit()" style="display:none;width:100%;margin-top:8px">Cancel edit</button>
   </div>
   <div class="section-hd" style="display:flex;align-items:center;justify-content:space-between">
     My foods
@@ -326,8 +580,11 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 <div id="view-targets" class="page">
   <div class="section-hd">Daily targets</div>
   <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+    <div class="form-row">
+      <div class="form-field"><label>Effective Date</label><input type="date" id="t-effective-date"></div>
+    </div>
     <div class="target-grid">
-      <div class="form-field"><label>Calories (kcal)</label><input type="number" id="t-cal"></div>
+      <div class="form-field"><label>Calories (kcal)</label><input type="number" id="t-cal" oninput="updateTargetMacrosFromCalories()"></div>
       <div class="form-field"><label>Protein (g)</label><input type="number" id="t-prot"></div>
       <div class="form-field"><label>Carbs (g)</label><input type="number" id="t-carb"></div>
       <div class="form-field"><label>Fat (g)</label><input type="number" id="t-fat"></div>
@@ -335,6 +592,29 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     </div>
     <button class="btn-primary" onclick="saveTargets()">Save</button>
     <div class="save-msg" id="save-msg">Saved</div>
+  </div>
+  <div class="section-hd">Goal History</div>
+  <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
+    <div class="decision-grid" style="margin-top:0;margin-bottom:14px">
+      <div class="decision-metric"><div class="dm-lbl">Current active goal</div><div class="dm-val" id="goal-current">-</div></div>
+      <div class="decision-metric"><div class="dm-lbl">Upcoming future goal</div><div class="dm-val" id="goal-upcoming">-</div></div>
+    </div>
+    <div class="form-row">
+      <div class="form-field"><label>Effective Date</label><input type="date" id="goal-date"></div>
+      <div class="form-field"><label>Goal / Phase</label>
+        <select id="goal-phase">
+          <option value="">Select phase</option>
+          <option>Fat Loss</option>
+          <option>Maintenance</option>
+          <option>Muscle Gain</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="btn-primary" id="goal-save-btn" style="flex:1" onclick="saveGoalEntry()">Add goal entry</button>
+      <button class="modal-cancel" id="goal-cancel-btn" style="display:none;flex:0 0 auto;padding:12px 14px" onclick="resetGoalForm()">Cancel</button>
+    </div>
+    <div id="goal-history-list"></div>
   </div>
   <div class="section-hd">Sync between devices</div>
   <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px">
@@ -367,6 +647,9 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
       <button class="btn-primary" style="flex:1;background:var(--info)" onclick="gistSync('pull')">&#8595; Pull (load from cloud)</button>
     </div>
     <div id="gist-msg" style="display:none;font-size:var(--fs-sm);margin-top:8px"></div>
+    <div style="height:.5px;background:var(--border);margin:14px 0"></div>
+    <div class="section-hd" style="margin-bottom:8px">Sync Status</div>
+    <div id="sync-status-panel" style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;font-size:var(--fs-sm);color:var(--text2)"></div>
     <div id="gist-id-display" style="font-size:11px;color:var(--text3);margin-top:8px;word-break:break-all"></div>
     <div style="height:.5px;background:var(--border);margin:14px 0"></div>
     <div class="section-hd" style="margin-bottom:8px">Restore from backup</div>
@@ -407,6 +690,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
   <button class="tab-item" id="tab-log" onclick="switchView('log')"><span class="tab-icon">&#128203;</span><span>Log</span></button>
   <button class="tab-item" id="tab-add" onclick="switchView('add')"><span class="tab-icon">&#10133;</span><span>Add food</span></button>
   <button class="tab-item" id="tab-summary" onclick="switchView('summary')"><span class="tab-icon">&#128202;</span><span>Summary</span></button>
+  <button class="tab-item" id="tab-measurements" onclick="switchView('measurements')"><span class="tab-icon">&#128207;</span><span>Measurements</span></button>
   <button class="tab-item" id="tab-custom" onclick="switchView('custom')"><span class="tab-icon">&#129367;</span><span>My foods</span></button>
   <button class="tab-item" id="tab-targets" onclick="switchView('targets')"><span class="tab-icon">&#9881;</span><span>Settings</span></button>
 </div>
@@ -544,7 +828,7 @@ function parseCSVLine(line){
   return result;
 }
 
-const SK={targets:'nl_targets',log:'nl_log',custom:'nl_custom',weight:'nl_weight',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones'};
+const SK={targets:'nl_targets',targetHistory:'nl_target_history',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',recovery:'nl_recovery',goalHistory:'nl_goal_history',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones',measurementTombstones:'nl_measurement_tombstones',syncMeta:'nl_sync_meta'};
 function lsGet(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch(e){return fb}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 function todayISO(){
@@ -559,24 +843,277 @@ function fmtI(n){return Math.round(n)}
 
 const state={
   targets:lsGet(SK.targets,{cal:2200,prot:150,carb:200,fat:80,fiber:30}),
+  targetHistory:lsGet(SK.targetHistory,[]),
   log:lsGet(SK.log,{}),
   customFoods:lsGet(SK.custom,[]),
   weight:lsGet(SK.weight,{}),
+  measurements:lsGet(SK.measurements,[]),
+  recovery:lsGet(SK.recovery,[]),
+  goalHistory:lsGet(SK.goalHistory,null)||(lsGet(SK.decision,{goalHistory:[]}).goalHistory||[]),
+  decision:lsGet(SK.decision,{phase:'',goalHistory:[]}),
   gistToken:lsGet(SK.gist_token,''),
   gistId:lsGet(SK.gist_id,''),
+  syncMeta:lsGet(SK.syncMeta,null),
   tombstones:lsGet('nl_tombstones',{}),
+  measurementTombstones:lsGet(SK.measurementTombstones,[]),
   currentDate:todayISO(),
   pendingFood:null,
   unitMode:'grams',
   chartRange:7,
   selected:new Set(),
+  editingMeasurementId:null,
+  editingRecoveryId:null,
+  editingGoalIndex:null,
+  measurementArea:'body',
+  bodyLookupOpen:false,
+  bodyLookupSearched:false,
+  bodyLookupFrom:'',
+  bodyLookupTo:'',
+  bodyLookupQuery:'',
+  bodyChartFrom:'',
+  bodyChartTo:'',
+  recoveryLookupOpen:false,
+  recoveryLookupSearched:false,
+  recoveryLookupFrom:'',
+  recoveryLookupTo:'',
+  recoveryLookupQuery:'',
+  weeklyHistoryExpanded:false,
   moveMode:false
 };
 function persist(k){lsSet(SK[k],state[k])}
 
-let chartCal=null,chartMacro=null,chartWeight=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null,macroPieChart=null;
+function createLogEntryId(){
+  return 'log-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
+}
+function logEntryDate(item,date){
+  return String((item&&item.date)||date||'').slice(0,10);
+}
+function logEntryLegacyKey(date,item){
+  if(!item)return'';
+  return [
+    logEntryDate(item,date),
+    item.name||'',
+    item.meal||'',
+    item.amountLabel||'',
+    item.cal??'',
+    item.prot??'',
+    item.carb??'',
+    item.fat??'',
+    item.fiber??''
+  ].join('|');
+}
+function isLegacyLogId(id){
+  return !id||String(id).startsWith('legacy:');
+}
+function logTombstoneMatches(date,entry,tombstone){
+  if(!entry||!tombstone)return false;
+  const entryId=entry.id?String(entry.id):'';
+  const tombstoneId=tombstone.id?String(tombstone.id):'';
+  if(entryId&&tombstoneId&&entryId===tombstoneId)return true;
 
-const VIEWS=['dash','log','add','summary','custom','targets'];
+  // Key-only tombstones are for entries from older app versions that did not
+  // have stable IDs. New copied entries may intentionally match the same food,
+  // meal, amount, and date, so only legacy entries should be removed by key.
+  if(!isLegacyLogId(entryId)||!isLegacyLogId(tombstoneId))return false;
+  return !!tombstone.key&&tombstone.key===logEntryLegacyKey(date,entry);
+}
+function normalizeLogEntry(item,date,index){
+  if(!item||typeof item!=='object')return null;
+  const d=logEntryDate(item,date);
+  const id=item.id||('legacy:'+logEntryLegacyKey(d,item)+'|'+(index??0));
+  const fallbackUpdatedAt=d?new Date(d+'T12:00:00').toISOString():new Date(0).toISOString();
+  return {...item,id,date:d,updatedAt:item.updatedAt||fallbackUpdatedAt};
+}
+function normalizeLogData(log){
+  const out={};
+  Object.entries(log||{}).forEach(([date,items])=>{
+    (Array.isArray(items)?items:[]).forEach((item,index)=>{
+      const normalized=normalizeLogEntry(item,date,index);
+      if(!normalized||!normalized.date)return;
+      if(!out[normalized.date])out[normalized.date]=[];
+      out[normalized.date].push(normalized);
+    });
+  });
+  return out;
+}
+state.log=normalizeLogData(state.log);
+persist('log');
+
+function recoveryTimestampValue(item){
+  const t=item&&item.updatedAt?Date.parse(item.updatedAt):NaN;
+  if(Number.isFinite(t))return t;
+  const idNum=Number(item&&item.id);
+  if(Number.isFinite(idNum)&&idNum>0)return idNum;
+  const d=item&&item.date?Date.parse(String(item.date).slice(0,10)+'T12:00:00'):NaN;
+  return Number.isFinite(d)?d:0;
+}
+function recoveryFallbackId(item,index){
+  return 'recovery:'+[
+    item&&item.date?String(item.date).slice(0,10):'',
+    item&&item.sleepHours!==undefined?item.sleepHours:'',
+    item&&item.sleepScore!==undefined?item.sleepScore:'',
+    item&&item.hrv!==undefined?item.hrv:'',
+    item&&item.comment?String(item.comment):'',
+    index
+  ].join('|');
+}
+function normalizeRecoveryEntry(item,index){
+  if(!item||typeof item!=='object')return null;
+  const id=item.id!==null&&item.id!==undefined&&item.id!==''?item.id:recoveryFallbackId(item,index);
+  const ts=recoveryTimestampValue({...item,id});
+  return {...item,id,updatedAt:item.updatedAt||(ts?new Date(ts).toISOString():new Date().toISOString())};
+}
+function normalizeRecoveryEntries(items){
+  return (Array.isArray(items)?items:[]).map(normalizeRecoveryEntry).filter(Boolean);
+}
+function recoverySameEntry(a,b){
+  if(!a||!b)return false;
+  const aid=a.id!==null&&a.id!==undefined&&a.id!=='';
+  const bid=b.id!==null&&b.id!==undefined&&b.id!=='';
+  if(aid&&bid&&String(a.id)===String(b.id))return true;
+  return !!a.date&&!!b.date&&String(a.date).slice(0,10)===String(b.date).slice(0,10);
+}
+function preferRecovery(next,current,preferNextOnTie){
+  if(!current)return true;
+  const nt=recoveryTimestampValue(next);
+  const ct=recoveryTimestampValue(current);
+  if(nt!==ct)return nt>ct;
+  return preferNextOnTie;
+}
+function mergeRecoveryData(incoming){
+  const local=normalizeRecoveryEntries(state.recovery);
+  const remote=normalizeRecoveryEntries(incoming);
+  if(!remote.length){
+    state.recovery=local;
+    return;
+  }
+  const merged=[];
+  const add=(items,preferOnTie)=>{
+    items.forEach(item=>{
+      const idx=merged.findIndex(current=>recoverySameEntry(current,item));
+      if(idx<0)merged.push(item);
+      else if(preferRecovery(item,merged[idx],preferOnTie))merged[idx]=item;
+    });
+  };
+  add(remote,false);
+  add(local,true);
+  state.recovery=merged;
+}
+mergeRecoveryData(state.recovery);
+console.log("Recovery count after load:", state.recovery.length);
+persist('recovery');
+
+let toastTimer=null;
+function showToast(msg,ms=1600){
+  let el=document.getElementById('toast');
+  if(!el){
+    el=document.createElement('div');
+    el.id='toast';
+    el.className='toast';
+    document.body.appendChild(el);
+  }
+  el.textContent=msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),ms);
+}
+
+function measurementKey(item){
+  if(!item)return'';
+  if(item.id!==null&&item.id!==undefined&&item.id!=='')return'id:'+String(item.id);
+  return 'body:'+[
+    item.date||'',
+    item.weight??'',
+    item.waist??'',
+    item.bf??'',
+    item.muscle??'',
+    item.water??'',
+    item.comment||''
+  ].join('|');
+}
+function measurementIdMatches(item,id){
+  return item&&item.id!==null&&item.id!==undefined&&id!==null&&id!==undefined&&String(item.id)===String(id);
+}
+function preferMeasurement(next,current,preferNextOnTie){
+  if(!current)return true;
+  const nt=next&&next.updatedAt?Date.parse(next.updatedAt):NaN;
+  const ct=current&&current.updatedAt?Date.parse(current.updatedAt):NaN;
+  if(Number.isFinite(nt)&&Number.isFinite(ct))return nt>=ct;
+  if(Number.isFinite(nt)&&!Number.isFinite(ct))return true;
+  if(!Number.isFinite(nt)&&Number.isFinite(ct))return false;
+  return preferNextOnTie;
+}
+function mergeBodyMeasurements(incoming,incomingTombstones){
+  const tombs=new Set([...(state.measurementTombstones||[]),...(incomingTombstones||[])].map(String));
+  const byKey=new Map();
+  const add=(items,preferOnTie)=>{
+    (Array.isArray(items)?items:[]).forEach(item=>{
+      const key=measurementKey(item);
+      if(!key||tombs.has(key))return;
+      const current=byKey.get(key);
+      if(preferMeasurement(item,current,preferOnTie))byKey.set(key,item);
+    });
+  };
+  add(incoming,false);
+  add(state.measurements,true);
+  state.measurementTombstones=[...tombs];
+  state.measurements=[...byKey.values()];
+}
+function saveBodyMeasurements(){
+  persist('measurements');
+  persist('measurementTombstones');
+  scheduleAutoSync();
+}
+function targetHistoryKey(item){
+  if(!item)return'';
+  return [
+    item.effectiveDate||'',
+    item.calories??'',
+    item.protein??'',
+    item.carbs??'',
+    item.fat??'',
+    item.fiber??'',
+    item.timestamp??item.ts??''
+  ].join('|');
+}
+function normalizeTargetHistoryEntry(e){
+  if(!e||typeof e!=='object')return null;
+  const effectiveDate=String(e.effectiveDate||e.effective_from||e.date||e.from||e.startDate||'').slice(0,10);
+  const calories=parseFloat(e.calories??e.cal??e.targetCal??e.targetCalories??e.calorieTarget??e.kcal??e.value??e.targetValue??(e.targets&&e.targets.cal)??(typeof e.target==='object'?e.target.cal:e.target));
+  if(!effectiveDate||!Number.isFinite(calories)||calories<=0)return null;
+  const protein=parseFloat(e.protein??e.prot??(e.targets&&e.targets.prot));
+  const carbs=parseFloat(e.carbs??e.carb??(e.targets&&e.targets.carb));
+  const fat=parseFloat(e.fat??(e.targets&&e.targets.fat));
+  const fiber=parseFloat(e.fiber??(e.targets&&e.targets.fiber));
+  return{
+    effectiveDate,
+    calories,
+    protein:Number.isFinite(protein)?protein:0,
+    carbs:Number.isFinite(carbs)?carbs:0,
+    fat:Number.isFinite(fat)?fat:0,
+    fiber:Number.isFinite(fiber)?fiber:0,
+    timestamp:e.timestamp||e.ts||0
+  };
+}
+function mergeTargetHistory(...sources){
+  const byKey=new Map();
+  const add=e=>{
+    const item=normalizeTargetHistoryEntry(e);
+    if(item)byKey.set(targetHistoryKey(item),item);
+  };
+  sources.forEach(src=>{
+    if(Array.isArray(src))src.forEach(add);
+    else add(src);
+  });
+  state.targetHistory=[...byKey.values()].sort((a,b)=>a.effectiveDate.localeCompare(b.effectiveDate)||(a.timestamp||0)-(b.timestamp||0));
+}
+function saveTargetHistory(){
+  persist('targetHistory');
+}
+
+let chartCal=null,chartMacro=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null,macroPieChart=null,measurementWeightChart=null,measurementWaistChart=null,measurementBfChart=null;
+
+const VIEWS=['dash','log','add','summary','measurements','custom','targets'];
 function switchView(v){
   VIEWS.forEach(id=>{
     const el=document.getElementById('view-'+id);
@@ -587,6 +1124,7 @@ function switchView(v){
   if(v==='dash'){renderDash();}
   if(v==='log'){state.selected=new Set();renderLog();}
   if(v==='summary'){renderSummaryPage();}
+  if(v==='measurements'){switchMeasurementArea(state.measurementArea||'body');}
   if(v==='custom'){renderCustomList();}
   if(v==='targets'){loadTargetsForm();}
 }
@@ -594,6 +1132,10 @@ function switchView(v){
 function jumpToDate(iso){
   if(!iso)return;
   state.currentDate=iso;
+  ['date-picker-dash','date-picker-log'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.value=iso;
+  });
   state.selected=new Set();
   renderDash();renderLog();
 }
@@ -604,9 +1146,7 @@ function changeDay(d){
   const yyyy=dt.getFullYear();
   const mm=String(dt.getMonth()+1).padStart(2,'0');
   const dd=String(dt.getDate()).padStart(2,'0');
-  state.currentDate=yyyy+'-'+mm+'-'+dd;
-  state.selected=new Set();
-  renderDash();renderLog();
+  jumpToDate(yyyy+'-'+mm+'-'+dd);
 }
 function dayLabel(iso){
   const today=todayISO();
@@ -649,13 +1189,13 @@ function renderDash(){
 }
 
 function renderSummaryCards(totals,targetCal){
-  const t=state.targets;
+  const t=getTargetsForDate(state.currentDate);
   const adjCal=targetCal||t.cal;
   const ms=[
-    {lbl:'Calories',val:fmtI(totals.cal),tgt:t.cal,unit:'kcal',color:'#e4880a'},
-    {lbl:'Protein',val:fmtI(totals.prot),tgt:t.prot,unit:'g',color:'#1a5fa8'},
-    {lbl:'Carbs',val:fmtI(totals.carb),tgt:t.carb,unit:'g',color:'#1d9e75'},
-    {lbl:'Fat',val:fmtI(totals.fat),tgt:t.fat,unit:'g',color:'#c0392b'}
+    {lbl:'Calories',val:fmtI(totals.cal),tgt:t.cal,unit:'kcal',color:'#00c853'},
+    {lbl:'Protein',val:fmtI(totals.prot),tgt:t.prot,unit:'g',color:'#38bdf8'},
+    {lbl:'Carbs',val:fmtI(totals.carb),tgt:t.carb,unit:'g',color:'#00a64a'},
+    {lbl:'Fat',val:fmtI(totals.fat),tgt:t.fat,unit:'g',color:'#ef4444'}
   ];
   document.getElementById('summary').innerHTML=ms.map(m=>{
     const pct=m.tgt?Math.min(100,m.val/m.tgt*100):0;const over=m.tgt&&m.val>m.tgt;
@@ -664,7 +1204,7 @@ function renderSummaryCards(totals,targetCal){
 }
 
 function renderRing(totals,targetCal){
-  const t=state.targets;
+  const t=getTargetsForDate(state.currentDate);
   const adjCal=targetCal||t.cal;
   const over=totals.cal>t.cal;
   const rem=Math.max(0,t.cal-totals.cal);
@@ -672,7 +1212,7 @@ function renderRing(totals,targetCal){
   document.getElementById('ring-val').textContent=fmtI(over?totals.cal-t.cal:rem);
   document.getElementById('ring-lbl').textContent=over?'over':'left';
   document.getElementById('ring-val').style.color=over?'var(--danger)':'var(--accent)';
-  const color=over?'#e57373':'#52b788';
+  const color=over?'#ef4444':'#00c853';
   try{
     const ctx=document.getElementById('ring-canvas').getContext('2d');
     if(ringChart)ringChart.destroy();
@@ -690,8 +1230,8 @@ function renderRing(totals,targetCal){
 }
 
 function renderMealBars(date){
-  const mt=getMealTotals(date);const t=state.targets.cal||2200;
-  const meals=['Breakfast','Lunch','Dinner','Snack'];const colors=['#e4880a','#1d9e75','#1a5fa8','#9b59b6'];
+  const mt=getMealTotals(date);const t=getTargetsForDate(date).cal||2200;
+  const meals=['Breakfast','Lunch','Dinner','Snack'];const colors=['#00c853','#38bdf8','#00a64a','#f59e0b'];
   document.getElementById('meal-bars').innerHTML=meals.map((m,i)=>{
     const cal=mt[m]||0;if(!cal)return'';
     const pct=Math.min(100,cal/t*100);
@@ -714,34 +1254,96 @@ function renderDashCalChart(){
   }
   const calData=dates.map(d=>fmtI(getTotals(d).cal));
   const labels=dates.map(d=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
-  const tgt=state.targets.cal||2200;
-  const threshold=tgt*1.1;
+  const targetData=getCalorieTargetSeries(dates);
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const gc=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#606058':'#9e9e97';
+  const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
+  const tc=isDark?'#c8d0d8':'#9e9e97';
+  const maxTarget=Math.max(0,...targetData.filter(v=>v!==null&&v!==undefined));
+  const suggestedMax=Math.max(...calData,maxTarget,state.targets.cal||0,1)*1.25;
+  const datasets=[
+    {data:calData,backgroundColor:calData.map((v,i)=>{
+      const tgt=targetData[i];
+      return tgt&&v>tgt*1.1?'rgba(239,68,68,0.82)':v>0?'rgba(0,200,83,0.78)':'rgba(128,128,128,0.22)';
+    }),borderRadius:5,label:'Calories'}
+  ];
+  if(targetData.some(v=>v!==null&&v!==undefined)){
+    datasets.push(calorieTargetLine(targetData));
+  }
   try{
     if(dashCalChart)dashCalChart.destroy();
     dashCalChart=new Chart(document.getElementById('dash-cal-chart').getContext('2d'),{
       type:'bar',
-      data:{labels,datasets:[
-        {data:calData,backgroundColor:calData.map(v=>v>threshold?'rgba(192,57,43,0.8)':v>0?'rgba(45,106,79,0.7)':'rgba(128,128,128,0.2)'),borderRadius:5,label:'Calories'},
-        {type:'line',data:Array(7).fill(tgt),borderColor:'rgba(230,130,0,0.8)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false}
-      ]},
+      data:{labels,datasets},
       options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':'Target: '+tgt}}},
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':(ctx.raw==null?'No target':'Target: '+ctx.raw)}}},
         scales:{
           x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:30}},
-          y:{grid:{color:gc},ticks:{color:tc,font:{size:11}},suggestedMax:tgt*1.3,suggestedMin:0}
+          y:{grid:{color:gc},ticks:{color:tc,font:{size:11}},suggestedMax,suggestedMin:0}
         }
       }
     });
   }catch(e){}
 }
 
+function getTargetHistoryEntries(){
+  const sources=[
+    state.targetHistory,
+    state.calorieTargetHistory,
+    state.decision&&state.decision.targetHistory,
+    lsGet('nl_target_history',[]),
+    lsGet('nl_calorie_target_history',[])
+  ];
+  const entries=[];
+  sources.forEach(src=>{
+    if(Array.isArray(src))src.forEach(e=>{const item=normalizeTargetHistoryEntry(e);if(item)entries.push(item);});
+    else{const item=normalizeTargetHistoryEntry(src);if(item)entries.push(item);}
+  });
+  return entries.sort((a,b)=>a.effectiveDate.localeCompare(b.effectiveDate)||(a.timestamp||0)-(b.timestamp||0));
+}
+function getTargetForDate(iso){
+  const chartDate=String(iso||'').slice(0,10);
+  const active=getTargetHistoryEntries().filter(e=>e.effectiveDate<=chartDate);
+  return active.length?active[active.length-1]:null;
+}
+function getCalorieTargetForDate(iso){
+  const target=getTargetForDate(iso);
+  return target?target.calories:null;
+}
+function getTargetsForDate(iso){
+  const target=getTargetForDate(iso);
+  if(target)return targetEntryToTargets(target);
+  const chartDate=String(iso||'').slice(0,10);
+  if(chartDate>=todayISO()&&!getTargetHistoryEntries().length)return state.targets;
+  return{cal:0,prot:0,carb:0,fat:0,fiber:0};
+}
+function getCalorieTargetSeries(dates){
+  return dates.map(d=>getCalorieTargetForDate(d));
+}
+function calorieTargetLine(data){
+  const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+  const color=isDark?'#3b82f6':'#1d4ed8';
+  return {
+    type:'line',
+    data,
+    borderColor:color,
+    backgroundColor:color,
+    borderWidth:2,
+    borderDash:[5,4],
+    pointRadius:data.map(v=>v===null||v===undefined?0:3),
+    pointHoverRadius:4,
+    pointBackgroundColor:color,
+    pointBorderColor:color,
+    label:'Target',
+    fill:false,
+    spanGaps:false
+  };
+}
+
 // ---- LOG PAGE ----
 function renderLog(){
   const lbl=dayLabel(state.currentDate);
   const ldEl=document.getElementById('log-date-label-text');if(ldEl)ldEl.textContent=lbl;
+  const printDate=document.getElementById('print-log-date');if(printDate)printDate.textContent=lbl+' - '+state.currentDate;
   const entries=state.log[state.currentDate]||[];
   const meals=['Breakfast','Lunch','Dinner','Snack'];
   let html='';
@@ -771,10 +1373,22 @@ function renderLog(){
   if(!entries.length){
     body.innerHTML='<div class="empty-log">Nothing logged '+( lbl.toLowerCase()==='today'?'today':'for '+lbl.toLowerCase())+'.<br>Tap <b>Add food</b> to start.</div>';
   } else {
-    html+='<div class="day-total"><span>Fiber: '+fmt(totals.fiber)+'g</span><span>Total: '+fmtI(totals.cal)+' kcal &nbsp;P '+fmt(totals.prot)+'g &nbsp;C '+fmt(totals.carb)+'g &nbsp;F '+fmt(totals.fat)+'g</span></div>';
+    html+='<div class="day-total">'+
+      '<div class="day-total-main"><div class="day-total-label">Daily total</div><div class="day-total-cal">'+fmtI(totals.cal)+' kcal</div></div>'+
+      '<div class="day-total-macros">'+
+        '<div class="day-total-macro important"><div class="dt-lbl">Protein</div><div class="dt-val">'+fmt(totals.prot)+'g</div></div>'+
+        '<div class="day-total-macro"><div class="dt-lbl">Carbs</div><div class="dt-val">'+fmt(totals.carb)+'g</div></div>'+
+        '<div class="day-total-macro"><div class="dt-lbl">Fat</div><div class="dt-val">'+fmt(totals.fat)+'g</div></div>'+
+        '<div class="day-total-macro important"><div class="dt-lbl">Fiber</div><div class="dt-val">'+fmt(totals.fiber)+'g</div></div>'+
+      '</div>'+
+    '</div>';
     body.innerHTML=html;
   }
   updateSelectionUI();
+}
+
+function printFoodLog(){
+  window.print();
 }
 
 function toggleSelect(idx){
@@ -805,21 +1419,20 @@ function recordTombstones(date, entries, indices){
   const ts=Date.now();
   indices.forEach(i=>{
     const e=entries[i];
-    if(e) state.tombstones[date].push({key:e.name+'|'+e.meal+'|'+e.amountLabel,ts});
+    if(e) state.tombstones[date].push({id:e.id||'',key:logEntryLegacyKey(date,e),ts});
   });
   lsSet('nl_tombstones',state.tombstones);
 }
 
 function isTombstoned(date, entry){
   const tombs=state.tombstones[date]||[];
-  const key=entry.name+'|'+entry.meal+'|'+entry.amountLabel;
-  return tombs.some(t=>t.key===key);
+  return tombs.some(t=>logTombstoneMatches(date,entry,t));
 }
 
 function deleteSelected(){
   if(!state.selected.size)return;
-  if(!confirm('Delete '+state.selected.size+' item(s)?')){return;}
   const entries=state.log[state.currentDate]||[];
+  const removedCount=state.selected.size;
   const selectedIndices=[...state.selected];
   recordTombstones(state.currentDate, entries, selectedIndices);
   state.log[state.currentDate]=entries.filter((_,i)=>!state.selected.has(i));
@@ -827,6 +1440,7 @@ function deleteSelected(){
   persist('log');scheduleAutoSync();
   renderLog();
   renderDash();
+  showToast(removedCount===1?'Deleted':'Deleted '+removedCount);
 }
 
 function showCopyModal(isMove){
@@ -847,19 +1461,26 @@ function confirmCopyMove(){
   const targetDate=document.getElementById('modal-date').value;
   const targetMeal=document.getElementById('modal-meal').value;
   if(!targetDate)return;
+  const sourceDate=state.currentDate;
   const entries=state.log[state.currentDate]||[];
   const toProcess=entries.filter((_,i)=>state.selected.has(i));
-  const toCopy=toProcess.map(e=>({...e,meal:targetMeal||e.meal}));
+  const now=new Date().toISOString();
+  const toCopy=toProcess.map((e,i)=>{
+    const item=normalizeLogEntry(e,sourceDate,i);
+    return {...item,id:state.moveMode?item.id:createLogEntryId(),date:targetDate,meal:targetMeal||item.meal,updatedAt:now};
+  });
   if(!state.log[targetDate])state.log[targetDate]=[];
   state.log[targetDate].push(...toCopy);
   if(state.moveMode){
-    state.log[state.currentDate]=entries.filter((_,i)=>!state.selected.has(i));
+    state.log[sourceDate]=entries.filter((_,i)=>!state.selected.has(i));
   }
   state.selected=new Set();
   persist('log');scheduleAutoSync();
   document.getElementById('modal').style.display='none';
-  renderLog();
-  renderDash();
+  const moved=state.moveMode;
+  jumpToDate(targetDate);
+  switchView('log');
+  showToast((moved?'Moved':'Copied')+' to '+targetDate);
 }
 
 // ---- SEARCH ----
@@ -870,14 +1491,14 @@ function handleSearch(q){
   if(!ql){document.getElementById('search-results').innerHTML='';document.getElementById('search-status').textContent='';return;}
   if(!DB_LOADED){document.getElementById('search-status').textContent='Loading food database...';return;}
   const all=[
-    ...state.customFoods.filter(f=>f.name.toLowerCase().includes(ql)).map(f=>({...f,_src:'custom'})),
-    ...DB.filter(f=>f.name.toLowerCase().includes(ql)).map(f=>({...f,_src:'builtin'}))
+    ...state.customFoods.map((f,i)=>({...f,_src:'custom',_index:i})).filter(f=>f.name.toLowerCase().includes(ql)),
+    ...DB.map((f,i)=>({...f,_src:'builtin',_index:i})).filter(f=>f.name.toLowerCase().includes(ql))
   ];
   if(!all.length){document.getElementById('search-results').innerHTML='<div class="no-results">No results for "'+q+'". Add it under My foods.</div>';document.getElementById('search-status').textContent='';return;}
   document.getElementById('search-status').textContent=all.length+' result'+(all.length!==1?'s':'');
   document.getElementById('search-results').innerHTML='<div class="results-list">'+all.map(f=>{
     const fs=JSON.stringify(f).replace(/'/g,"&#39;");
-    return '<div class="result-item" onclick='+"'"+'pickFood('+fs+')'+"'"+ '><div style="flex:1;min-width:0"><div class="result-name">'+f.name+'<span class="tag '+(f._src==='custom'?'tag-custom':'tag-builtin')+'">'+f._src+'</span></div><div class="result-meta">'+(f.unit&&f.unit!=='g'?'per 1 '+f.unit:f.piece?'per '+f.piece+'g':'per 100g')+' &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+'</div></div><div class="result-cal">'+fmtI(f.cal)+'</div></div>';
+    return '<div class="result-item" onclick='+"'"+'pickFood('+fs+')'+"'"+ '><div style="flex:1;min-width:0"><div class="result-name">'+escHtml(f.name)+'<span class="tag '+(f._src==='custom'?'tag-custom':'tag-builtin')+'">'+f._src+'</span></div><div class="result-meta">'+(f.unit&&f.unit!=='g'?'per 1 '+f.unit:'per 100g'+(f.piece?' · 1pc='+f.piece+'g':''))+' &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+'</div></div><div class="result-cal">'+fmtI(f.cal)+'</div><button class="btn-sm" onclick="event.stopPropagation();editFood(\''+f._src+'\','+f._index+')">Edit</button></div>';
   }).join('')+'</div>';
 }
 function clearSearch(){document.getElementById('search-input').value='';handleSearch('');}
@@ -906,15 +1527,29 @@ function getEffectiveGrams(){
   const f=state.pendingFood;const count=parseFloat(document.getElementById('af-amount').value)||0;
   if(!f) return count;
   const unit=f.unit||'g';
-  if(unit==='g'||unit==='ml') return count;
   if(state.unitMode==='pieces'&&f.piece) return count*f.piece;
+  if(state.unitMode==='spoons') return count*(parseFloat(document.getElementById('af-unit').value)||0);
+  if(unit==='g'||unit==='ml') return count;
   // For pc/slice/tsp/tbsp/scoop — we store per-unit macros so just use count as multiplier
   return count;
+}
+function getFoodMultiplier(){
+  const f=state.pendingFood;
+  if(!f)return 0;
+  const unit=(f.unit||'g').toLowerCase();
+  const isGram=unit==='g'||unit==='ml';
+  const count=parseFloat(document.getElementById('af-amount').value)||0;
+  return isGram?getEffectiveGrams()/100:count;
 }
 function getAmountLabel(){
   const f=state.pendingFood;
   const count=parseFloat(document.getElementById('af-amount').value)||0;
   const unit=(f&&f.unit)||'g';
+  if(state.unitMode==='pieces'&&f&&f.piece)return count+' pc ('+getEffectiveGrams()+'g)';
+  if(state.unitMode==='spoons'){
+    const select=document.getElementById('af-unit');
+    return count+' × '+select.options[select.selectedIndex].text+' ('+getEffectiveGrams()+'g)';
+  }
   if(unit==='g'||unit==='ml') return count+unit;
   return count+' '+unit;
 }
@@ -931,11 +1566,7 @@ function pickFood(food){
 function updatePreview(){
   if(!state.pendingFood)return;
   const f=state.pendingFood;
-  const count=parseFloat(document.getElementById('af-amount').value)||0;
-  const unit=(f.unit||'g').toLowerCase();
-  const isGram=unit==='g'||unit==='ml';
-  // For gram-based: multiply by count/100. For unit-based: multiply by count (already per unit)
-  const r=isGram?count/100:count;
+  const r=getFoodMultiplier();
   document.getElementById('af-preview').innerHTML=
     '<div class="preview-item"><div class="pv">'+fmtI(f.cal*r)+'</div><div class="pl">kcal</div></div>'+
     '<div class="preview-item"><div class="pv">'+fmtI(f.prot*r)+'g</div><div class="pl">protein</div></div>'+
@@ -943,54 +1574,220 @@ function updatePreview(){
 }
 function addToLog(){
   const f=state.pendingFood;if(!f)return;
-  const count=parseFloat(document.getElementById('af-amount').value)||0;
-  const unit=(f.unit||'g').toLowerCase();
-  const isGram=unit==='g'||unit==='ml';
-  const r=isGram?count/100:count;
+  const now=new Date().toISOString();
+  const r=getFoodMultiplier();
   const meal=document.getElementById('af-meal').value;
   if(!state.log[state.currentDate])state.log[state.currentDate]=[];
-  state.log[state.currentDate].push({name:f.name,meal,amountLabel:getAmountLabel(),cal:f.cal*r,prot:f.prot*r,carb:f.carb*r,fat:f.fat*r,fiber:(f.fiber||0)*r});
+  state.log[state.currentDate].push({id:createLogEntryId(),date:state.currentDate,updatedAt:now,name:f.name,meal,amountLabel:getAmountLabel(),cal:f.cal*r,prot:f.prot*r,carb:f.carb*r,fat:f.fat*r,fiber:(f.fiber||0)*r});
   persist('log');scheduleAutoSync();state.pendingFood=null;clearSearch();
   document.getElementById('add-panel').style.display='none';
   switchView('log');
+  showToast('Saved');
 }
 
-// ---- CUSTOM FOODS ----
+// ---- FOOD EDITING ----
+let editingFoodSource=null;
+let editingFoodIndex=null;
+function resetCustomFoodForm(){
+  editingFoodSource=null;
+  editingFoodIndex=null;
+  ['cf-name','cf-cal','cf-prot','cf-carb','cf-fat','cf-fiber','cf-piece'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('cf-form-title').textContent='Add custom food';
+  document.getElementById('cf-cal-label').textContent='Kcal / 100g';
+  document.getElementById('cf-save-btn').textContent='Save food';
+  document.getElementById('cf-cancel-btn').style.display='none';
+}
 function saveCustomFood(){
   const name=document.getElementById('cf-name').value.trim();if(!name)return;
-  state.customFoods.push({name,
+  const original=editingFoodSource==='builtin'?DB[editingFoodIndex]:null;
+  const food={name,
     cal:parseFloat(document.getElementById('cf-cal').value)||0,
     prot:parseFloat(document.getElementById('cf-prot').value)||0,
     carb:parseFloat(document.getElementById('cf-carb').value)||0,
     fat:parseFloat(document.getElementById('cf-fat').value)||0,
     fiber:parseFloat(document.getElementById('cf-fiber').value)||0,
-    piece:parseFloat(document.getElementById('cf-piece').value)||null
-  });
-  persist('custom');scheduleAutoSync();
-  ['cf-name','cf-cal','cf-prot','cf-carb','cf-fat','cf-fiber','cf-piece'].forEach(id=>document.getElementById(id).value='');
+    piece:parseFloat(document.getElementById('cf-piece').value)||null,
+    unit:original&&original.unit?original.unit:'g'
+  };
+  const isEdit=editingFoodIndex!==null;
+  const source=editingFoodSource;
+  if(source==='builtin'){
+    DB[editingFoodIndex]=food;
+    saveFoodDatabase();
+  }else if(isEdit)state.customFoods[editingFoodIndex]=food;
+  else state.customFoods.push(food);
+  if(source!=='builtin'){persist('custom');scheduleAutoSync();}
+  resetCustomFoodForm();
   renderCustomList();
+  showToast(source==='builtin'?'Database food updated':isEdit?'Food updated':'Food saved');
 }
+function editFood(source,i){
+  const f=source==='builtin'?DB[i]:state.customFoods[i];if(!f)return;
+  editingFoodSource=source;
+  editingFoodIndex=i;
+  document.getElementById('cf-name').value=f.name||'';
+  document.getElementById('cf-cal').value=f.cal||0;
+  document.getElementById('cf-prot').value=f.prot||0;
+  document.getElementById('cf-carb').value=f.carb||0;
+  document.getElementById('cf-fat').value=f.fat||0;
+  document.getElementById('cf-fiber').value=f.fiber||0;
+  document.getElementById('cf-piece').value=f.piece||'';
+  document.getElementById('cf-form-title').textContent=source==='builtin'?'Edit database food':'Edit custom food';
+  document.getElementById('cf-cal-label').textContent=f.unit&&f.unit!=='g'?'Kcal / item':'Kcal / 100g';
+  document.getElementById('cf-save-btn').textContent='Update food';
+  document.getElementById('cf-cancel-btn').style.display='block';
+  switchView('custom');
+  document.getElementById('cf-name').focus();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function editCustom(i){editFood('custom',i);}
+function cancelCustomFoodEdit(){resetCustomFoodForm();}
 function renderCustomList(){
   const list=document.getElementById('custom-list');
   if(!state.customFoods.length){list.innerHTML='<div class="empty-log">No custom foods yet.</div>';return;}
   list.innerHTML=state.customFoods.map((f,i)=>
-    '<div class="custom-item"><div class="custom-item-info"><div class="custom-item-name">'+f.name+'</div><div class="custom-item-meta">'+fmtI(f.cal)+' kcal &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+(f.piece?' &nbsp;1pc='+f.piece+'g':'')+'</div></div><button class="btn-sm-danger" onclick="deleteCustom('+i+')">Delete</button></div>'
+    '<div class="custom-item"><div class="custom-item-info"><div class="custom-item-name">'+escHtml(f.name)+'</div><div class="custom-item-meta">'+fmtI(f.cal)+' kcal &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+(f.piece?' &nbsp;1pc='+f.piece+'g':'')+'</div></div><button class="btn-sm" onclick="editCustom('+i+')">Edit</button><button class="btn-sm-danger" onclick="deleteCustom('+i+')">Delete</button></div>'
   ).join('');
 }
-function deleteCustom(i){state.customFoods.splice(i,1);persist('custom');scheduleAutoSync();renderCustomList();}
+function deleteCustom(i){
+  state.customFoods.splice(i,1);
+  if(editingFoodSource==='custom'&&editingFoodIndex===i)resetCustomFoodForm();
+  else if(editingFoodSource==='custom'&&editingFoodIndex!==null&&editingFoodIndex>i)editingFoodIndex--;
+  persist('custom');scheduleAutoSync();renderCustomList();
+}
+
+function csvCell(value){
+  const s=String(value===null||value===undefined?'':value);
+  return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+}
+function foodDatabaseCSV(){
+  const rows=['Food list;Amount;Unit;Calories;Fats;Carbs;Prots'];
+  DB.forEach(f=>{
+    const unit=f.unit||'g';
+    const gramBased=unit==='g'||unit==='ml';
+    const amount=gramBased?(f.piece||100):1;
+    const factor=gramBased?amount/100:1;
+    rows.push([f.name,amount,unit,f.cal*factor,f.fat*factor,f.carb*factor,f.prot*factor].map(csvCell).join(';'));
+  });
+  return rows.join('\n');
+}
+async function saveFoodDatabase(){
+  lsSet('nl_foods_csv',DB);
+  const count=document.getElementById('foods-db-count');if(count)count.textContent=DB.length+' foods loaded';
+  if(!state.gistToken||!state.gistId)return;
+  const headers={'Authorization':'token '+state.gistToken,'Content-Type':'application/json'};
+  const body={files:{'foods.csv':{content:foodDatabaseCSV()}}};
+  try{
+    const resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
+    if(!resp.ok)showToast('Saved locally; cloud food sync failed',3000);
+  }catch(e){showToast('Saved locally; cloud food sync failed',3000);}
+}
 
 // ---- TARGETS ----
+function updateTargetMacrosFromCalories(){
+  const cal=parseFloat(document.getElementById('t-cal').value)||0;
+  document.getElementById('t-carb').value=Math.round(cal*0.60/4);
+  document.getElementById('t-prot').value=Math.round(cal*0.25/4);
+  document.getElementById('t-fat').value=Math.round(cal*0.15/9);
+}
+function targetFormValues(){
+  return{
+    cal:parseFloat(document.getElementById('t-cal').value)||0,
+    prot:parseFloat(document.getElementById('t-prot').value)||0,
+    carb:parseFloat(document.getElementById('t-carb').value)||0,
+    fat:parseFloat(document.getElementById('t-fat').value)||0,
+    fiber:parseFloat(document.getElementById('t-fiber').value)||0
+  };
+}
+function targetEntryToTargets(entry){
+  return{cal:entry.calories||0,prot:entry.protein||0,carb:entry.carbs||0,fat:entry.fat||0,fiber:entry.fiber||0};
+}
+function updateCurrentTargetsFromHistory(){
+  const active=getTargetForDate(todayISO());
+  if(active)state.targets=targetEntryToTargets(active);
+}
 function loadTargetsForm(){
+  mergeTargetHistory(state.targetHistory,state.calorieTargetHistory,state.decision&&state.decision.targetHistory,lsGet('nl_target_history',[]),lsGet('nl_calorie_target_history',[]));
+  saveTargetHistory();
+  updateCurrentTargetsFromHistory();
+  persist('targets');
   ['cal','prot','carb','fat','fiber'].forEach(k=>document.getElementById('t-'+k).value=state.targets[k]);
+  const eff=document.getElementById('t-effective-date');if(eff&&!eff.value)eff.value=todayISO();
   document.getElementById('gist-token-input').value=state.gistToken||'';
   const gid=state.gistId;
   document.getElementById('gist-id-display').textContent=gid?'Gist ID: '+gid:'No gist created yet.';
   const fdc=document.getElementById('foods-db-count');if(fdc)fdc.textContent=DB.length+' foods loaded';
+  renderGoalHistorySettings();
+  renderSyncStatusPanel();
   renderBackupList();
 }
 function saveTargets(){
-  ['cal','prot','carb','fat','fiber'].forEach(k=>state.targets[k]=parseFloat(document.getElementById('t-'+k).value)||0);
-  persist('targets');scheduleAutoSync();const m=document.getElementById('save-msg');m.style.display='block';setTimeout(()=>m.style.display='none',2000);
+  const effectiveDate=document.getElementById('t-effective-date').value||todayISO();
+  const t=targetFormValues();
+  const entry={effectiveDate,calories:t.cal,protein:t.prot,carbs:t.carb,fat:t.fat,fiber:t.fiber,timestamp:Date.now()};
+  state.targetHistory.push(entry);
+  mergeTargetHistory(state.targetHistory);
+  updateCurrentTargetsFromHistory();
+  persist('targets');saveTargetHistory();scheduleAutoSync();const m=document.getElementById('save-msg');m.style.display='block';setTimeout(()=>m.style.display='none',2000);
+}
+
+function resetGoalForm(){
+  state.editingGoalIndex=null;
+  const d=document.getElementById('goal-date');
+  const p=document.getElementById('goal-phase');
+  if(d)d.value=todayISO();
+  if(p)p.value='';
+  document.getElementById('goal-save-btn').textContent='Add goal entry';
+  document.getElementById('goal-cancel-btn').style.display='none';
+}
+function saveGoalEntry(){
+  const effectiveDate=document.getElementById('goal-date').value;
+  const phase=document.getElementById('goal-phase').value;
+  if(!effectiveDate||!phase){showToast('Choose date and goal');return;}
+  const isEdit=state.editingGoalIndex!==null;
+  const prev=isEdit?state.goalHistory[state.editingGoalIndex]||{}:{};
+  const entry={...prev,effectiveDate,phase,ts:Date.now()};
+  if(state.editingGoalIndex!==null)state.goalHistory[state.editingGoalIndex]=entry;
+  else state.goalHistory.push(entry);
+  state.goalHistory.sort((a,b)=>a.effectiveDate.localeCompare(b.effectiveDate)||(a.ts||0)-(b.ts||0));
+  persist('goalHistory');scheduleAutoSync();
+  resetGoalForm();
+  renderGoalHistorySettings();
+  showToast(isEdit?'Updated':'Saved');
+}
+function editGoalEntry(i){
+  const g=state.goalHistory[i];if(!g)return;
+  state.editingGoalIndex=i;
+  document.getElementById('goal-date').value=g.effectiveDate||todayISO();
+  document.getElementById('goal-phase').value=g.phase||'';
+  document.getElementById('goal-save-btn').textContent='Update goal entry';
+  document.getElementById('goal-cancel-btn').style.display='block';
+}
+function deleteGoalEntry(i){
+  const g=state.goalHistory[i];if(!g)return;
+  state.goalHistory.splice(i,1);
+  persist('goalHistory');scheduleAutoSync();
+  resetGoalForm();
+  renderGoalHistorySettings();
+  showToast('Deleted');
+}
+function renderGoalHistorySettings(){
+  if(!Array.isArray(state.goalHistory))state.goalHistory=[];
+  state.goalHistory.sort((a,b)=>(a.effectiveDate||'').localeCompare(b.effectiveDate||'')||(a.ts||0)-(b.ts||0));
+  const today=todayISO();
+  const current=getActiveGoalForDate(today);
+  const future=[...state.goalHistory].filter(g=>g.effectiveDate>today).sort((a,b)=>a.effectiveDate.localeCompare(b.effectiveDate))[0];
+  const curEl=document.getElementById('goal-current');
+  const upEl=document.getElementById('goal-upcoming');
+  if(curEl)curEl.textContent=current||'No current goal';
+  if(upEl)upEl.textContent=future?future.phase+' from '+future.effectiveDate:'No upcoming goal';
+  if(!document.getElementById('goal-date').value)resetGoalForm();
+  const list=document.getElementById('goal-history-list');
+  if(!list)return;
+  if(!state.goalHistory.length){list.innerHTML='<div class="empty-log" style="padding:20px">No goal history yet.</div>';return;}
+  list.innerHTML=state.goalHistory.map((g,i)=>
+    '<div class="custom-item"><div class="custom-item-info"><div class="custom-item-name">'+escHtml(g.phase||'-')+'</div><div class="custom-item-meta">Effective '+escHtml(g.effectiveDate||'-')+'</div></div><button class="btn-sm" onclick="editGoalEntry('+i+')">Edit</button><button class="btn-sm-danger" onclick="deleteGoalEntry('+i+')">Delete</button></div>'
+  ).join('');
 }
 
 // ---- SUMMARY ----
@@ -1033,47 +1830,58 @@ function renderSummaryPage(){
   const avgCal=daysLogged?Math.round(dates.reduce((a,d)=>a+getTotals(d).cal,0)/daysLogged):0;
   const avgProt=daysLogged?fmtI(dates.reduce((a,d)=>a+getTotals(d).prot,0)/daysLogged):0;
   const avgCarb=daysLogged?fmtI(dates.reduce((a,d)=>a+getTotals(d).carb,0)/daysLogged):0;
+  const activeMacroTargets=dates.map(d=>getTargetsForDate(d)).filter(t=>t.prot||t.carb);
+  const targetProt=activeMacroTargets.length?fmtI(activeMacroTargets.reduce((a,t)=>a+t.prot,0)/activeMacroTargets.length):'-';
+  const targetCarb=activeMacroTargets.length?fmtI(activeMacroTargets.reduce((a,t)=>a+t.carb,0)/activeMacroTargets.length):'-';
   document.getElementById('avg-grid').innerHTML=
     '<div class="week-stat"><div class="ws-lbl">Avg calories</div><div class="ws-val">'+avgCal+'</div><div class="ws-sub">kcal / logged day</div></div>'+
-    '<div class="week-stat"><div class="ws-lbl">Avg protein</div><div class="ws-val">'+avgProt+'g</div><div class="ws-sub">target: '+state.targets.prot+'g</div></div>'+
-    '<div class="week-stat"><div class="ws-lbl">Avg carbs</div><div class="ws-val">'+avgCarb+'g</div><div class="ws-sub">target: '+state.targets.carb+'g</div></div>'+
+    '<div class="week-stat"><div class="ws-lbl">Avg protein</div><div class="ws-val">'+avgProt+'g</div><div class="ws-sub">target: '+targetProt+(targetProt==='-'?'':'g')+'</div></div>'+
+    '<div class="week-stat"><div class="ws-lbl">Avg carbs</div><div class="ws-val">'+avgCarb+'g</div><div class="ws-sub">target: '+targetCarb+(targetCarb==='-'?'':'g')+'</div></div>'+
     '<div class="week-stat"><div class="ws-lbl">Days logged</div><div class="ws-val">'+daysLogged+'</div><div class="ws-sub">of last '+state.chartRange+'</div></div>';
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const gc=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#606058':'#9e9e97';
-  const tgt=state.targets.cal||2200;
-  const threshold=tgt*1.1;
+  const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
+  const tc=isDark?'#c8d0d8':'#9e9e97';
+  const targetData=getCalorieTargetSeries(dates);
+  const maxTarget=Math.max(0,...targetData.filter(v=>v!==null&&v!==undefined));
+  const suggestedMax=Math.max(...calData,maxTarget,state.targets.cal||0,1)*1.25;
+  const calDatasets=[
+    {data:calData,backgroundColor:calData.map((v,i)=>{
+      const tgt=targetData[i];
+      return tgt&&v>tgt*1.1?'rgba(239,68,68,0.82)':v>0?'rgba(0,200,83,0.78)':'rgba(128,128,128,0.22)';
+    }),borderRadius:4,label:'Calories'}
+  ];
+  if(targetData.some(v=>v!==null&&v!==undefined)){
+    calDatasets.push(calorieTargetLine(targetData));
+  }
   const bo={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:45}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}}}}};
   try{
     if(chartCal)chartCal.destroy();
     chartCal=new Chart(document.getElementById('chart-cal').getContext('2d'),{type:'bar',
-      data:{labels,datasets:[
-        {data:calData,backgroundColor:calData.map(v=>v>threshold?'rgba(192,57,43,0.8)':v>0?'rgba(45,106,79,0.7)':'rgba(128,128,128,0.2)'),borderRadius:4,label:'Calories'},
-        {type:'line',data:Array(calData.length).fill(tgt),borderColor:'rgba(230,130,0,0.85)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false}
-      ]},
-      options:{...bo,plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':'Target: '+tgt}}},scales:{...bo.scales,y:{...bo.scales.y,suggestedMax:tgt*1.3,suggestedMin:0}}}
+      data:{labels,datasets:calDatasets},
+      options:{...bo,plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':(ctx.raw==null?'No target':'Target: '+ctx.raw)}}},scales:{...bo.scales,y:{...bo.scales.y,suggestedMax,suggestedMin:0}}}
     });
     if(chartMacro)chartMacro.destroy();
     chartMacro=new Chart(document.getElementById('chart-macro').getContext('2d'),{type:'bar',
       data:{labels,datasets:[
-        {label:'Protein',data:protData,backgroundColor:'rgba(26,95,168,0.8)',stack:'s'},
-        {label:'Carbs',data:carbData,backgroundColor:'rgba(29,158,117,0.8)',stack:'s'},
-        {label:'Fat',data:fatData,backgroundColor:'rgba(192,57,43,0.8)',stack:'s'}
+        {label:'Protein',data:protData,backgroundColor:'rgba(56,189,248,0.82)',stack:'s'},
+        {label:'Carbs',data:carbData,backgroundColor:'rgba(0,200,83,0.82)',stack:'s'},
+        {label:'Fat',data:fatData,backgroundColor:'rgba(239,68,68,0.82)',stack:'s'}
       ]},
       options:{...bo,plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{mode:'index',intersect:false}},scales:{x:{...bo.scales.x,stacked:true},y:{...bo.scales.y,stacked:true}}}
     });
   }catch(e){}
   renderWeeklyAvgChart();
-  renderWeightChart(labels,dates);renderWeightList();
+  renderWeightList();
 }
 
 function renderWeeklyAvgChart(){
   // Build last 8 calendar weeks (Mon-Sun), including current partial week
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const gc=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#606058':'#9e9e97';
+  const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
+  const tc=isDark?'#c8d0d8':'#9e9e97';
   const weekLabels=[];
   const weekCalAvg=[];
+  const weekTargetAvg=[];
 
   // Find Monday of current week
   const now=new Date();
@@ -1100,51 +1908,40 @@ function renderWeeklyAvgChart(){
     if(!logged.length) continue;
     const totals=logged.map(d=>getTotals(d));
     const avgCal=Math.round(totals.reduce((a,t)=>a+t.cal,0)/logged.length);
+    const targets=logged.map(d=>getCalorieTargetForDate(d)).filter(v=>v!==null&&v!==undefined);
+    const avgTarget=targets.length?Math.round(targets.reduce((a,v)=>a+v,0)/targets.length):null;
     // Label: Mon DD MMM
     const lbl=weekStart.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
     const isCurrentWeek=w===0;
     weekLabels.push(lbl+(isCurrentWeek?' *':''));
     weekCalAvg.push(avgCal);
+    weekTargetAvg.push(avgTarget);
   }
-  const tgt=state.targets.cal||2200;
+  const maxTarget=Math.max(0,...weekTargetAvg.filter(v=>v!==null&&v!==undefined));
+  const suggestedMax=Math.max(...weekCalAvg,maxTarget,state.targets.cal||0,1)*1.25;
+  const datasets=[
+    {label:'Avg kcal',data:weekCalAvg,backgroundColor:weekCalAvg.map((v,i)=>{
+      const tgt=weekTargetAvg[i];
+      return tgt&&v>tgt*1.1?'rgba(239,68,68,0.82)':'rgba(0,200,83,0.78)';
+    }),borderRadius:4}
+  ];
+  if(weekTargetAvg.some(v=>v!==null&&v!==undefined)){
+    datasets.push(calorieTargetLine(weekTargetAvg));
+  }
   try{
     if(chartWeeklyAvg)chartWeeklyAvg.destroy();
     chartWeeklyAvg=new Chart(document.getElementById('chart-weekly-avg').getContext('2d'),{
       type:'bar',
-      data:{labels:weekLabels,datasets:[
-        {label:'Avg kcal',data:weekCalAvg,backgroundColor:weekCalAvg.map(v=>v>tgt*1.1?'rgba(192,57,43,0.8)':'rgba(45,106,79,0.7)'),borderRadius:4},
-        {type:'line',data:Array(weekLabels.length).fill(tgt),borderColor:'rgba(230,130,0,0.85)',borderWidth:2,borderDash:[5,4],pointRadius:0,label:'Target',fill:false},
-      ]},
+      data:{labels:weekLabels,datasets},
       options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':'Target: '+tgt}}},
+        plugins:{legend:{display:true,position:'bottom',labels:{color:tc,font:{size:11},boxWidth:12}},tooltip:{callbacks:{label:ctx=>ctx.datasetIndex===0?ctx.raw+' kcal':(ctx.raw==null?'No target':'Target: '+ctx.raw)}}},
         scales:{
           x:{grid:{color:gc},ticks:{color:tc,font:{size:11}}},
-          y:{grid:{color:gc},ticks:{color:tc,font:{size:11}},suggestedMax:tgt*1.3,suggestedMin:0}
+          y:{grid:{color:gc},ticks:{color:tc,font:{size:11}},suggestedMax,suggestedMin:0}
         }
       }
     });
   }catch(e){}
-}
-
-function renderWeightChart(labels,dates){
-  const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const gc=isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)';
-  const tc=isDark?'#606058':'#9e9e97';
-  // Use ALL weight entries, not just the current date range
-  const allEntries=Object.entries(state.weight).sort((a,b)=>a[0].localeCompare(b[0]));
-  const hasData=allEntries.length>0;
-  document.getElementById('weight-chart-wrap').style.display=hasData?'block':'none';
-  if(hasData){
-    const wLabels=allEntries.map(([d])=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
-    const wData=allEntries.map(([,v])=>v);
-    try{
-      if(chartWeight)chartWeight.destroy();
-      chartWeight=new Chart(document.getElementById('chart-weight').getContext('2d'),{type:'line',
-        data:{labels:wLabels,datasets:[{data:wData,borderColor:'rgba(45,106,79,0.9)',backgroundColor:'rgba(45,106,79,0.1)',borderWidth:2,pointRadius:5,pointBackgroundColor:'rgba(45,106,79,0.9)',tension:0.3,spanGaps:true}]},
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.raw+' kg'}}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:45}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}}}}}
-      });
-    }catch(e){}
-  }
 }
 
 function addWeight(){
@@ -1157,6 +1954,7 @@ function addWeight(){
 function renderWeightList(){
   const entries=Object.entries(state.weight).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,5);
   const list=document.getElementById('weight-list');
+  if(!list)return;
   if(!entries.length){list.innerHTML='<div style="font-size:var(--fs-sm);color:var(--text3);padding:8px 0">No weight entries yet.</div>';return;}
   list.innerHTML=entries.map(([d,v])=>
     '<div class="weight-entry"><span class="weight-entry-date">'+dayLabel(d)+'</span><div style="display:flex;align-items:center;gap:10px"><span class="weight-entry-val">'+v+' kg</span><button class="btn-sm-danger" onclick="deleteWeight(\''+d+'\'  )">x</button></div></div>'
@@ -1164,9 +1962,718 @@ function renderWeightList(){
 }
 function deleteWeight(d){delete state.weight[d];persist('weight');scheduleAutoSync();renderWeightList();renderSummaryPage();}
 
+// ---- MEASUREMENTS ----
+function switchMeasurementArea(area){
+  state.measurementArea=area;
+  ['body','recovery','decision'].forEach(id=>{
+    const panel=document.getElementById('measurement-panel-'+id);
+    const tab=document.getElementById('measure-tab-'+id);
+    if(panel)panel.style.display=id===area?'block':'none';
+    if(tab)tab.classList.toggle('active',id===area);
+  });
+  renderMeasurements();
+}
+function toggleBodyLookup(){state.bodyLookupOpen=!state.bodyLookupOpen;renderMeasurements();}
+function toggleRecoveryLookup(){state.recoveryLookupOpen=!state.recoveryLookupOpen;renderRecoveryList();}
+function lookupStartDate(days){
+  const d=new Date(todayISO()+'T12:00:00');
+  d.setDate(d.getDate()-days+1);
+  return dateObjToISO(d);
+}
+function setBodyLookupRange(days){
+  state.bodyLookupOpen=true;
+  state.bodyLookupFrom=days?lookupStartDate(days):'';
+  state.bodyLookupTo=days?todayISO():'';
+  const q=document.getElementById('body-lookup-query');
+  state.bodyLookupQuery=q?q.value.trim():'';
+  state.bodyLookupSearched=true;
+  renderMeasurements();
+}
+function setRecoveryLookupRange(days){
+  state.recoveryLookupOpen=true;
+  state.recoveryLookupFrom=days?lookupStartDate(days):'';
+  state.recoveryLookupTo=days?todayISO():'';
+  const q=document.getElementById('recovery-lookup-query');
+  state.recoveryLookupQuery=q?q.value.trim():'';
+  state.recoveryLookupSearched=true;
+  renderRecoveryList();
+}
+function searchBodyLookup(){
+  const from=document.getElementById('body-lookup-from');
+  const to=document.getElementById('body-lookup-to');
+  const q=document.getElementById('body-lookup-query');
+  state.bodyLookupOpen=true;
+  state.bodyLookupFrom=from?from.value:'';
+  state.bodyLookupTo=to?to.value:'';
+  state.bodyLookupQuery=q?q.value.trim():'';
+  state.bodyLookupSearched=true;
+  renderMeasurements();
+}
+function searchRecoveryLookup(){
+  const from=document.getElementById('recovery-lookup-from');
+  const to=document.getElementById('recovery-lookup-to');
+  const q=document.getElementById('recovery-lookup-query');
+  state.recoveryLookupOpen=true;
+  state.recoveryLookupFrom=from?from.value:'';
+  state.recoveryLookupTo=to?to.value:'';
+  state.recoveryLookupQuery=q?q.value.trim():'';
+  state.recoveryLookupSearched=true;
+  renderRecoveryList();
+}
+function toggleWeeklyHistory(){state.weeklyHistoryExpanded=!state.weeklyHistoryExpanded;renderMeasurementWeeklySummary();}
+function setBodyChartRange(){
+  const from=document.getElementById('body-chart-from');
+  const to=document.getElementById('body-chart-to');
+  state.bodyChartFrom=from?from.value:'';
+  state.bodyChartTo=to?to.value:'';
+  renderMeasurementCharts();
+}
+function clearBodyChartRange(){
+  state.bodyChartFrom='';
+  state.bodyChartTo='';
+  const from=document.getElementById('body-chart-from');
+  const to=document.getElementById('body-chart-to');
+  if(from)from.value='';
+  if(to)to.value='';
+  renderMeasurementCharts();
+}
+function mNum(id){
+  const raw=document.getElementById(id).value;
+  if(raw==='')return null;
+  const n=parseFloat(raw);
+  return Number.isFinite(n)?n:null;
+}
+function calcMeasurementFat(){
+  const weight=mNum('m-weight');
+  const bf=mNum('m-bf');
+  if(weight===null||bf===null)return null;
+  return Math.round((weight*bf/100)*10)/10;
+}
+function updateMeasurementFat(){
+  const fat=calcMeasurementFat();
+  document.getElementById('m-fat').value=fat===null?'':fat.toFixed(1);
+}
+function mVal(v,unit){
+  return v===null||v===undefined||v===''?'-':fmt(v)+(unit||'');
+}
+function fmtSleep(decimal,hours,minutes){
+  if(decimal===null||decimal===undefined||decimal==='')return'-';
+  const total=Math.round(decimal*60);
+  const h=hours!==null&&hours!==undefined&&hours!==''?hours:Math.floor(total/60);
+  const m=minutes!==null&&minutes!==undefined&&minutes!==''?minutes:total%60;
+  return Math.max(0,Math.round(h))+'h '+String(Math.max(0,Math.round(m))).padStart(2,'0')+'m';
+}
+function escHtml(s){
+  return String(s||'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function resetMeasurementForm(){
+  state.editingMeasurementId=null;
+  document.getElementById('m-date').value=todayISO();
+  ['m-weight','m-waist','m-bf','m-fat','m-muscle','m-water','m-comment'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('m-save-btn').textContent='Save body';
+  document.getElementById('m-cancel-btn').style.display='none';
+}
+function saveMeasurement(){
+  const date=document.getElementById('m-date').value;
+  if(!date){showToast('Choose a date');return;}
+  const isEdit=state.editingMeasurementId!==null;
+  updateMeasurementFat();
+  const item={
+    id:state.editingMeasurementId||Date.now(),
+    date,
+    weight:mNum('m-weight'),
+    waist:mNum('m-waist'),
+    bf:mNum('m-bf'),
+    fat:calcMeasurementFat(),
+    muscle:mNum('m-muscle'),
+    water:mNum('m-water'),
+    comment:document.getElementById('m-comment').value.trim(),
+    updatedAt:new Date().toISOString()
+  };
+  const idx=state.measurements.findIndex(m=>measurementIdMatches(m,state.editingMeasurementId));
+  if(idx>=0) state.measurements[idx]=item;
+  else state.measurements.push(item);
+  saveBodyMeasurements();
+  resetMeasurementForm();
+  renderMeasurements();
+  showToast(isEdit?'Updated':'Saved');
+}
+function editMeasurement(id){
+  const item=state.measurements.find(m=>measurementIdMatches(m,id));
+  if(!item)return;
+  state.editingMeasurementId=id;
+  document.getElementById('m-date').value=item.date||todayISO();
+  document.getElementById('m-weight').value=item.weight??'';
+  document.getElementById('m-waist').value=item.waist??'';
+  document.getElementById('m-bf').value=item.bf??'';
+  document.getElementById('m-muscle').value=item.muscle??'';
+  document.getElementById('m-water').value=item.water??'';
+  document.getElementById('m-comment').value=item.comment||'';
+  updateMeasurementFat();
+  document.getElementById('m-save-btn').textContent='Update body';
+  document.getElementById('m-cancel-btn').style.display='block';
+  document.getElementById('view-measurements').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function deleteMeasurement(id){
+  const item=state.measurements.find(m=>measurementIdMatches(m,id));
+  if(!item)return;
+  const key=measurementKey(item);
+  if(key&&!state.measurementTombstones.includes(key))state.measurementTombstones.push(key);
+  state.measurements=state.measurements.filter(m=>measurementKey(m)!==key);
+  if(state.editingMeasurementId===id)resetMeasurementForm();
+  saveBodyMeasurements();
+  renderMeasurements();
+  showToast('Deleted');
+}
+function rNum(id){
+  const raw=document.getElementById(id).value;
+  if(raw==='')return null;
+  const n=parseFloat(raw);
+  return Number.isFinite(n)?n:null;
+}
+function clampRating(v){
+  if(v===null)return null;
+  return Math.max(1,Math.min(5,Math.round(v)));
+}
+function resetRecoveryForm(){
+  state.editingRecoveryId=null;
+  document.getElementById('r-date').value=todayISO();
+  ['r-sleep-hours','r-sleep-minutes','r-sleep-score','r-hrv','r-mood','r-soreness','r-performance','r-cravings','r-comment'].forEach(id=>document.getElementById(id).value='');
+  const advanced=document.getElementById('advanced-recovery-fields');if(advanced)advanced.open=false;
+  document.getElementById('r-save-btn').textContent='Save recovery';
+  document.getElementById('r-cancel-btn').style.display='none';
+}
+function saveRecovery(){
+  const date=document.getElementById('r-date').value;
+  if(!date){showToast('Choose a date');return;}
+  const isEdit=state.editingRecoveryId!==null;
+  const now=new Date().toISOString();
+  const rawSleepHours=rNum('r-sleep-hours');
+  const rawSleepMinutes=rNum('r-sleep-minutes');
+  const hasSleep=rawSleepHours!==null||rawSleepMinutes!==null;
+  const sleepHoursRaw=hasSleep?Math.max(0,Math.round(rawSleepHours||0)):null;
+  const sleepMinutes=hasSleep?Math.max(0,Math.min(59,Math.round(rawSleepMinutes||0))):null;
+  const sleepHoursDecimal=hasSleep?Number((sleepHoursRaw+sleepMinutes/60).toFixed(2)):null;
+  const item={
+    id:state.editingRecoveryId||Date.now(),
+    date,
+    sleepHours:sleepHoursDecimal,
+    sleepHoursDecimal,
+    sleepHoursRaw,
+    sleepMinutes,
+    sleepScore:rNum('r-sleep-score'),
+    hrv:rNum('r-hrv'),
+    mood:clampRating(rNum('r-mood')),
+    soreness:clampRating(rNum('r-soreness')),
+    performance:clampRating(rNum('r-performance')),
+    cravings:clampRating(rNum('r-cravings')),
+    comment:document.getElementById('r-comment').value.trim(),
+    updatedAt:now
+  };
+  const idx=state.recovery.findIndex(r=>r.id===state.editingRecoveryId);
+  if(idx>=0)state.recovery[idx]=item;
+  else state.recovery.push(item);
+  persist('recovery');
+  scheduleAutoSync();
+  console.log("Recovery count after save:", state.recovery.length);
+  resetRecoveryForm();
+  renderMeasurements();
+  showToast(isEdit?'Updated':'Saved');
+}
+function editRecovery(id){
+  const item=state.recovery.find(r=>r.id===id);
+  if(!item)return;
+  state.editingRecoveryId=id;
+  document.getElementById('r-date').value=item.date||todayISO();
+  const totalMinutes=Math.round((item.sleepHours??0)*60);
+  document.getElementById('r-sleep-hours').value=item.sleepHoursRaw??(item.sleepHours===null||item.sleepHours===undefined?'':Math.floor(totalMinutes/60));
+  document.getElementById('r-sleep-minutes').value=item.sleepMinutes??(item.sleepHours===null||item.sleepHours===undefined?'':totalMinutes%60);
+  document.getElementById('r-sleep-score').value=item.sleepScore??'';
+  document.getElementById('r-hrv').value=item.hrv??'';
+  document.getElementById('r-mood').value=item.mood??'';
+  document.getElementById('r-soreness').value=item.soreness??'';
+  document.getElementById('r-performance').value=item.performance??'';
+  document.getElementById('r-cravings').value=item.cravings??'';
+  const advanced=document.getElementById('advanced-recovery-fields');
+  if(advanced)advanced.open=!!(item.mood||item.soreness||item.performance||item.cravings);
+  document.getElementById('r-comment').value=item.comment||'';
+  document.getElementById('r-save-btn').textContent='Update recovery';
+  document.getElementById('r-cancel-btn').style.display='block';
+  document.getElementById('view-measurements').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function deleteRecovery(id){
+  const item=state.recovery.find(r=>r.id===id);
+  if(!item)return;
+  state.recovery=state.recovery.filter(r=>r.id!==id);
+  if(state.editingRecoveryId===id)resetRecoveryForm();
+  persist('recovery');
+  scheduleAutoSync();
+  renderMeasurements();
+  showToast('Deleted');
+}
+function sortBodyEntries(){
+  return [...state.measurements].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.id||0)-(a.id||0));
+}
+function sortRecoveryEntries(){
+  return [...state.recovery].sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.id||0)-(a.id||0));
+}
+function latestRecoveryForDisplay(entries){
+  const today=todayISO();
+  return entries.find(r=>r.date===today)||entries[0]||null;
+}
+function syncLookupInput(id,value){
+  const el=document.getElementById(id);
+  if(el&&el.value!==(value||''))el.value=value||'';
+}
+function bodyMatchesLookup(m){
+  const d=measurementISODate(m);
+  const q=(state.bodyLookupQuery||'').toLowerCase();
+  return (!state.bodyLookupFrom||d>=state.bodyLookupFrom)&&
+    (!state.bodyLookupTo||d<=state.bodyLookupTo)&&
+    (!q||String(m.comment||'').toLowerCase().includes(q));
+}
+function recoveryMatchesLookup(r){
+  const d=String(r.date||'').slice(0,10);
+  const q=(state.recoveryLookupQuery||'').toLowerCase();
+  return (!state.recoveryLookupFrom||d>=state.recoveryLookupFrom)&&
+    (!state.recoveryLookupTo||d<=state.recoveryLookupTo)&&
+    (!q||String(r.comment||'').toLowerCase().includes(q));
+}
+function renderBodyCard(m){
+  return'<div class="measurement-item">'+
+    '<div class="measurement-item-head">'+
+      '<div><div class="measurement-date">'+dayLabel(m.date)+'</div><div style="font-size:var(--fs-xs);color:var(--text3);margin-top:2px">'+escHtml(m.date)+'</div></div>'+
+      '<div class="measurement-actions">'+
+        '<button class="btn-sm" onclick="editMeasurement('+JSON.stringify(m.id)+')">Edit</button>'+
+        '<button class="btn-sm-danger" onclick="deleteMeasurement('+JSON.stringify(m.id)+')">Delete</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="measurement-grid">'+
+      '<div class="measurement-metric"><div class="mm-lbl">Weight</div><div class="mm-val">'+mVal(m.weight,' kg')+'</div></div>'+
+      '<div class="measurement-metric"><div class="mm-lbl">Waist</div><div class="mm-val">'+mVal(m.waist,' cm')+'</div></div>'+
+      '<div class="measurement-metric"><div class="mm-lbl">BF</div><div class="mm-val">'+mVal(m.bf,' %')+'</div></div>'+
+      '<div class="measurement-metric"><div class="mm-lbl">Fat</div><div class="mm-val">'+mVal(m.fat,' kg')+'</div></div>'+
+      '<div class="measurement-metric"><div class="mm-lbl">Muscle mass</div><div class="mm-val">'+mVal(m.muscle,' kg')+'</div></div>'+
+      '<div class="measurement-metric"><div class="mm-lbl">Water</div><div class="mm-val">'+mVal(m.water,' %')+'</div></div>'+
+    '</div>'+
+    (m.comment?'<div class="measurement-comment">'+escHtml(m.comment)+'</div>':'')+
+  '</div>';
+}
+function renderRecoveryCard(r){
+  return'<div class="measurement-item">'+
+    '<div class="measurement-item-head">'+
+      '<div><div class="measurement-date">'+dayLabel(r.date)+'</div><div style="font-size:var(--fs-xs);color:var(--text3);margin-top:2px">'+escHtml(r.date)+'</div></div>'+
+      '<div class="measurement-actions">'+
+        '<button class="btn-sm" onclick="editRecovery('+JSON.stringify(r.id)+')">Edit</button>'+
+        '<button class="btn-sm-danger" onclick="deleteRecovery('+JSON.stringify(r.id)+')">Delete</button>'+
+      '</div>'+
+    '</div>'+
+    '<div class="measurement-grid">'+
+      '<div class="measurement-metric"><div class="mm-lbl">Sleep</div><div class="mm-val">'+fmtSleep(r.sleepHoursDecimal??r.sleepHours,r.sleepHoursRaw,r.sleepMinutes)+'</div></div>'+
+      '<div class="measurement-metric"><div class="mm-lbl">Sleep score</div><div class="mm-val">'+mVal(r.sleepScore,'')+'</div></div>'+
+      '<div class="measurement-metric"><div class="mm-lbl">HRV</div><div class="mm-val">'+mVal(r.hrv,'')+'</div></div>'+
+    '</div>'+
+    (r.comment?'<div class="measurement-comment">'+escHtml(r.comment)+'</div>':'')+
+  '</div>';
+}
+function renderBodyLookup(entries){
+  const panel=document.getElementById('body-lookup-panel');
+  const results=document.getElementById('body-lookup-results');
+  const btn=document.getElementById('body-lookup-toggle');
+  if(btn)btn.textContent=state.bodyLookupOpen?'Hide lookup':'Find body entry';
+  if(panel)panel.classList.toggle('active',!!state.bodyLookupOpen);
+  if(!panel||!results)return;
+  syncLookupInput('body-lookup-from',state.bodyLookupFrom);
+  syncLookupInput('body-lookup-to',state.bodyLookupTo);
+  syncLookupInput('body-lookup-query',state.bodyLookupQuery);
+  if(!state.bodyLookupOpen)return;
+  if(!state.bodyLookupSearched){
+    results.innerHTML='<div class="empty-log">Choose filters or tap Search to find body entries.</div>';
+    return;
+  }
+  const matches=entries.filter(bodyMatchesLookup);
+  results.innerHTML=matches.length?matches.map(renderBodyCard).join(''):'<div class="empty-log">No body entries match those filters.</div>';
+}
+function renderRecoveryLookup(entries){
+  const panel=document.getElementById('recovery-lookup-panel');
+  const results=document.getElementById('recovery-lookup-results');
+  const btn=document.getElementById('recovery-lookup-toggle');
+  if(btn)btn.textContent=state.recoveryLookupOpen?'Hide lookup':'Find recovery entry';
+  if(panel)panel.classList.toggle('active',!!state.recoveryLookupOpen);
+  if(!panel||!results)return;
+  syncLookupInput('recovery-lookup-from',state.recoveryLookupFrom);
+  syncLookupInput('recovery-lookup-to',state.recoveryLookupTo);
+  syncLookupInput('recovery-lookup-query',state.recoveryLookupQuery);
+  if(!state.recoveryLookupOpen)return;
+  if(!state.recoveryLookupSearched){
+    results.innerHTML='<div class="empty-log">Choose filters or tap Search to find recovery entries.</div>';
+    return;
+  }
+  const matches=entries.filter(recoveryMatchesLookup);
+  results.innerHTML=matches.length?matches.map(renderRecoveryCard).join(''):'<div class="empty-log">No recovery entries match those filters.</div>';
+}
+function renderRecoveryList(){
+  const list=document.getElementById('recovery-list');
+  if(!list)return;
+  if(!document.getElementById('r-date').value)document.getElementById('r-date').value=todayISO();
+  const entries=sortRecoveryEntries();
+  const latest=latestRecoveryForDisplay(entries);
+  list.innerHTML=latest?renderRecoveryCard(latest):'<div class="empty-log">No recovery entries yet.</div>';
+  renderRecoveryLookup(entries);
+}
+function getMeasurementChartData(key){
+  const from=state.bodyChartFrom||'';
+  const to=state.bodyChartTo||'';
+  const entries=[...state.measurements]
+    .map(m=>({...m,chartDate:measurementISODate(m)}))
+    .filter(m=>m.chartDate&&m[key]!==null&&m[key]!==undefined&&m[key]!=='')
+    .filter(m=>(!from||m.chartDate>=from)&&(!to||m.chartDate<=to))
+    .sort((a,b)=>a.chartDate.localeCompare(b.chartDate)||a.id-b.id);
+  return{
+    labels:entries.map(m=>new Date(m.chartDate+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})),
+    values:entries.map(m=>m[key])
+  };
+}
+function measurementISODate(m){
+  return String((m&&m.date)||'').slice(0,10);
+}
+function measurementHasBodyChartValue(m){
+  return !!measurementISODate(m)&&(
+    (m.weight!==null&&m.weight!==undefined&&m.weight!=='')||
+    (m.waist!==null&&m.waist!==undefined&&m.waist!=='')||
+    (m.bf!==null&&m.bf!==undefined&&m.bf!=='')
+  );
+}
+function measurementInBodyChartRange(m){
+  const d=measurementISODate(m);
+  return !!d&&(!state.bodyChartFrom||d>=state.bodyChartFrom)&&(!state.bodyChartTo||d<=state.bodyChartTo);
+}
+function measurementHasMetricHistory(key){
+  return state.measurements.some(m=>measurementISODate(m)&&m[key]!==null&&m[key]!==undefined&&m[key]!=='');
+}
+function renderMeasurementLineChart(canvasId, chartRef, chartData, color, unit){
+  const canvas=document.getElementById(canvasId);
+  if(!canvas)return null;
+  if(chartRef)chartRef.destroy();
+  if(!chartData.values.length)return null;
+  const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+  const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
+  const tc=isDark?'#c8d0d8':'#9e9e97';
+  try{
+    return new Chart(canvas.getContext('2d'),{
+      type:'line',
+      data:{labels:chartData.labels,datasets:[{data:chartData.values,borderColor:color,backgroundColor:color.replace('0.9','0.12'),borderWidth:2,pointRadius:5,pointBackgroundColor:color,tension:0.3,spanGaps:true}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>fmt(ctx.raw)+' '+unit}}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:45}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}}}}}
+    });
+  }catch(e){return null;}
+}
+function renderMeasurementCharts(){
+  const box=document.getElementById('measurement-charts');
+  if(!box)return;
+  const from=document.getElementById('body-chart-from');
+  const to=document.getElementById('body-chart-to');
+  if(from&&from.value!==state.bodyChartFrom)from.value=state.bodyChartFrom||'';
+  if(to&&to.value!==state.bodyChartTo)to.value=state.bodyChartTo||'';
+  const weightData=getMeasurementChartData('weight');
+  const waistData=getMeasurementChartData('waist');
+  const bfData=getMeasurementChartData('bf');
+  const hasCharts=weightData.values.length||waistData.values.length||bfData.values.length;
+  const hasAnyBodyChartData=state.measurements.some(measurementHasBodyChartValue);
+  const hasRecordsInRange=state.measurements.some(m=>measurementHasBodyChartValue(m)&&measurementInBodyChartRange(m));
+  const rangeActive=!!(state.bodyChartFrom||state.bodyChartTo);
+  const empty=document.getElementById('body-chart-empty');
+  box.style.display=(hasAnyBodyChartData||state.bodyChartFrom||state.bodyChartTo)?'block':'none';
+  if(empty)empty.style.display=rangeActive&&!hasRecordsInRange?'block':'none';
+  updateMeasurementChartCard('weight',measurementHasMetricHistory('weight'),weightData.values.length);
+  updateMeasurementChartCard('waist',measurementHasMetricHistory('waist'),waistData.values.length);
+  updateMeasurementChartCard('bf',measurementHasMetricHistory('bf'),bfData.values.length);
+  measurementWeightChart=renderMeasurementLineChart('measurement-weight-chart',measurementWeightChart,weightData,'rgba(0,200,83,0.92)','kg');
+  measurementWaistChart=renderMeasurementLineChart('measurement-waist-chart',measurementWaistChart,waistData,'rgba(56,189,248,0.9)','cm');
+  measurementBfChart=renderMeasurementLineChart('measurement-bf-chart',measurementBfChart,bfData,'rgba(239,68,68,0.9)','%');
+}
+function updateMeasurementChartCard(key,hasHistory,hasFilteredData){
+  const card=document.getElementById('measurement-'+key+'-card');
+  const note=document.getElementById('measurement-'+key+'-empty');
+  if(card)card.style.display=hasHistory?'block':'none';
+  if(note)note.style.display=hasHistory&&!hasFilteredData&&(state.bodyChartFrom||state.bodyChartTo)?'block':'none';
+}
+function dateObjToISO(d){
+  const yyyy=d.getFullYear();
+  const mm=String(d.getMonth()+1).padStart(2,'0');
+  const dd=String(d.getDate()).padStart(2,'0');
+  return yyyy+'-'+mm+'-'+dd;
+}
+function weekStartISO(iso){
+  const d=new Date(iso+'T12:00:00');
+  const day=d.getDay();
+  d.setDate(d.getDate()+(day===0?-6:1-day));
+  return dateObjToISO(d);
+}
+function weekDates(startISO){
+  const start=new Date(startISO+'T12:00:00');
+  const dates=[];
+  for(let i=0;i<7;i++){
+    const d=new Date(start);
+    d.setDate(start.getDate()+i);
+    dates.push(dateObjToISO(d));
+  }
+  return dates;
+}
+function avgMeasurementValue(entries,key){
+  const vals=entries.map(m=>m[key]).filter(v=>v!==null&&v!==undefined&&v!=='');
+  return vals.length?vals.reduce((a,v)=>a+v,0)/vals.length:null;
+}
+function latestMeasurementValue(entries,key){
+  const vals=entries.filter(m=>m[key]!==null&&m[key]!==undefined&&m[key]!=='').sort((a,b)=>a.date.localeCompare(b.date)||(a.id||0)-(b.id||0));
+  return vals.length?vals[vals.length-1][key]:null;
+}
+function fmtChange(v,unit){
+  if(v===null||v===undefined)return'-';
+  const n=fmt(v);
+  const prefix=n>0?'+':'';
+  return prefix+n+(unit||'');
+}
+function changeClass(v){
+  if(v===null||v===undefined||v===0)return'';
+  return v>0?' pos':' neg';
+}
+function isSaturday(iso){return new Date(iso+'T12:00:00').getDay()===6;}
+function checkpointWindowDates(saturdayISO){
+  const sat=new Date(saturdayISO+'T12:00:00');
+  const dates=[];
+  for(let i=6;i>=1;i--){
+    const d=new Date(sat);
+    d.setDate(sat.getDate()-i);
+    dates.push(dateObjToISO(d));
+  }
+  return dates;
+}
+function avgRecoveryForDates(dates,key){
+  const allowed=new Set(dates);
+  const vals=state.recovery.filter(r=>allowed.has(r.date)&&r[key]!==null&&r[key]!==undefined&&r[key]!=='').map(r=>r[key]);
+  return vals.length?vals.reduce((a,v)=>a+v,0)/vals.length:null;
+}
+function previousSaturdayISO(saturdayISO){
+  const d=new Date(saturdayISO+'T12:00:00');
+  d.setDate(d.getDate()-7);
+  return dateObjToISO(d);
+}
+function saturdayMeasurementForDate(iso){
+  const entries=state.measurements.filter(m=>m.date===iso).sort((a,b)=>(a.id||0)-(b.id||0));
+  return entries.length?entries[entries.length-1]:null;
+}
+function getMeasurementWeeklyRows(){
+  const checkpoints=state.measurements
+    .filter(m=>m.date&&isSaturday(m.date))
+    .sort((a,b)=>a.date.localeCompare(b.date)||(a.id||0)-(b.id||0));
+  const rows=checkpoints.map(m=>{
+    const windowDates=checkpointWindowDates(m.date);
+    const loggedDays=windowDates.filter(d=>(state.log[d]||[]).length>0);
+    const avgCal=loggedDays.length?loggedDays.reduce((a,d)=>a+getTotals(d).cal,0)/loggedDays.length:null;
+    const prevSat=previousSaturdayISO(m.date);
+    const prevMeasurement=saturdayMeasurementForDate(prevSat);
+    const prevNote=(prevMeasurement&&prevMeasurement.comment)?prevMeasurement.comment.trim():'';
+    return{
+      checkpointDate:m.date,
+      weekStart:windowDates[0],
+      avgCal,
+      calorieDays:loggedDays.length,
+      calorieStatus:loggedDays.length===0?'missing':loggedDays.length<6?'incomplete':'complete',
+      avgWeight:m.weight??null,
+      latestWaist:m.waist??null,
+      avgSleepHours:avgRecoveryForDates(windowDates,'sleepHours'),
+      avgSleepScore:avgRecoveryForDates(windowDates,'sleepScore'),
+      previousSaturdayNote:prevNote||'No previous Saturday note',
+      weightChange:null,
+      waistChange:null
+    };
+  });
+  rows.forEach((row,i)=>{
+    const prev=rows[i-1];
+    if(prev&&row.avgWeight!==null&&prev.avgWeight!==null)row.weightChange=row.avgWeight-prev.avgWeight;
+    if(prev&&row.latestWaist!==null&&prev.latestWaist!==null)row.waistChange=row.latestWaist-prev.latestWaist;
+  });
+  return rows.reverse();
+}
+function renderMeasurementWeeklySummary(){
+  const wrap=document.getElementById('measurement-weekly-wrap');
+  const box=document.getElementById('measurement-weekly-summary');
+  if(!wrap||!box)return;
+  const rows=getMeasurementWeeklyRows();
+  const olderRows=rows.slice(1);
+  const btn=document.getElementById('weekly-history-toggle');
+  wrap.style.display=olderRows.length?'block':'none';
+  if(btn)btn.textContent=state.weeklyHistoryExpanded?'Hide older':'Show all';
+  box.style.display=state.weeklyHistoryExpanded?'block':'none';
+  if(!olderRows.length){box.innerHTML='';return;}
+  box.innerHTML=
+    '<div class="measurement-week-row hd">'+
+      '<div>Checkpoint</div><div>Avg kcal</div><div>Avg sleep</div><div>Sleep score</div><div>Weight</div><div>Waist</div><div>Weight change</div><div>Waist change</div>'+
+    '</div>'+
+    olderRows.map(r=>{
+      const label=dayLabel(r.checkpointDate);
+      const calCell=r.calorieStatus==='missing'?'Not enough':(r.avgCal===null?'-':fmtI(r.avgCal)+(r.calorieStatus==='incomplete'?' *':''));
+      return'<div class="measurement-week-row">'+
+        '<div class="measurement-week-label">'+label+'</div>'+
+        '<div class="measurement-week-cell">'+calCell+'</div>'+
+        '<div class="measurement-week-cell">'+fmtSleep(r.avgSleepHours)+'</div>'+
+        '<div class="measurement-week-cell">'+(r.avgSleepScore===null?'-':fmtI(r.avgSleepScore))+'</div>'+
+        '<div class="measurement-week-cell">'+(r.avgWeight===null?'-':fmt(r.avgWeight)+' kg')+'</div>'+
+        '<div class="measurement-week-cell">'+(r.latestWaist===null?'-':fmt(r.latestWaist)+' cm')+'</div>'+
+        '<div class="measurement-week-cell measurement-change'+changeClass(r.weightChange)+'">'+fmtChange(r.weightChange,' kg')+'</div>'+
+        '<div class="measurement-week-cell measurement-change'+changeClass(r.waistChange)+'">'+fmtChange(r.waistChange,' cm')+'</div>'+
+      '</div>';
+    }).join('');
+}
+const PHASE_RULES={
+  'Fat Loss':{minWeightChange:-1.0,maxWeightChange:0.0,waistGainLimit:0.0,saturdayCalorieCap:2200},
+  'Maintenance':{minWeightChange:-0.3,maxWeightChange:0.3,waistGainLimit:0.3,saturdayCalorieCap:2400},
+  'Muscle Gain':{minWeightChange:0.0,maxWeightChange:0.5,waistGainLimit:0.0,saturdayCalorieCap:2500}
+};
+const RECOVERY_RULES={minSleepHours:6.5,minSleepScore:80};
+function dNum(id){
+  const raw=document.getElementById(id).value;
+  if(raw==='')return null;
+  const n=parseFloat(raw);
+  return Number.isFinite(n)?n:null;
+}
+function getActiveGoalForDate(iso){
+  const history=(state.goalHistory||[])
+    .filter(g=>g.effectiveDate&&g.effectiveDate<=iso)
+    .sort((a,b)=>a.effectiveDate.localeCompare(b.effectiveDate)||(a.ts||0)-(b.ts||0));
+  return history.length?history[history.length-1].phase||'':'';
+}
+function statusBadge(text,cls){
+  return'<span class="decision-status '+cls+'">'+text+'</span>';
+}
+function decisionClass(decision){
+  if(decision==='OK - KEEP CALORIES')return'';
+  if(decision==='REDUCE CALORIES'||decision==='FIX SATURDAY')return' bad';
+  return' warn';
+}
+function latestRecoveryEntry(){
+  const entries=[...state.recovery].filter(r=>r.date).sort((a,b)=>a.date.localeCompare(b.date)||(a.id||0)-(b.id||0));
+  return entries.length?entries[entries.length-1]:null;
+}
+function buildDecision(latest, phase, targetCal){
+  const rules=PHASE_RULES[phase];
+  if(!phase||!rules||!latest||latest.weightChange===null||latest.waistChange===null)return'STABILISE';
+  if(!targetCal)return'STABILISE';
+  if((latest.avgSleepHours!==null&&latest.avgSleepHours<RECOVERY_RULES.minSleepHours)||(latest.avgSleepScore!==null&&latest.avgSleepScore<RECOVERY_RULES.minSleepScore))return'STABILISE';
+  const saturdayCal=getTotals(latest.checkpointDate).cal;
+  if(saturdayCal>targetCal)return'FIX SATURDAY';
+  if(latest.waistChange>rules.waistGainLimit){
+    if(latest.weightChange>rules.maxWeightChange)return'REDUCE CALORIES';
+    return'STABILISE';
+  }
+  if(latest.weightChange<rules.minWeightChange)return'INCREASE CALORIES';
+  if(latest.weightChange>rules.maxWeightChange)return'STABILISE';
+  return'OK - KEEP CALORIES';
+}
+function renderDecisionEngine(){
+  const body=document.getElementById('decision-engine-body');
+  if(!body)return;
+  const rows=getMeasurementWeeklyRows();
+  const latest=rows[0]||null;
+  const phase=latest?getActiveGoalForDate(latest.checkpointDate):'';
+  const rules=PHASE_RULES[phase]||null;
+  const latestRecovery=latestRecoveryEntry();
+  const saturdayDate=latest?latest.checkpointDate:null;
+  const saturdayCal=saturdayDate?getTotals(saturdayDate).cal:null;
+  const checkpointTarget=saturdayDate?getCalorieTargetForDate(saturdayDate):null;
+  const decision=buildDecision(latest,phase,checkpointTarget);
+  const latestLabel=latest?dayLabel(latest.checkpointDate):'-';
+  const saturdayStatus=!rules||!checkpointTarget?statusBadge('missing','warn'):(saturdayCal>checkpointTarget?statusBadge('over cap','bad'):statusBadge('ok','ok'));
+  const sleepHoursStatus=!latest||latest.avgSleepHours===null?statusBadge('missing','warn'):(latest.avgSleepHours<RECOVERY_RULES.minSleepHours?statusBadge('low','bad'):statusBadge('ok','ok'));
+  const sleepScoreStatus=!latest||latest.avgSleepScore===null?statusBadge('missing','warn'):(latest.avgSleepScore<RECOVERY_RULES.minSleepScore?statusBadge('low','bad'):statusBadge('ok','ok'));
+  const calText=!latest?'-':latest.calorieStatus==='missing'?'Not enough food log data for this checkpoint week':fmtI(latest.avgCal)+(latest.calorieStatus==='incomplete'?' '+statusBadge('Incomplete calorie week','warn'):'');
+  const showCalWarning=latest&&latest.calorieStatus!=='complete';
+  const latestSleep=latestRecovery?(latestRecovery.sleepHoursDecimal??latestRecovery.sleepHours):null;
+  const showRecoveryWarning=latestRecovery&&((latestSleep!==null&&latestSleep<4.5)||(latestRecovery.sleepScore!==null&&latestRecovery.sleepScore<60));
+  body.innerHTML=
+    '<div class="decision-grid">'+
+      '<div class="decision-metric"><div class="dm-lbl">Checkpoint date</div><div class="dm-val">'+latestLabel+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Goal active on checkpoint date</div><div class="dm-val">'+(phase||'No goal set before this checkpoint')+(!phase?statusBadge('missing','bad'):'')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Avg Calories (Sun-Fri, from Food Log)</div><div class="dm-val">'+calText+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Avg weight</div><div class="dm-val">'+(latest&&latest.avgWeight!==null?fmt(latest.avgWeight)+' kg':'-')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Weight change</div><div class="dm-val">'+(latest?fmtChange(latest.weightChange,' kg'):'-')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Waist change</div><div class="dm-val">'+(latest?fmtChange(latest.waistChange,' cm'):'-')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Saturday control</div><div class="dm-val">'+(saturdayCal===null?'-':fmtI(saturdayCal))+(checkpointTarget?' / '+fmtI(checkpointTarget):'')+saturdayStatus+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Previous Saturday note</div><div class="dm-val">'+(latest?escHtml(latest.previousSaturdayNote):'-')+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Recovery Avg Sleep</div><div class="dm-val">'+(!latest||latest.avgSleepHours===null?'-':fmtSleep(latest.avgSleepHours))+sleepHoursStatus+'</div></div>'+
+      '<div class="decision-metric"><div class="dm-lbl">Recovery Avg Score</div><div class="dm-val">'+(!latest||latest.avgSleepScore===null?'-':fmtI(latest.avgSleepScore))+sleepScoreStatus+'</div></div>'+
+    '</div>'+
+    (showCalWarning?'<div class="recovery-warning" style="background:rgba(245,158,11,.14);color:var(--warn)">Decision confidence reduced due to missing calorie data</div>':'')+
+    (showRecoveryWarning?'<div class="recovery-warning">Recovery warning — last night was very poor.</div>':'')+
+    '<div class="decision-final'+decisionClass(decision)+'">'+decision+'</div>';
+}
+function renderMeasurements(){
+  const list=document.getElementById('measurements-list');
+  if(!list)return;
+  if(!document.getElementById('m-date').value)document.getElementById('m-date').value=todayISO();
+  if(!document.getElementById('r-date').value)document.getElementById('r-date').value=todayISO();
+  renderMeasurementCharts();
+  renderRecoveryList();
+  renderMeasurementWeeklySummary();
+  renderDecisionEngine();
+  const entries=sortBodyEntries();
+  const latest=entries[0]||null;
+  if(!entries.length){
+    list.innerHTML='<div class="empty-log">No measurements yet.</div>';
+    renderBodyLookup(entries);
+    return;
+  }
+  list.innerHTML=renderBodyCard(latest);
+  renderBodyLookup(entries);
+}
+
 // ---- EXPORT / IMPORT ----
+function countFoodLogItems(){
+  return Object.values(state.log||{}).reduce((total,items)=>total+(Array.isArray(items)?items.length:0),0);
+}
+function syncItemCounts(){
+  return{
+    foodLogs:countFoodLogItems(),
+    bodyMeasurements:Array.isArray(state.measurements)?state.measurements.length:0,
+    recoveryEntries:Array.isArray(state.recovery)?state.recovery.length:0,
+    goals:Array.isArray(state.goalHistory)?state.goalHistory.length:0
+  };
+}
+function formatSyncDuration(ms){
+  if(!Number.isFinite(ms))return '-';
+  if(ms<1000)return Math.max(0,Math.round(ms))+' ms';
+  return (ms/1000).toFixed(ms<10000?1:0)+' s';
+}
+function formatSyncTime(ts){
+  if(!ts)return 'Never';
+  try{return new Date(ts).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}catch(e){return ts;}
+}
+function recordSyncSuccess(kind,startMs){
+  state.syncMeta={lastSuccessAt:new Date().toISOString(),lastDurationMs:Date.now()-startMs,kind:kind||'',counts:syncItemCounts()};
+  persist('syncMeta');
+  renderSyncStatusPanel();
+}
+function renderSyncStatusPanel(){
+  const el=document.getElementById('sync-status-panel');
+  if(!el)return;
+  const meta=state.syncMeta||{};
+  const counts=meta.counts||null;
+  const item=(label,value)=>'<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0"><span>'+label+'</span><b style="color:var(--text)">'+value+'</b></div>';
+  el.innerHTML=
+    item('Last successful sync',formatSyncTime(meta.lastSuccessAt))+
+    item('Last sync duration',meta.lastSuccessAt?formatSyncDuration(meta.lastDurationMs):'-')+
+    '<div style="height:.5px;background:var(--border);margin:8px 0"></div>'+
+    '<div style="font-weight:600;color:var(--text);margin-bottom:4px">Items synced</div>'+
+    item('Food logs',counts?counts.foodLogs:'-')+
+    item('Body measurements',counts?counts.bodyMeasurements:'-')+
+    item('Recovery entries',counts?counts.recoveryEntries:'-')+
+    item('Goals',counts?counts.goals:'-');
+}
+function dataPayload(){
+  return {v:3,targets:state.targets,targetHistory:state.targetHistory,log:state.log,customFoods:state.customFoods,weight:state.weight,measurements:state.measurements,measurementTombstones:state.measurementTombstones,recovery:state.recovery,goalHistory:state.goalHistory,decision:state.decision,tombstones:state.tombstones};
+}
 function exportData(){
-  const payload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,tombstones:state.tombstones});
+  const payload=JSON.stringify(dataPayload());
   const encoded=btoa(unescape(encodeURIComponent(payload)));
   navigator.clipboard.writeText(encoded).then(()=>{
     const m=document.getElementById('export-msg');m.style.display='block';setTimeout(()=>m.style.display='none',4000);
@@ -1179,8 +2686,14 @@ function importData(){
   try{
     const p=JSON.parse(decodeURIComponent(escape(atob(raw))));
     if(!p.targets)throw new Error();
-    state.targets=p.targets;state.log=p.log||{};state.customFoods=p.customFoods||[];state.weight=p.weight||{};
-    persist('targets');persist('log');persist('custom');persist('weight');
+    state.targets=p.targets;state.log=normalizeLogData(p.log||{});state.customFoods=p.customFoods||[];state.weight=p.weight||{};
+    mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
+    updateCurrentTargetsFromHistory();
+    mergeBodyMeasurements(p.measurements,p.measurementTombstones);
+    mergeRecoveryData(p.recovery);
+    state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
+    state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
+    persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
     document.getElementById('import-input').value='';
     msg.style.display='block';msg.style.color='var(--accent)';msg.textContent='Imported - all data updated.';
     setTimeout(()=>msg.style.display='none',4000);loadTargetsForm();
@@ -1228,6 +2741,7 @@ function uploadFoodsCSV(input){
 
 // ---- GIST SYNC ----
 async function gistSync(direction){
+  const syncStart=Date.now();
   const tokenInput=document.getElementById('gist-token-input').value.trim();
   const msg=document.getElementById('gist-msg');
   msg.style.display='block';
@@ -1244,10 +2758,7 @@ async function gistSync(direction){
   state.gistToken=tokenInput;
   lsSet(SK.gist_token, tokenInput);
 
-  const payload=JSON.stringify({
-    v:2,targets:state.targets,log:state.log,
-    customFoods:state.customFoods,weight:state.weight
-  });
+  const payload=JSON.stringify(dataPayload());
 
   const headers={'Authorization':'token '+tokenInput,'Content-Type':'application/json'};
 
@@ -1263,7 +2774,12 @@ async function gistSync(direction){
             if(remoteData.files&&remoteData.files['nutrilog.json']){
               const remote=JSON.parse(remoteData.files['nutrilog.json'].content);
               if(remote.log) state.log=mergeLogData(state.log,remote.log,remote.tombstones||{});
-              persist('log');
+              mergeTargetHistory(state.targetHistory,remote.targetHistory,remote.calorieTargetHistory,remote.decision&&remote.decision.targetHistory);
+              updateCurrentTargetsFromHistory();
+              mergeBodyMeasurements(remote.measurements,remote.measurementTombstones);
+              mergeRecoveryData(remote.recovery);
+              persist('targets');saveTargetHistory();persist('log');
+              persist('measurements');persist('measurementTombstones');persist('recovery');
               // Save backup
               const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
               backups.unshift({ts:new Date().toISOString(),data:remoteData.files['nutrilog.json'].content});
@@ -1273,7 +2789,7 @@ async function gistSync(direction){
           }
         }catch(e){}
       }
-      const mergedPayload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,tombstones:state.tombstones});
+      const mergedPayload=JSON.stringify(dataPayload());
       const body={description:'NutriLog data',public:false,files:{'nutrilog.json':{content:mergedPayload}}};
       let resp, data;
       if(state.gistId){
@@ -1286,6 +2802,7 @@ async function gistSync(direction){
       state.gistId=data.id;
       lsSet(SK.gist_id, data.id);
       document.getElementById('gist-id-display').textContent='Gist ID: '+data.id;
+      recordSyncSuccess(direction,syncStart);
       msg.style.color='var(--accent)';
       msg.textContent='Pushed successfully! Share your Gist ID with your other device or just enter the same token and push once.';
     } else {
@@ -1315,10 +2832,16 @@ async function gistSync(direction){
           throw new Error('JSON parse error. Data starts with: '+raw.slice(0,100));
         }
         if(!p.targets) throw new Error('Invalid data in gist');
-        state.targets=p.targets;state.log=p.log||{};
+        const mergedLog=mergeLogData(state.log,p.log||{},p.tombstones||{});
+        state.targets=p.targets;state.log=mergedLog;
         state.customFoods=p.customFoods||[];state.weight=p.weight||{};
-        state.tombstones=p.tombstones||{};
-        persist('targets');persist('log');persist('custom');persist('weight');
+        mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
+        updateCurrentTargetsFromHistory();
+        mergeBodyMeasurements(p.measurements,p.measurementTombstones);
+        mergeRecoveryData(p.recovery);
+        state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
+        state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
+        persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
         lsSet('nl_tombstones',state.tombstones);
       }
       // Load foods
@@ -1342,6 +2865,7 @@ async function gistSync(direction){
       state.gistId=gistId;
       lsSet(SK.gist_id,gistId);
       document.getElementById('gist-id-display').textContent='Gist ID: '+gistId;
+      recordSyncSuccess(direction,syncStart);
       loadTargetsForm();
     }
   }catch(e){
@@ -1365,9 +2889,10 @@ function mergeLogData(local, remote, remoteTombstones){
   const mergeTombs=(src)=>{
     for(const date in src){
       if(!allTombstones[date]) allTombstones[date]=[];
-      const existing=new Set(allTombstones[date].map(t=>t.key));
+      const existing=new Set(allTombstones[date].map(t=>(t.id?('id:'+t.id):'key:'+t.key)));
       for(const t of src[date]){
-        if(!existing.has(t.key)){allTombstones[date].push(t);existing.add(t.key);}
+        const key=t.id?('id:'+t.id):'key:'+t.key;
+        if(!existing.has(key)){allTombstones[date].push(t);existing.add(key);}
       }
     }
   };
@@ -1378,33 +2903,45 @@ function mergeLogData(local, remote, remoteTombstones){
 
   function tombstonedOn(date, entry){
     const tombs=allTombstones[date]||[];
-    const key=entry.name+'|'+entry.meal+'|'+entry.amountLabel;
-    return tombs.some(t=>t.key===key);
+    return tombs.some(t=>logTombstoneMatches(date,entry,t));
+  }
+  function preferLogEntry(next,current,preferNextOnTie){
+    if(!current)return true;
+    const nt=next.updatedAt?Date.parse(next.updatedAt):NaN;
+    const ct=current.updatedAt?Date.parse(current.updatedAt):NaN;
+    if(Number.isFinite(nt)&&Number.isFinite(ct)&&nt!==ct)return nt>ct;
+    if(Number.isFinite(nt)&&!Number.isFinite(ct))return true;
+    if(!Number.isFinite(nt)&&Number.isFinite(ct))return false;
+    return preferNextOnTie;
   }
 
-  const merged={...remote};
-  for(const date in local){
-    if(!merged[date]||merged[date].length===0){
-      // Only take local entries that aren't tombstoned
-      merged[date]=(local[date]||[]).filter(e=>!tombstonedOn(date,e));
-    } else {
-      // Merge: combine both, deduplicate, remove tombstoned
-      const seen=new Set();
-      const combined=[...local[date],...merged[date]];
-      merged[date]=combined.filter(e=>{
-        const key=e.name+'|'+e.meal+'|'+e.amountLabel;
-        if(seen.has(key)||tombstonedOn(date,e)) return false;
-        seen.add(key);
-        return true;
+  const byId=new Map();
+  const addLog=(log,preferOnTie)=>{
+    const normalized=normalizeLogData(log);
+    Object.entries(normalized).forEach(([date,items])=>{
+      items.forEach(item=>{
+        if(tombstonedOn(date,item))return;
+        const current=byId.get(String(item.id));
+        if(preferLogEntry(item,current,preferOnTie))byId.set(String(item.id),item);
       });
-    }
-  }
-  // Also filter remote-only dates through tombstones
-  for(const date in merged){
-    if(!local[date]){
-      merged[date]=(merged[date]||[]).filter(e=>!tombstonedOn(date,e));
-    }
-  }
+    });
+  };
+  addLog(remote,false);
+  addLog(local,true);
+  const merged={};
+  [...byId.values()].forEach(item=>{
+    const date=logEntryDate(item,item.date);
+    if(!date)return;
+    if(!merged[date])merged[date]=[];
+    merged[date].push(item);
+  });
+  Object.keys(merged).forEach(date=>{
+    merged[date].sort((a,b)=>{
+      const am=a.updatedAt?Date.parse(a.updatedAt):0;
+      const bm=b.updatedAt?Date.parse(b.updatedAt):0;
+      return am-bm;
+    });
+  });
   return merged;
 }
 
@@ -1428,6 +2965,7 @@ function cleanupData(){
 
 async function silentPush(){
   if(!state.gistToken||!state.gistId) return;
+  const syncStart=Date.now();
   cleanupData();
   const headers={'Authorization':'token '+state.gistToken,'Content-Type':'application/json'};
   try{
@@ -1440,13 +2978,23 @@ async function silentPush(){
         backups.unshift({ts:new Date().toISOString(),data:remoteData.files['nutrilog.json'].content});
         if(backups.length>7) backups.pop();
         lsSet('nl_backups',JSON.stringify(backups));
+        try{
+          const remote=JSON.parse(remoteData.files['nutrilog.json'].content);
+          if(remote.log){
+            state.log=mergeLogData(state.log,remote.log,remote.tombstones||{});
+            persist('log');
+            lsSet('nl_tombstones',state.tombstones);
+          }
+          mergeRecoveryData(remote.recovery);
+          persist('recovery');
+        }catch(e){}
       }
     }
     // Just overwrite remote with local state — no merge
-    const payload=JSON.stringify({v:2,targets:state.targets,log:state.log,customFoods:state.customFoods,weight:state.weight,tombstones:state.tombstones});
+    const payload=JSON.stringify(dataPayload());
     const body={description:'NutriLog data',public:false,files:{'nutrilog.json':{content:payload}}};
     const resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
-    if(resp.ok){showSyncStatus('synced');}
+    if(resp.ok){recordSyncSuccess('auto',syncStart);showSyncStatus('synced');}
   }catch(e){
     showSyncStatus('error');
   }
@@ -1500,9 +3048,16 @@ function restoreBackup(i){
     const b=backups[i];
     const p=JSON.parse(b.data);
     if(!p.targets)throw new Error('Invalid backup');
-    state.targets=p.targets;state.log=p.log||{};
+    state.targets=p.targets;state.log=normalizeLogData(p.log||{});
     state.customFoods=p.customFoods||[];state.weight=p.weight||{};
-    persist('targets');persist('log');persist('custom');persist('weight');
+    mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
+    updateCurrentTargetsFromHistory();
+    state.measurements=p.measurements||state.measurements||[];
+    state.measurementTombstones=p.measurementTombstones||[];
+    mergeRecoveryData(p.recovery);
+    state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
+    state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
+    persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
     loadTargetsForm();renderDash();
     alert('Restored successfully!');
   }catch(e){alert('Restore failed: '+e.message);}
@@ -1523,7 +3078,8 @@ function getWeeklyBudget(){
     weekDays.push(d.toISOString().slice(0,10));
   }
   
-  const weeklyTarget=state.targets.cal*7;
+  const activeTarget=getTargetsForDate(state.currentDate).cal||0;
+  const weeklyTarget=activeTarget*7;
   const daysInWeek=7;
   const daysLeft=daysInWeek-daysSinceSunday; // including today
   
@@ -1585,17 +3141,21 @@ function editEntry(idx){
   const newAmt=prompt('Update amount for '+item.name+' ('+unit+'):', currentAmt);
   if(newAmt===null)return;
   const n=parseFloat(newAmt);
-  if(isNaN(n)||n<=0){alert('Invalid amount.');return;}
+  if(isNaN(n)||n<=0){showToast('Invalid amount');return;}
   const ratio=n/currentAmt;
+  if(!item.id)item.id=createLogEntryId();
+  item.date=state.currentDate;
+  item.updatedAt=new Date().toISOString();
   item.cal*=ratio;item.prot*=ratio;item.carb*=ratio;item.fat*=ratio;item.fiber*=ratio;
   item.amountLabel=n+unit;
   persist('log');scheduleAutoSync();
   renderLog();renderDash();
+  showToast('Updated');
 }
 
 // ---- DYNAMIC CALORIE TARGET ----
 function getAdjustedTarget(){
-  return state.targets.cal; // use base target always
+  return getTargetsForDate(state.currentDate).cal; // use active target for selected date
 }
 
 // ---- MACRO PIE CHART ----
@@ -1608,13 +3168,13 @@ function renderMacroPie(totals){
   const cPct=Math.round((totals.carb*4/totals.cal)*100)||0;
   const fPct=Math.round((totals.fat*9/totals.cal)*100)||0;
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-  const tc=isDark?'#9a9a92':'#6b6b65';
+  const tc=isDark?'#c8d0d8':'#6b6b65';
   if(macroPieChart)macroPieChart.destroy();
   macroPieChart=new Chart(document.getElementById('macro-pie-chart'),{
     type:'pie',
     data:{
       labels:['Protein '+pPct+'%','Carbs '+cPct+'%','Fat '+fPct+'%'],
-      datasets:[{data:[totals.prot*4,totals.carb*4,totals.fat*9],backgroundColor:['#1a5fa8','#1d9e75','#c0392b'],borderWidth:0}]
+      datasets:[{data:[totals.prot*4,totals.carb*4,totals.fat*9],backgroundColor:['#38bdf8','#00c853','#ef4444'],borderWidth:0}]
     },
     options:{maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:tc,font:{size:12},boxWidth:14}}}}
   });
@@ -1626,13 +3186,16 @@ function initApp(){
     // Clean up bloated tombstones immediately
     cleanupData();
     VIEWS.forEach(id=>{const el=document.getElementById('view-'+id);if(el)el.style.display='none';});
-    document.getElementById('w-date').value=todayISO();
+    const wDate=document.getElementById('w-date');if(wDate)wDate.value=todayISO();
+    document.getElementById('m-date').value=todayISO();
+    document.getElementById('r-date').value=todayISO();
     loadTargetsForm();
     loadFoodsCSV();
     switchView('dash');
     // Auto-pull on startup if configured
     if(state.gistToken&&state.gistId){
       setTimeout(async()=>{
+        const syncStart=Date.now();
         showSyncStatus('syncing');
         const headers={'Authorization':'token '+state.gistToken};
         try{
@@ -1647,8 +3210,15 @@ function initApp(){
               state.targets=p.targets;
               state.log=mergedLog;
               state.customFoods=p.customFoods||[];state.weight=p.weight||{};
-              persist('targets');persist('log');persist('custom');persist('weight');
+              mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
+              updateCurrentTargetsFromHistory();
+              mergeBodyMeasurements(p.measurements,p.measurementTombstones);
+              mergeRecoveryData(p.recovery);
+              state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
+              state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
+              persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
               lsSet('nl_tombstones',state.tombstones);
+              recordSyncSuccess('startup',syncStart);
               renderDash();loadTargetsForm();
             }
             showSyncStatus('synced');
