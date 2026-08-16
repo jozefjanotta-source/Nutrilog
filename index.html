@@ -704,7 +704,7 @@ function parseCSVText(text){
   const foods=[];
   const seen=new Set();
   let startRow=1;
-  let colName=0,colAmount=1,colUnit=2,colCal=3,colFat=4,colCarb=5,colProt=6;
+  let colName=0,colAmount=1,colUnit=2,colCal=3,colFat=4,colCarb=5,colProt=6,colFiber=7,colSource=8,colSourceId=9;
   for(let i=0;i<lines.length;i++){
     const lower=lines[i].toLowerCase();
     if(lower.includes('food list')||lower.startsWith('food')){
@@ -718,6 +718,9 @@ function parseCSVText(text){
         else if(hl==='fats'||hl==='fat') colFat=idx;
         else if(hl==='carbs'||hl==='carb') colCarb=idx;
         else if(hl==='prots'||hl==='prot'||hl==='protein') colProt=idx;
+        else if(hl==='fiber'||hl==='fibre') colFiber=idx;
+        else if(hl==='source') colSource=idx;
+        else if(hl==='source id'||hl==='sourceid') colSourceId=idx;
       });
       startRow=i+1;break;
     }
@@ -740,6 +743,9 @@ function parseCSVText(text){
     const fat=parseFloat(cols[colFat])||0;
     const carb=parseFloat(cols[colCarb])||0;
     const prot=parseFloat(cols[colProt])||0;
+    const fiber=parseFloat(cols[colFiber])||0;
+    const source=(cols[colSource]||'').trim();
+    const sourceId=(cols[colSourceId]||'').trim();
     if(cal<=0) continue;
     let entry;
     if(pieceUnits.includes(unit)||spoonUnits.includes(unit)){
@@ -749,7 +755,7 @@ function parseCSVText(text){
         prot:Math.round(prot/n*10)/10,
         carb:Math.round(carb/n*10)/10,
         fat:Math.round(fat/n*10)/10,
-        fiber:0,piece:null,unit:unit};
+        fiber:Math.round(fiber/n*10)/10,piece:null,unit:unit,source,sourceId};
     } else {
       const r=100/amount;
       entry={name,
@@ -757,7 +763,7 @@ function parseCSVText(text){
         prot:Math.round(prot*r*10)/10,
         carb:Math.round(carb*r*10)/10,
         fat:Math.round(fat*r*10)/10,
-        fiber:0,piece:amount!==100?Math.round(amount):null,unit:'g'};
+        fiber:Math.round(fiber*r*10)/10,piece:amount!==100?Math.round(amount):null,unit:'g',source,sourceId};
       if(entry.cal>2000) continue;
     }
     foods.push(entry);
@@ -1661,13 +1667,13 @@ function csvCell(value){
   return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
 }
 function foodDatabaseCSV(){
-  const rows=['Food list;Amount;Unit;Calories;Fats;Carbs;Prots'];
+  const rows=['Food list;Amount;Unit;Calories;Fats;Carbs;Prots;Fiber;Source;Source ID'];
   DB.forEach(f=>{
     const unit=f.unit||'g';
     const gramBased=unit==='g'||unit==='ml';
     const amount=gramBased?(f.piece||100):1;
     const factor=gramBased?amount/100:1;
-    rows.push([f.name,amount,unit,f.cal*factor,f.fat*factor,f.carb*factor,f.prot*factor].map(csvCell).join(';'));
+    rows.push([f.name,amount,unit,f.cal*factor,f.fat*factor,f.carb*factor,f.prot*factor,(f.fiber||0)*factor,f.source||'',f.sourceId||''].map(csvCell).join(';'));
   });
   return rows.join('\n');
 }
