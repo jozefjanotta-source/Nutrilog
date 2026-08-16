@@ -1526,15 +1526,29 @@ function getEffectiveGrams(){
   const f=state.pendingFood;const count=parseFloat(document.getElementById('af-amount').value)||0;
   if(!f) return count;
   const unit=f.unit||'g';
-  if(unit==='g'||unit==='ml') return count;
   if(state.unitMode==='pieces'&&f.piece) return count*f.piece;
+  if(state.unitMode==='spoons') return count*(parseFloat(document.getElementById('af-unit').value)||0);
+  if(unit==='g'||unit==='ml') return count;
   // For pc/slice/tsp/tbsp/scoop — we store per-unit macros so just use count as multiplier
   return count;
+}
+function getFoodMultiplier(){
+  const f=state.pendingFood;
+  if(!f)return 0;
+  const unit=(f.unit||'g').toLowerCase();
+  const isGram=unit==='g'||unit==='ml';
+  const amount=getEffectiveGrams();
+  return isGram?amount/100:amount;
 }
 function getAmountLabel(){
   const f=state.pendingFood;
   const count=parseFloat(document.getElementById('af-amount').value)||0;
   const unit=(f&&f.unit)||'g';
+  if(state.unitMode==='pieces'&&f&&f.piece)return count+' pc ('+getEffectiveGrams()+'g)';
+  if(state.unitMode==='spoons'){
+    const select=document.getElementById('af-unit');
+    return count+' × '+select.options[select.selectedIndex].text+' ('+getEffectiveGrams()+'g)';
+  }
   if(unit==='g'||unit==='ml') return count+unit;
   return count+' '+unit;
 }
@@ -1551,11 +1565,7 @@ function pickFood(food){
 function updatePreview(){
   if(!state.pendingFood)return;
   const f=state.pendingFood;
-  const count=parseFloat(document.getElementById('af-amount').value)||0;
-  const unit=(f.unit||'g').toLowerCase();
-  const isGram=unit==='g'||unit==='ml';
-  // For gram-based: multiply by count/100. For unit-based: multiply by count (already per unit)
-  const r=isGram?count/100:count;
+  const r=getFoodMultiplier();
   document.getElementById('af-preview').innerHTML=
     '<div class="preview-item"><div class="pv">'+fmtI(f.cal*r)+'</div><div class="pl">kcal</div></div>'+
     '<div class="preview-item"><div class="pv">'+fmtI(f.prot*r)+'g</div><div class="pl">protein</div></div>'+
@@ -1564,10 +1574,7 @@ function updatePreview(){
 function addToLog(){
   const f=state.pendingFood;if(!f)return;
   const now=new Date().toISOString();
-  const count=parseFloat(document.getElementById('af-amount').value)||0;
-  const unit=(f.unit||'g').toLowerCase();
-  const isGram=unit==='g'||unit==='ml';
-  const r=isGram?count/100:count;
+  const r=getFoodMultiplier();
   const meal=document.getElementById('af-meal').value;
   if(!state.log[state.currentDate])state.log[state.currentDate]=[];
   state.log[state.currentDate].push({id:createLogEntryId(),date:state.currentDate,updatedAt:now,name:f.name,meal,amountLabel:getAmountLabel(),cal:f.cal*r,prot:f.prot*r,carb:f.carb*r,fat:f.fat*r,fiber:(f.fiber||0)*r});
