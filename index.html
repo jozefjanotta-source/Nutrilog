@@ -566,7 +566,8 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     <div class="form-row">
       <div class="form-field"><label>Piece weight (g, optional)</label><input type="number" id="cf-piece" placeholder="e.g. 120"></div>
     </div>
-    <button class="btn-primary" onclick="saveCustomFood()">Save food</button>
+    <button class="btn-primary" id="cf-save-btn" onclick="saveCustomFood()">Save food</button>
+    <button class="btn-sm" id="cf-cancel-btn" onclick="cancelCustomFoodEdit()" style="display:none;width:100%;margin-top:8px">Cancel edit</button>
   </div>
   <div class="section-hd" style="display:flex;align-items:center;justify-content:space-between">
     My foods
@@ -1585,28 +1586,60 @@ function addToLog(){
 }
 
 // ---- CUSTOM FOODS ----
+let editingCustomIndex=null;
+function resetCustomFoodForm(){
+  editingCustomIndex=null;
+  ['cf-name','cf-cal','cf-prot','cf-carb','cf-fat','cf-fiber','cf-piece'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('cf-save-btn').textContent='Save food';
+  document.getElementById('cf-cancel-btn').style.display='none';
+}
 function saveCustomFood(){
   const name=document.getElementById('cf-name').value.trim();if(!name)return;
-  state.customFoods.push({name,
+  const food={name,
     cal:parseFloat(document.getElementById('cf-cal').value)||0,
     prot:parseFloat(document.getElementById('cf-prot').value)||0,
     carb:parseFloat(document.getElementById('cf-carb').value)||0,
     fat:parseFloat(document.getElementById('cf-fat').value)||0,
     fiber:parseFloat(document.getElementById('cf-fiber').value)||0,
     piece:parseFloat(document.getElementById('cf-piece').value)||null
-  });
+  };
+  const isEdit=editingCustomIndex!==null;
+  if(isEdit)state.customFoods[editingCustomIndex]=food;
+  else state.customFoods.push(food);
   persist('custom');scheduleAutoSync();
-  ['cf-name','cf-cal','cf-prot','cf-carb','cf-fat','cf-fiber','cf-piece'].forEach(id=>document.getElementById(id).value='');
+  resetCustomFoodForm();
   renderCustomList();
+  showToast(isEdit?'Food updated':'Food saved');
 }
+function editCustom(i){
+  const f=state.customFoods[i];if(!f)return;
+  editingCustomIndex=i;
+  document.getElementById('cf-name').value=f.name||'';
+  document.getElementById('cf-cal').value=f.cal||0;
+  document.getElementById('cf-prot').value=f.prot||0;
+  document.getElementById('cf-carb').value=f.carb||0;
+  document.getElementById('cf-fat').value=f.fat||0;
+  document.getElementById('cf-fiber').value=f.fiber||0;
+  document.getElementById('cf-piece').value=f.piece||'';
+  document.getElementById('cf-save-btn').textContent='Update food';
+  document.getElementById('cf-cancel-btn').style.display='block';
+  document.getElementById('cf-name').focus();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function cancelCustomFoodEdit(){resetCustomFoodForm();}
 function renderCustomList(){
   const list=document.getElementById('custom-list');
   if(!state.customFoods.length){list.innerHTML='<div class="empty-log">No custom foods yet.</div>';return;}
   list.innerHTML=state.customFoods.map((f,i)=>
-    '<div class="custom-item"><div class="custom-item-info"><div class="custom-item-name">'+f.name+'</div><div class="custom-item-meta">'+fmtI(f.cal)+' kcal &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+(f.piece?' &nbsp;1pc='+f.piece+'g':'')+'</div></div><button class="btn-sm-danger" onclick="deleteCustom('+i+')">Delete</button></div>'
+    '<div class="custom-item"><div class="custom-item-info"><div class="custom-item-name">'+escHtml(f.name)+'</div><div class="custom-item-meta">'+fmtI(f.cal)+' kcal &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+(f.piece?' &nbsp;1pc='+f.piece+'g':'')+'</div></div><button class="btn-sm" onclick="editCustom('+i+')">Edit</button><button class="btn-sm-danger" onclick="deleteCustom('+i+')">Delete</button></div>'
   ).join('');
 }
-function deleteCustom(i){state.customFoods.splice(i,1);persist('custom');scheduleAutoSync();renderCustomList();}
+function deleteCustom(i){
+  state.customFoods.splice(i,1);
+  if(editingCustomIndex===i)resetCustomFoodForm();
+  else if(editingCustomIndex!==null&&editingCustomIndex>i)editingCustomIndex--;
+  persist('custom');scheduleAutoSync();renderCustomList();
+}
 
 // ---- TARGETS ----
 function updateTargetMacrosFromCalories(){
