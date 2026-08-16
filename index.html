@@ -551,11 +551,11 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 
 <!-- MY FOODS -->
 <div id="view-custom" class="page">
-  <div class="section-hd">Add custom food</div>
+  <div class="section-hd" id="cf-form-title">Add custom food</div>
   <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px">
     <div class="form-row">
       <div class="form-field" style="flex:2"><label>Name</label><input type="text" id="cf-name" placeholder="e.g. Homemade goulash"></div>
-      <div class="form-field"><label>Kcal / 100g</label><input type="number" id="cf-cal" placeholder="180"></div>
+      <div class="form-field"><label id="cf-cal-label">Kcal / 100g</label><input type="number" id="cf-cal" placeholder="180"></div>
     </div>
     <div class="form-row">
       <div class="form-field"><label>Protein (g)</label><input type="number" id="cf-prot" placeholder="12"></div>
@@ -1491,14 +1491,14 @@ function handleSearch(q){
   if(!ql){document.getElementById('search-results').innerHTML='';document.getElementById('search-status').textContent='';return;}
   if(!DB_LOADED){document.getElementById('search-status').textContent='Loading food database...';return;}
   const all=[
-    ...state.customFoods.filter(f=>f.name.toLowerCase().includes(ql)).map(f=>({...f,_src:'custom'})),
-    ...DB.filter(f=>f.name.toLowerCase().includes(ql)).map(f=>({...f,_src:'builtin'}))
+    ...state.customFoods.map((f,i)=>({...f,_src:'custom',_index:i})).filter(f=>f.name.toLowerCase().includes(ql)),
+    ...DB.map((f,i)=>({...f,_src:'builtin',_index:i})).filter(f=>f.name.toLowerCase().includes(ql))
   ];
   if(!all.length){document.getElementById('search-results').innerHTML='<div class="no-results">No results for "'+q+'". Add it under My foods.</div>';document.getElementById('search-status').textContent='';return;}
   document.getElementById('search-status').textContent=all.length+' result'+(all.length!==1?'s':'');
   document.getElementById('search-results').innerHTML='<div class="results-list">'+all.map(f=>{
     const fs=JSON.stringify(f).replace(/'/g,"&#39;");
-    return '<div class="result-item" onclick='+"'"+'pickFood('+fs+')'+"'"+ '><div style="flex:1;min-width:0"><div class="result-name">'+f.name+'<span class="tag '+(f._src==='custom'?'tag-custom':'tag-builtin')+'">'+f._src+'</span></div><div class="result-meta">'+(f.unit&&f.unit!=='g'?'per 1 '+f.unit:f.piece?'per '+f.piece+'g':'per 100g')+' &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+'</div></div><div class="result-cal">'+fmtI(f.cal)+'</div></div>';
+    return '<div class="result-item" onclick='+"'"+'pickFood('+fs+')'+"'"+ '><div style="flex:1;min-width:0"><div class="result-name">'+escHtml(f.name)+'<span class="tag '+(f._src==='custom'?'tag-custom':'tag-builtin')+'">'+f._src+'</span></div><div class="result-meta">'+(f.unit&&f.unit!=='g'?'per 1 '+f.unit:'per 100g'+(f.piece?' · 1pc='+f.piece+'g':''))+' &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+'</div></div><div class="result-cal">'+fmtI(f.cal)+'</div><button class="btn-sm" onclick="event.stopPropagation();editFood(\''+f._src+'\','+f._index+')">Edit</button></div>';
   }).join('')+'</div>';
 }
 function clearSearch(){document.getElementById('search-input').value='';handleSearch('');}
@@ -1538,8 +1538,8 @@ function getFoodMultiplier(){
   if(!f)return 0;
   const unit=(f.unit||'g').toLowerCase();
   const isGram=unit==='g'||unit==='ml';
-  const amount=getEffectiveGrams();
-  return isGram?amount/100:amount;
+  const count=parseFloat(document.getElementById('af-amount').value)||0;
+  return isGram?getEffectiveGrams()/100:count;
 }
 function getAmountLabel(){
   const f=state.pendingFood;
@@ -1585,35 +1585,46 @@ function addToLog(){
   showToast('Saved');
 }
 
-// ---- CUSTOM FOODS ----
-let editingCustomIndex=null;
+// ---- FOOD EDITING ----
+let editingFoodSource=null;
+let editingFoodIndex=null;
 function resetCustomFoodForm(){
-  editingCustomIndex=null;
+  editingFoodSource=null;
+  editingFoodIndex=null;
   ['cf-name','cf-cal','cf-prot','cf-carb','cf-fat','cf-fiber','cf-piece'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('cf-form-title').textContent='Add custom food';
+  document.getElementById('cf-cal-label').textContent='Kcal / 100g';
   document.getElementById('cf-save-btn').textContent='Save food';
   document.getElementById('cf-cancel-btn').style.display='none';
 }
 function saveCustomFood(){
   const name=document.getElementById('cf-name').value.trim();if(!name)return;
+  const original=editingFoodSource==='builtin'?DB[editingFoodIndex]:null;
   const food={name,
     cal:parseFloat(document.getElementById('cf-cal').value)||0,
     prot:parseFloat(document.getElementById('cf-prot').value)||0,
     carb:parseFloat(document.getElementById('cf-carb').value)||0,
     fat:parseFloat(document.getElementById('cf-fat').value)||0,
     fiber:parseFloat(document.getElementById('cf-fiber').value)||0,
-    piece:parseFloat(document.getElementById('cf-piece').value)||null
+    piece:parseFloat(document.getElementById('cf-piece').value)||null,
+    unit:original&&original.unit?original.unit:'g'
   };
-  const isEdit=editingCustomIndex!==null;
-  if(isEdit)state.customFoods[editingCustomIndex]=food;
+  const isEdit=editingFoodIndex!==null;
+  const source=editingFoodSource;
+  if(source==='builtin'){
+    DB[editingFoodIndex]=food;
+    saveFoodDatabase();
+  }else if(isEdit)state.customFoods[editingFoodIndex]=food;
   else state.customFoods.push(food);
-  persist('custom');scheduleAutoSync();
+  if(source!=='builtin'){persist('custom');scheduleAutoSync();}
   resetCustomFoodForm();
   renderCustomList();
-  showToast(isEdit?'Food updated':'Food saved');
+  showToast(source==='builtin'?'Database food updated':isEdit?'Food updated':'Food saved');
 }
-function editCustom(i){
-  const f=state.customFoods[i];if(!f)return;
-  editingCustomIndex=i;
+function editFood(source,i){
+  const f=source==='builtin'?DB[i]:state.customFoods[i];if(!f)return;
+  editingFoodSource=source;
+  editingFoodIndex=i;
   document.getElementById('cf-name').value=f.name||'';
   document.getElementById('cf-cal').value=f.cal||0;
   document.getElementById('cf-prot').value=f.prot||0;
@@ -1621,11 +1632,15 @@ function editCustom(i){
   document.getElementById('cf-fat').value=f.fat||0;
   document.getElementById('cf-fiber').value=f.fiber||0;
   document.getElementById('cf-piece').value=f.piece||'';
+  document.getElementById('cf-form-title').textContent=source==='builtin'?'Edit database food':'Edit custom food';
+  document.getElementById('cf-cal-label').textContent=f.unit&&f.unit!=='g'?'Kcal / item':'Kcal / 100g';
   document.getElementById('cf-save-btn').textContent='Update food';
   document.getElementById('cf-cancel-btn').style.display='block';
+  switchView('custom');
   document.getElementById('cf-name').focus();
   window.scrollTo({top:0,behavior:'smooth'});
 }
+function editCustom(i){editFood('custom',i);}
 function cancelCustomFoodEdit(){resetCustomFoodForm();}
 function renderCustomList(){
   const list=document.getElementById('custom-list');
@@ -1636,9 +1651,36 @@ function renderCustomList(){
 }
 function deleteCustom(i){
   state.customFoods.splice(i,1);
-  if(editingCustomIndex===i)resetCustomFoodForm();
-  else if(editingCustomIndex!==null&&editingCustomIndex>i)editingCustomIndex--;
+  if(editingFoodSource==='custom'&&editingFoodIndex===i)resetCustomFoodForm();
+  else if(editingFoodSource==='custom'&&editingFoodIndex!==null&&editingFoodIndex>i)editingFoodIndex--;
   persist('custom');scheduleAutoSync();renderCustomList();
+}
+
+function csvCell(value){
+  const s=String(value===null||value===undefined?'':value);
+  return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+}
+function foodDatabaseCSV(){
+  const rows=['Food list;Amount;Unit;Calories;Fats;Carbs;Prots'];
+  DB.forEach(f=>{
+    const unit=f.unit||'g';
+    const gramBased=unit==='g'||unit==='ml';
+    const amount=gramBased?(f.piece||100):1;
+    const factor=gramBased?amount/100:1;
+    rows.push([f.name,amount,unit,f.cal*factor,f.fat*factor,f.carb*factor,f.prot*factor].map(csvCell).join(';'));
+  });
+  return rows.join('\n');
+}
+async function saveFoodDatabase(){
+  lsSet('nl_foods_csv',DB);
+  const count=document.getElementById('foods-db-count');if(count)count.textContent=DB.length+' foods loaded';
+  if(!state.gistToken||!state.gistId)return;
+  const headers={'Authorization':'token '+state.gistToken,'Content-Type':'application/json'};
+  const body={files:{'foods.csv':{content:foodDatabaseCSV()}}};
+  try{
+    const resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
+    if(!resp.ok)showToast('Saved locally; cloud food sync failed',3000);
+  }catch(e){showToast('Saved locally; cloud food sync failed',3000);}
 }
 
 // ---- TARGETS ----
