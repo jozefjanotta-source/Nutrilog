@@ -3076,16 +3076,17 @@ function getWeeklyBudget(){
   const dayOfWeek=today.getDay(); // 0=Sun
   const daysSinceSunday=dayOfWeek; // 0 if Sunday, 1 if Monday, etc
   
-  // Collect all days from Sunday to today (inclusive)
-  const weekDays=[];
-  for(let i=0;i<=daysSinceSunday;i++){
+  // Collect the full Sunday-Saturday week so target changes are respected.
+  const allWeekDays=[];
+  for(let i=0;i<7;i++){
     const d=new Date(today);
     d.setDate(today.getDate()-daysSinceSunday+i);
-    weekDays.push(d.toISOString().slice(0,10));
+    allWeekDays.push(d.toISOString().slice(0,10));
   }
-  
-  const activeTarget=getTargetsForDate(state.currentDate).cal||0;
-  const weeklyTarget=activeTarget*7;
+
+  const weekDays=allWeekDays.slice(0,daysSinceSunday+1);
+  const fallbackTarget=getTargetsForDate(state.currentDate).cal||state.targets.cal||0;
+  const weeklyTarget=allWeekDays.reduce((sum,d)=>sum+(getTargetsForDate(d).cal||fallbackTarget),0);
   const daysInWeek=7;
   const daysLeft=daysInWeek-daysSinceSunday; // including today
   
@@ -3095,14 +3096,15 @@ function getWeeklyBudget(){
   const totalEaten=eatenBefore+eatenToday;
   
   // Remaining budget for today and future days
-  const remainingWeekly=weeklyTarget-eatenBefore;
-  const todayBudget=Math.round(remainingWeekly/daysLeft);
+  const budgetForRemainingDays=weeklyTarget-eatenBefore;
+  const todayBudget=Math.round(budgetForRemainingDays/daysLeft);
   const remainingToday=todayBudget-eatenToday;
+  const remainingWeekly=weeklyTarget-totalEaten;
   
   return{
     weeklyTarget,totalEaten,eatenBefore,eatenToday,
-    todayBudget,remainingToday,daysLeft,
-    weekDays,daysSinceSunday
+    todayBudget,remainingToday,remainingWeekly,daysLeft,
+    weekDays,allWeekDays,daysSinceSunday
   };
 }
 
@@ -3111,21 +3113,22 @@ function renderWeeklyBudget(){
   if(!el)return;
   const b=getWeeklyBudget();
   const over=b.remainingToday<0;
+  const weekOver=b.remainingWeekly<0;
   const pct=b.todayBudget?Math.min(100,b.eatenToday/b.todayBudget*100):0;
   el.innerHTML=
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
-      '<div style="font-size:var(--fs-sm);font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em">Daily budget</div>'+
-      '<div style="font-size:var(--fs-xs);color:var(--text3)">Week: '+Math.round(b.totalEaten)+' / '+b.weeklyTarget+' kcal</div>'+
+      '<div style="font-size:var(--fs-sm);font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em">Adjusted daily budget</div>'+
+      '<div style="font-size:var(--fs-xs);color:'+(weekOver?'var(--danger)':'var(--text3)')+'">Week: '+Math.round(Math.abs(b.remainingWeekly))+' kcal '+(weekOver?'over':'remaining')+'</div>'+
     '</div>'+
     '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">'+
       '<div style="font-size:28px;font-weight:700;color:'+(over?'var(--danger)':'var(--accent)')+'">'+Math.round(Math.abs(b.remainingToday))+'</div>'+
-      '<div style="font-size:var(--fs-sm);color:var(--text2)">'+(over?'kcal over budget':'kcal remaining')+'</div>'+
+      '<div style="font-size:var(--fs-sm);color:var(--text2)">'+(over?'kcal over budget today':'kcal remaining today')+'</div>'+
       '<div style="font-size:var(--fs-xs);color:var(--text3);margin-left:auto">budget: '+Math.round(b.todayBudget)+' kcal</div>'+
     '</div>'+
     '<div style="height:6px;border-radius:3px;background:var(--surface2);overflow:hidden">'+
       '<div style="height:100%;border-radius:3px;width:'+pct+'%;background:'+(over?'var(--danger)':'var(--accent)')+'"></div>'+
     '</div>'+
-    '<div style="font-size:var(--fs-xs);color:var(--text3);margin-top:6px">Based on '+b.weekDays.length+' day'+(b.weekDays.length!==1?'s':'')+' this week (Sun–Sat) &nbsp;·&nbsp; '+b.daysLeft+' day'+(b.daysLeft!==1?'s':'')+' remaining</div>';
+    '<div style="font-size:var(--fs-xs);color:var(--text3);margin-top:6px">Weekly over/underspending is spread evenly across '+b.daysLeft+' remaining day'+(b.daysLeft!==1?'s':'')+' (Sun–Sat).</div>';
 }
 
 // ---- TOGGLE FOOD LIST ----
