@@ -447,7 +447,12 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
           <button class="tb-btn" onclick="clearBodyChartRange()">All</button>
         </div>
       </div>
-      <div id="body-chart-empty" class="empty-log" style="display:none;padding:18px 12px">No body measurements in selected date range.</div>
+      <div id="body-chart-empty" class="empty-log" style="display:none;padding:18px 12px">No chart data in selected date range.</div>
+      <div class="chart-card" id="measurement-weekly-calories-card" style="margin:0 0 14px">
+        <div class="chart-title">Weekly calorie intake (Sat–Fri)</div>
+        <div class="chart-wrap"><canvas id="measurement-weekly-calories-chart"></canvas></div>
+        <div id="measurement-weekly-calories-empty" style="display:none;font-size:var(--fs-sm);color:var(--text3);padding-top:8px">No calorie data in selected date range.</div>
+      </div>
       <div class="chart-card" id="measurement-weight-card" style="margin:0 0 14px">
         <div class="chart-title">Weight trend</div>
         <div class="chart-wrap"><canvas id="measurement-weight-chart"></canvas></div>
@@ -462,6 +467,16 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
         <div class="chart-title">BF% trend</div>
         <div class="chart-wrap"><canvas id="measurement-bf-chart"></canvas></div>
         <div id="measurement-bf-empty" style="display:none;font-size:var(--fs-sm);color:var(--text3);padding-top:8px">No BF% data in selected range.</div>
+      </div>
+      <div class="chart-card" id="measurement-fat-kg-card" style="margin:0 0 14px">
+        <div class="chart-title">Body fat mass (kg)</div>
+        <div class="chart-wrap"><canvas id="measurement-fat-kg-chart"></canvas></div>
+        <div id="measurement-fat-kg-empty" style="display:none;font-size:var(--fs-sm);color:var(--text3);padding-top:8px">Weight and BF% are required in the selected range.</div>
+      </div>
+      <div class="chart-card" id="measurement-muscle-card" style="margin:0 0 14px">
+        <div class="chart-title">Muscle mass (kg)</div>
+        <div class="chart-wrap"><canvas id="measurement-muscle-chart"></canvas></div>
+        <div id="measurement-muscle-empty" style="display:none;font-size:var(--fs-sm);color:var(--text3);padding-top:8px">No muscle-mass data in selected range.</div>
       </div>
     </div>
     <div class="section-hd history-head">Latest body entry <button id="body-lookup-toggle" class="tb-btn" onclick="toggleBodyLookup()" style="font-size:12px;padding:5px 10px">Find body entry</button></div>
@@ -1117,7 +1132,7 @@ function saveTargetHistory(){
   persist('targetHistory');
 }
 
-let chartCal=null,chartMacro=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null,macroPieChart=null,measurementWeightChart=null,measurementWaistChart=null,measurementBfChart=null;
+let chartCal=null,chartMacro=null,ringChart=null,dashCalChart=null,chartWeeklyAvg=null,macroPieChart=null,measurementWeightChart=null,measurementWaistChart=null,measurementBfChart=null,measurementFatKgChart=null,measurementMuscleChart=null,measurementWeeklyCaloriesChart=null;
 
 const VIEWS=['dash','log','add','summary','measurements','custom','targets'];
 function switchView(v){
@@ -1362,10 +1377,11 @@ function renderLog(){
     html+='<div class="log-section"><div class="meal-header">'+meal+'<span class="meal-cal-badge">'+fmtI(mt[meal])+' kcal</span></div>';
     items.forEach(e=>{
       const idx=entries.indexOf(e);
+      const entryKey=encodeURIComponent(String(e.id)).replace(/'/g,'%27');
       const checked=state.selected.has(idx);
       html+='<div class="food-item'+(checked?' selected':'')+'" >'+
         '<div class="food-item-cb'+(checked?' checked':'')+'" onclick="event.stopPropagation();toggleSelect('+idx+')">'+( checked?'&#10003;':'')+'</div>'+
-        '<div class="food-item-info" onclick="event.stopPropagation();editEntry('+idx+')">'+
+        '<div class="food-item-info" onclick="event.stopPropagation();editEntry(\''+entryKey+'\')">'+
           '<div class="food-item-name">'+e.name+' <span style="font-size:10px;color:var(--accent);opacity:.7">✎</span></div>'+
           '<div class="food-item-meta">'+e.amountLabel+' &nbsp;P '+fmtI(e.prot)+'g &nbsp;C '+fmtI(e.carb)+'g &nbsp;F '+fmtI(e.fat)+'g</div>'+
         '</div>'+
@@ -2340,6 +2356,66 @@ function getMeasurementChartData(key){
     values:entries.map(m=>m[key])
   };
 }
+function bodyFatKgValue(m){
+  if(!m||m.weight===null||m.weight===undefined||m.weight===''||m.bf===null||m.bf===undefined||m.bf==='')return null;
+  const weight=Number(m&&m.weight);
+  const bf=Number(m&&m.bf);
+  if(!Number.isFinite(weight)||weight<=0||!Number.isFinite(bf)||bf<0||bf>100)return null;
+  return Math.round(weight*bf/100*10)/10;
+}
+function getBodyFatKgChartData(){
+  const from=state.bodyChartFrom||'';
+  const to=state.bodyChartTo||'';
+  const entries=[...state.measurements]
+    .map(m=>({...m,chartDate:measurementISODate(m),fatKg:bodyFatKgValue(m)}))
+    .filter(m=>m.chartDate&&m.fatKg!==null)
+    .filter(m=>(!from||m.chartDate>=from)&&(!to||m.chartDate<=to))
+    .sort((a,b)=>a.chartDate.localeCompare(b.chartDate)||(a.id||0)-(b.id||0));
+  return{
+    labels:entries.map(m=>new Date(m.chartDate+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'})),
+    values:entries.map(m=>m.fatKg)
+  };
+}
+function saturdayWeekStartISO(iso){
+  const d=new Date(iso+'T12:00:00');
+  if(Number.isNaN(d.getTime()))return'';
+  d.setDate(d.getDate()-((d.getDay()+1)%7));
+  return dateObjToISO(d);
+}
+function weekEndISO(startISO){
+  const d=new Date(startISO+'T12:00:00');
+  d.setDate(d.getDate()+6);
+  return dateObjToISO(d);
+}
+function weeklyCaloriesHaveHistory(){
+  return Object.values(state.log||{}).some(items=>Array.isArray(items)&&items.length>0);
+}
+function getWeeklyCaloriesChartData(){
+  const from=state.bodyChartFrom||'';
+  const to=state.bodyChartTo||'';
+  const weeks=new Map();
+  Object.entries(state.log||{}).forEach(([date,items])=>{
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Array.isArray(items)||!items.length)return;
+    const start=saturdayWeekStartISO(date);
+    if(!start)return;
+    const current=weeks.get(start)||{start,total:0,loggedDays:0};
+    current.total+=getTotals(date).cal;
+    current.loggedDays++;
+    weeks.set(start,current);
+  });
+  const entries=[...weeks.values()]
+    .filter(w=>(!from||weekEndISO(w.start)>=from)&&(!to||w.start<=to))
+    .sort((a,b)=>a.start.localeCompare(b.start));
+  return{
+    labels:entries.map(w=>{
+      const startLabel=new Date(w.start+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+      const endLabel=new Date(weekEndISO(w.start)+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+      return startLabel+'–'+endLabel;
+    }),
+    values:entries.map(w=>Math.round(w.total)),
+    loggedDays:entries.map(w=>w.loggedDays)
+  };
+}
 function measurementISODate(m){
   return String((m&&m.date)||'').slice(0,10);
 }
@@ -2347,7 +2423,9 @@ function measurementHasBodyChartValue(m){
   return !!measurementISODate(m)&&(
     (m.weight!==null&&m.weight!==undefined&&m.weight!=='')||
     (m.waist!==null&&m.waist!==undefined&&m.waist!=='')||
-    (m.bf!==null&&m.bf!==undefined&&m.bf!=='')
+    (m.bf!==null&&m.bf!==undefined&&m.bf!=='')||
+    (m.muscle!==null&&m.muscle!==undefined&&m.muscle!=='')||
+    bodyFatKgValue(m)!==null
   );
 }
 function measurementInBodyChartRange(m){
@@ -2356,6 +2434,9 @@ function measurementInBodyChartRange(m){
 }
 function measurementHasMetricHistory(key){
   return state.measurements.some(m=>measurementISODate(m)&&m[key]!==null&&m[key]!==undefined&&m[key]!=='');
+}
+function measurementHasBodyFatKgHistory(){
+  return state.measurements.some(m=>measurementISODate(m)&&bodyFatKgValue(m)!==null);
 }
 function renderMeasurementLineChart(canvasId, chartRef, chartData, color, unit){
   const canvas=document.getElementById(canvasId);
@@ -2373,6 +2454,25 @@ function renderMeasurementLineChart(canvasId, chartRef, chartData, color, unit){
     });
   }catch(e){return null;}
 }
+function renderWeeklyCaloriesChart(chartData){
+  const canvas=document.getElementById('measurement-weekly-calories-chart');
+  if(!canvas)return null;
+  if(measurementWeeklyCaloriesChart)measurementWeeklyCaloriesChart.destroy();
+  if(!chartData.values.length)return null;
+  const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
+  const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
+  const tc=isDark?'#c8d0d8':'#9e9e97';
+  try{
+    return new Chart(canvas.getContext('2d'),{
+      type:'bar',
+      data:{labels:chartData.labels,datasets:[{data:chartData.values,backgroundColor:'rgba(245,158,11,0.82)',borderRadius:5}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{
+        label:ctx=>fmtI(ctx.raw)+' kcal',
+        afterLabel:ctx=>chartData.loggedDays[ctx.dataIndex]+' logged day'+(chartData.loggedDays[ctx.dataIndex]===1?'':'s')
+      }}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:45}},y:{beginAtZero:true,grid:{color:gc},ticks:{color:tc,font:{size:11}}}}}
+    });
+  }catch(e){return null;}
+}
 function renderMeasurementCharts(){
   const box=document.getElementById('measurement-charts');
   if(!box)return;
@@ -2383,19 +2483,28 @@ function renderMeasurementCharts(){
   const weightData=getMeasurementChartData('weight');
   const waistData=getMeasurementChartData('waist');
   const bfData=getMeasurementChartData('bf');
-  const hasCharts=weightData.values.length||waistData.values.length||bfData.values.length;
+  const fatKgData=getBodyFatKgChartData();
+  const muscleData=getMeasurementChartData('muscle');
+  const weeklyCaloriesData=getWeeklyCaloriesChartData();
   const hasAnyBodyChartData=state.measurements.some(measurementHasBodyChartValue);
-  const hasRecordsInRange=state.measurements.some(m=>measurementHasBodyChartValue(m)&&measurementInBodyChartRange(m));
+  const hasWeeklyCaloriesHistory=weeklyCaloriesHaveHistory();
+  const hasRecordsInRange=state.measurements.some(m=>measurementHasBodyChartValue(m)&&measurementInBodyChartRange(m))||weeklyCaloriesData.values.length>0;
   const rangeActive=!!(state.bodyChartFrom||state.bodyChartTo);
   const empty=document.getElementById('body-chart-empty');
-  box.style.display=(hasAnyBodyChartData||state.bodyChartFrom||state.bodyChartTo)?'block':'none';
+  box.style.display=(hasAnyBodyChartData||hasWeeklyCaloriesHistory||rangeActive)?'block':'none';
   if(empty)empty.style.display=rangeActive&&!hasRecordsInRange?'block':'none';
+  updateMeasurementChartCard('weekly-calories',hasWeeklyCaloriesHistory,weeklyCaloriesData.values.length);
   updateMeasurementChartCard('weight',measurementHasMetricHistory('weight'),weightData.values.length);
   updateMeasurementChartCard('waist',measurementHasMetricHistory('waist'),waistData.values.length);
   updateMeasurementChartCard('bf',measurementHasMetricHistory('bf'),bfData.values.length);
+  updateMeasurementChartCard('fat-kg',measurementHasBodyFatKgHistory(),fatKgData.values.length);
+  updateMeasurementChartCard('muscle',measurementHasMetricHistory('muscle'),muscleData.values.length);
+  measurementWeeklyCaloriesChart=renderWeeklyCaloriesChart(weeklyCaloriesData);
   measurementWeightChart=renderMeasurementLineChart('measurement-weight-chart',measurementWeightChart,weightData,'rgba(0,200,83,0.92)','kg');
   measurementWaistChart=renderMeasurementLineChart('measurement-waist-chart',measurementWaistChart,waistData,'rgba(56,189,248,0.9)','cm');
   measurementBfChart=renderMeasurementLineChart('measurement-bf-chart',measurementBfChart,bfData,'rgba(239,68,68,0.9)','%');
+  measurementFatKgChart=renderMeasurementLineChart('measurement-fat-kg-chart',measurementFatKgChart,fatKgData,'rgba(249,115,22,0.9)','kg');
+  measurementMuscleChart=renderMeasurementLineChart('measurement-muscle-chart',measurementMuscleChart,muscleData,'rgba(168,85,247,0.9)','kg');
 }
 function updateMeasurementChartCard(key,hasHistory,hasFilteredData){
   const card=document.getElementById('measurement-'+key+'-card');
@@ -3071,26 +3180,26 @@ function restoreBackup(i){
 
 // ---- WEEKLY CALORIE BUDGET ----
 function getWeeklyBudget(){
-  // Find last Sunday (or today if Sunday)
+  // Find last Saturday (or today if Saturday)
   const today=new Date(state.currentDate+'T12:00:00');
-  const dayOfWeek=today.getDay(); // 0=Sun
-  const daysSinceSunday=dayOfWeek; // 0 if Sunday, 1 if Monday, etc
+  const dayOfWeek=today.getDay(); // 0=Sun, 6=Sat
+  const daysSinceSaturday=(dayOfWeek+1)%7; // 0 if Saturday, 1 if Sunday, etc
   
-  // Collect the full Sunday-Saturday week so target changes are respected.
+  // Collect the full Saturday-Friday week so target changes are respected.
   const allWeekDays=[];
   for(let i=0;i<7;i++){
     const d=new Date(today);
-    d.setDate(today.getDate()-daysSinceSunday+i);
+    d.setDate(today.getDate()-daysSinceSaturday+i);
     allWeekDays.push(d.toISOString().slice(0,10));
   }
 
-  const weekDays=allWeekDays.slice(0,daysSinceSunday+1);
+  const weekDays=allWeekDays.slice(0,daysSinceSaturday+1);
   const fallbackTarget=getTargetsForDate(state.currentDate).cal||state.targets.cal||0;
   const weeklyTarget=allWeekDays.reduce((sum,d)=>sum+(getTargetsForDate(d).cal||fallbackTarget),0);
   const daysInWeek=7;
-  const daysLeft=daysInWeek-daysSinceSunday; // including today
+  const daysLeft=daysInWeek-daysSinceSaturday; // including today
   
-  // Calories eaten from Sunday up to but NOT including today
+  // Calories eaten from Saturday up to but NOT including today
   const eatenBefore=weekDays.slice(0,-1).reduce((a,d)=>a+getTotals(d).cal,0);
   const eatenToday=getTotals(state.currentDate).cal;
   const totalEaten=eatenBefore+eatenToday;
@@ -3104,7 +3213,7 @@ function getWeeklyBudget(){
   return{
     weeklyTarget,totalEaten,eatenBefore,eatenToday,
     todayBudget,remainingToday,remainingWeekly,daysLeft,
-    weekDays,allWeekDays,daysSinceSunday
+    weekDays,allWeekDays,daysSinceSaturday
   };
 }
 
@@ -3128,7 +3237,7 @@ function renderWeeklyBudget(){
     '<div style="height:6px;border-radius:3px;background:var(--surface2);overflow:hidden">'+
       '<div style="height:100%;border-radius:3px;width:'+pct+'%;background:'+(over?'var(--danger)':'var(--accent)')+'"></div>'+
     '</div>'+
-    '<div style="font-size:var(--fs-xs);color:var(--text3);margin-top:6px">Weekly over/underspending is spread evenly across '+b.daysLeft+' remaining day'+(b.daysLeft!==1?'s':'')+' (Sun–Sat).</div>';
+    '<div style="font-size:var(--fs-xs);color:var(--text3);margin-top:6px">Weekly over/underspending is spread evenly across '+b.daysLeft+' remaining day'+(b.daysLeft!==1?'s':'')+' (Sat–Fri).</div>';
 }
 
 // ---- TOGGLE FOOD LIST ----
@@ -3141,10 +3250,15 @@ function toggleFoodList(){
 }
 
 // ---- EDIT ENTRY ----
-function editEntry(idx){
+function editEntry(encodedEntryId){
   const entries=state.log[state.currentDate]||[];
-  const item=entries[idx];
-  if(!item)return;
+  const entryId=decodeURIComponent(encodedEntryId);
+  const item=entries.find(entry=>String(entry.id)===entryId);
+  if(!item){
+    renderLog();
+    showToast('This food entry changed during sync. Please try again.');
+    return;
+  }
   const unit=(item.amountLabel||'').replace(/[0-9.]/g,'').trim()||'g';
   const currentAmt=parseFloat(item.amountLabel)||0;
   const newAmt=prompt('Update amount for '+item.name+' ('+unit+'):', currentAmt);
