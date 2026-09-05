@@ -392,7 +392,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
   </div>
   <div class="weekly-grid" id="avg-grid"></div>
   <div class="chart-card" style="margin:0 0 14px">
-    <div class="chart-title">Weekly averages</div>
+    <div class="chart-title">Weekly averages (Sat–Fri)</div>
     <div class="chart-wrap"><canvas id="chart-weekly-avg"></canvas></div>
   </div>
   <div class="chart-card" style="margin:0 0 14px">
@@ -449,7 +449,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
       </div>
       <div id="body-chart-empty" class="empty-log" style="display:none;padding:18px 12px">No chart data in selected date range.</div>
       <div class="chart-card" id="measurement-weekly-calories-card" style="margin:0 0 14px">
-        <div class="chart-title">Weekly calorie intake (Sat–Fri)</div>
+        <div class="chart-title">Average daily calories by week (Sat–Fri)</div>
         <div class="chart-wrap"><canvas id="measurement-weekly-calories-chart"></canvas></div>
         <div id="measurement-weekly-calories-empty" style="display:none;font-size:var(--fs-sm);color:var(--text3);padding-top:8px">No calorie data in selected date range.</div>
       </div>
@@ -1897,7 +1897,7 @@ function renderSummaryPage(){
 }
 
 function renderWeeklyAvgChart(){
-  // Build last 8 calendar weeks (Mon-Sun), including current partial week
+  // Build last 8 Saturday-Friday weeks, including the current partial week.
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
   const tc=isDark?'#c8d0d8':'#9e9e97';
@@ -1905,34 +1905,33 @@ function renderWeeklyAvgChart(){
   const weekCalAvg=[];
   const weekTargetAvg=[];
 
-  // Find Monday of current week
+  // Find Saturday at the start of the current week.
   const now=new Date();
   const dayOfWeek=now.getDay(); // 0=Sun,1=Mon,...6=Sat
-  const diffToMonday=dayOfWeek===0?-6:1-dayOfWeek;
-  const thisMonday=new Date(now);
-  thisMonday.setDate(now.getDate()+diffToMonday);
-  thisMonday.setHours(0,0,0,0);
+  const daysSinceSaturday=(dayOfWeek+1)%7;
+  const thisSaturday=new Date(now);
+  thisSaturday.setDate(now.getDate()-daysSinceSaturday);
+  thisSaturday.setHours(0,0,0,0);
 
   for(let w=7;w>=0;w--){
-    const weekStart=new Date(thisMonday);
-    weekStart.setDate(thisMonday.getDate()-(w*7));
+    const weekStart=new Date(thisSaturday);
+    weekStart.setDate(thisSaturday.getDate()-(w*7));
     const weekDates=[];
     for(let d=0;d<7;d++){
       const dt=new Date(weekStart);
       dt.setDate(weekStart.getDate()+d);
-      const dISO=dt.toISOString().slice(0,10);
+      const dISO=dateObjToISO(dt);
       // Don't include future dates (but always include today)
       if(dt>now&&dISO!==todayISO()) break;
       weekDates.push(dISO);
     }
-    const todayStr=todayISO();
     const logged=weekDates.filter(d=>(state.log[d]||[]).length>0);
     if(!logged.length) continue;
     const totals=logged.map(d=>getTotals(d));
     const avgCal=Math.round(totals.reduce((a,t)=>a+t.cal,0)/logged.length);
     const targets=logged.map(d=>getCalorieTargetForDate(d)).filter(v=>v!==null&&v!==undefined);
     const avgTarget=targets.length?Math.round(targets.reduce((a,v)=>a+v,0)/targets.length):null;
-    // Label: Mon DD MMM
+    // Label each bar with the Saturday that starts its week.
     const lbl=weekStart.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
     const isCurrentWeek=w===0;
     weekLabels.push(lbl+(isCurrentWeek?' *':''));
@@ -2412,7 +2411,7 @@ function getWeeklyCaloriesChartData(){
       const endLabel=new Date(weekEndISO(w.start)+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'});
       return startLabel+'–'+endLabel;
     }),
-    values:entries.map(w=>Math.round(w.total)),
+    values:entries.map(w=>Math.round(w.total/w.loggedDays)),
     loggedDays:entries.map(w=>w.loggedDays)
   };
 }
@@ -2467,7 +2466,7 @@ function renderWeeklyCaloriesChart(chartData){
       type:'bar',
       data:{labels:chartData.labels,datasets:[{data:chartData.values,backgroundColor:'rgba(245,158,11,0.82)',borderRadius:5}]},
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{
-        label:ctx=>fmtI(ctx.raw)+' kcal',
+        label:ctx=>fmtI(ctx.raw)+' kcal/day average',
         afterLabel:ctx=>chartData.loggedDays[ctx.dataIndex]+' logged day'+(chartData.loggedDays[ctx.dataIndex]===1?'':'s')
       }}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11},maxRotation:45}},y:{beginAtZero:true,grid:{color:gc},ticks:{color:tc,font:{size:11}}}}}
     });
