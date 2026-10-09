@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><title>NutriLog · Weekly Planner</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;color-scheme:light dark;--green:#2d6a4f}
+*{box-sizing:border-box}body{margin:0;background:light-dark(#f7f7f5,#000);color:light-dark(#1a1a18,#f5f7fa)}main{max-width:680px;margin:auto;padding:20px 16px 48px}a{color:var(--green)}h1{font-size:27px;margin:14px 0 5px}p{line-height:1.5}section{background:light-dark(white,#111);border:1px solid light-dark(#ddd,#333);border-radius:14px;padding:18px;margin-top:18px}label{display:block;font-weight:600;margin:18px 0 8px}.field{display:flex;align-items:center;gap:14px}.field input[type=range]{flex:1;min-width:0;accent-color:#2d9b69;height:38px;touch-action:pan-y}.field input[type=number]{width:112px;min-width:0;border:1px solid #888;border-radius:9px;padding:10px 8px;font:inherit;background:transparent;color:inherit}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.metric{background:light-dark(#edf5ef,#183327);padding:14px;border-radius:10px}.metric small{display:block;opacity:.8}.metric strong{display:block;font-size:25px;margin-top:5px}.note{font-size:13px;opacity:.75}.primary{background:#2d6a4f;color:white;border:0;border-radius:10px;padding:13px 17px;font-weight:600;margin-top:12px}
+</style></head><body><main>
+<a href="./index.html">← Back to NutriLog</a><h1>Weekly Calorie Planner</h1><p>Keep Saturday family dinner and dessert in your weekly calorie budget.</p>
+<section><h2>Daily calorie targets</h2>
+<label for="weekday">Sunday–Friday</label><div class="field"><input id="weekday" type="range" min="1400" max="2600" step="50" value="1850"><input id="weekdayNum" aria-label="Sunday to Friday calories" type="number" min="1000" max="5000" step="50" value="1850"></div>
+<label for="saturday">Saturday (including dinner and dessert)</label><div class="field"><input id="saturday" type="range" min="2000" max="5000" step="50" value="3500"><input id="saturdayNum" aria-label="Saturday calories" type="number" min="1000" max="8000" step="50" value="3500"></div>
+<label for="maintenance">Estimated maintenance per day</label><div class="field"><input id="maintenance" type="range" min="2000" max="3600" step="50" value="2600"><input id="maintenanceNum" aria-label="Daily maintenance calories" type="number" min="1000" max="6000" step="50" value="2600"></div>
+</section>
+<section><h2>Weekly results</h2><div class="grid">
+<div class="metric"><small>Weekly intake</small><strong id="weekly">14,600</strong>kcal</div>
+<div class="metric"><small>Daily average</small><strong id="average">2,086</strong>kcal</div>
+<div class="metric"><small>Weekly deficit</small><strong id="deficit">3,600</strong>kcal</div>
+<div class="metric"><small>Estimated weight loss</small><strong id="loss">0.47</strong>kg/week</div>
+</div><p id="message" role="status"></p><p class="note">Estimates assume your chosen maintenance is accurate. 7,700 kcal/kg is an approximation. Compare Saturday weigh-ins over several weeks, not single days.</p><button class="primary" id="reset" type="button">Reset to defaults</button></section>
+</main><script>
+(function(){
+'use strict';
+const defaults={weekday:1850,saturday:3500,maintenance:2600};
+const el=id=>document.getElementById(id);
+const fmt=x=>Math.round(x).toLocaleString('en-US');
+const values={...defaults};
+try{const saved=JSON.parse(localStorage.getItem('nutrilog_weekly_planner')||'null');if(saved&&typeof saved==='object')for(const k of Object.keys(defaults))if(Number.isFinite(saved[k])&&saved[k]>=1000&&saved[k]<=8000)values[k]=saved[k]}catch(_){}
+function render(){
+ const total=6*values.weekday+values.saturday;
+ const delta=7*values.maintenance-total;
+ const kg=delta/7700;
+ el('weekly').textContent=fmt(total);el('average').textContent=fmt(total/7);
+ el('deficit').textContent=(delta<0?'−':'')+fmt(Math.abs(delta));
+ el('loss').textContent=(kg<0?'−':'')+Math.abs(kg).toFixed(2);
+ el('message').textContent=kg>=.5?'This estimated deficit meets your 0.5 kg/week goal.':kg>=0?'This estimates less than 0.5 kg/week of weight loss.':'At this maintenance estimate, this budget is a calorie surplus.';
+ try{localStorage.setItem('nutrilog_weekly_planner',JSON.stringify(values))}catch(_){}
+}
+for(const k of Object.keys(defaults)){
+ const slider=el(k),number=el(k+'Num');
+ slider.value=values[k];number.value=values[k];
+ slider.addEventListener('input',()=>{values[k]=Number(slider.value);number.value=values[k];render()});
+ number.addEventListener('input',()=>{const n=Number(number.value);if(number.value!==''&&Number.isFinite(n)&&n>=1000&&n<=8000){values[k]=n;slider.value=n;render()}});
+}
+el('reset').addEventListener('click',()=>{for(const k of Object.keys(defaults)){values[k]=defaults[k];el(k).value=defaults[k];el(k+'Num').value=defaults[k]}render()});
+render();
+})();
+</script></body></html>
