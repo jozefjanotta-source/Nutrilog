@@ -11,6 +11,9 @@ const MAX_EDIT_FILES = 1000;
 const MEALS = ["Breakfast", "Lunch", "Dinner", "Snack"];
 const NUTRITION_FIELDS = { calories: "cal", protein_g: "prot", carbs_g: "carb", fat_g: "fat", fiber_g: "fiber" };
 const FOOD_FIELDS = {
+  nutrition_source: {type:"string",enum:["label","database","estimated","user"],description:"Photographic meal estimates must be estimated; a visible package label may be label. Never describe a guessed portion as exact."},
+  source_note: {type:"string",maxLength:1000,description:"Nutrition provenance and estimation assumptions, including hidden oil or sauces."},
+  weight_basis: {type:"string",enum:["raw","cooked","as_sold","unspecified"]},
   name: { type: "string", minLength: 1, maxLength: 200 },
   meal: { type: "string", enum: MEALS },
   amount: { type: "string", minLength: 1, maxLength: 100, description: "Portion label, e.g. 150g or 1 serving." },
@@ -41,8 +44,73 @@ const RANGE_PROPERTIES = {
   from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "Inclusive start date, YYYY-MM-DD." },
   to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "Inclusive end date, YYYY-MM-DD. Use the user's local date for today." },
 };
+// Shared deterministic data rules for the app and encrypted connector.
+const NutritionExperience = (() => {
+  const fields = ['id','date','name','meal','amountLabel','cal','prot','carb','fat','fiber','nutritionSource','sourceNote','weightBasis'];
+  const stamp = x => Date.parse(x?.updatedAt) || 0;
+  function signature(entries) {
+    return JSON.stringify((entries || []).map(e => fields.map(k => e[k] ?? (['cal','prot','carb','fat','fiber'].includes(k) ? 0 : ''))).sort((a,b) => String(a[0]) < String(b[0]) ? -1 : String(a[0]) > String(b[0]) ? 1 : 0));
+  }
+  function status(log, days, date) {
+    const mark = days?.[date];
+    return mark?.complete && mark.signature === signature(log?.[date]) ? 'complete' : (log?.[date]?.length ? 'partial' : 'unlogged');
+  }
+  function mergeDays(local, remote) {
+    const out = {...(remote || {})};
+    for (const [d, v] of Object.entries(local || {})) if (!out[d] || stamp(v) >= stamp(out[d])) out[d] = v;
+    return out;
+  }
+  function foodId(f, prefix='custom') {
+    return f.id || prefix + '-legacy:' + encodeURIComponent(JSON.stringify(prefix==='db'?[f.name,f.unit || 'g',f.sourceId || '']:[f.name,f.unit || 'g',f.cal,f.prot,f.carb,f.fat,f.fiber || 0]));
+  }
+  function normalizeFood(f, prefix='custom') {
+    return {...f, id:foodId(f,prefix), updatedAt:f.updatedAt || '1970-01-01T00:00:00.000Z',
+      weightBasis:f.weightBasis || (/\braw\b/i.test(f.name) ? 'raw' : /\bcooked\b/i.test(f.name) ? 'cooked' : 'unspecified'),
+      nutritionSource:f.nutritionSource || (prefix === 'db' ? 'database' : 'user'), sourceNote:f.sourceNote || f.source || ''};
+  }
+  function mergeFoods(local, remote, tombstones={}) {
+    const out = new Map();
+    for (const f of [...(remote || []),...(local || [])]) {
+      const item = normalizeFood(f);
+      if (tombstones[item.id]) continue;
+      if (!out.has(item.id) || stamp(item) >= stamp(out.get(item.id))) out.set(item.id,item);
+    }
+    return [...out.values()];
+  }
+  function totals(entries) {
+    const sum = {cal:0,prot:0,carb:0,fat:0,fiber:0};
+    for (const e of entries || []) for (const k of Object.keys(sum)) sum[k] += Number(e[k]) || 0;
+    return sum;
+  }
+  function review(log, days, saturday, targetsForDate) {
+    const end = new Date(saturday + 'T12:00:00Z');
+    if (Number.isNaN(+end) || end.toISOString().slice(0,10) !== saturday || end.getUTCDay() !== 6) throw new Error('Choose a real Saturday for the review date.');
+    const dates = Array.from({length:7},(_,i) => new Date(+end - (7-i)*86400000).toISOString().slice(0,10));
+    const complete = dates.filter(d => status(log,days,d) === 'complete');
+    const partial = dates.filter(d => status(log,days,d) === 'partial');
+    const average = complete.length ? totals(complete.flatMap(d => log?.[d] || [])) : null;
+    if (average) for (const k of Object.keys(average)) average[k] = Math.round(average[k] / complete.length * 10) / 10;
+    const targetValues = dates.map(d => targetsForDate(d)?.cal).filter(v => typeof v === 'number' && v > 0);
+    return {review_date:saturday, from:dates[0], to:dates[6], complete_days:complete.length, partial_days:partial.length,
+      unlogged_days:7-complete.length-partial.length, average, average_target:targetValues.length ? Math.round(targetValues.reduce((a,b)=>a+b,0)/targetValues.length) : null,
+      target_days:targetValues.length, days:dates.map(date => ({date,status:status(log,days,date)}))};
+  }
+  return {signature,status,mergeDays,foodId,normalizeFood,mergeFoods,totals,review};
+})();
+
+
+const EXTRA_TOOLS = [
+  {name:"search_food_registry",description:"Search the owner's live encrypted foods.csv and reusable custom foods. Returns reference nutrition, units, raw/cooked basis and source. Use these values before logging food; never convert raw weights to cooked nutrition without a matching record.",inputSchema:{type:"object",additionalProperties:false,properties:{query:{type:"string",maxLength:200},limit:{type:"integer",minimum:1,maximum:30}},required:["query"]}},
+  {name:"save_food_to_registry",description:"Save a reusable food ONLY when requested by the user. Nutrition must describe the stated reference amount and unit. Use label values or verified database values; mark photographic estimates estimated and explain assumptions. Encrypted, idempotent changes sync to all devices.",inputSchema:{type:"object",additionalProperties:false,properties:{operation_id:OPERATION_PROPERTY,name:FOOD_FIELDS.name,reference_amount:{type:"number",exclusiveMinimum:0,maximum:10000},unit:{type:"string",enum:["g","ml","piece","serving","slice","scoop","tsp","tbsp"]},weight_basis:{type:"string",enum:["raw","cooked","as_sold","unspecified"]},nutrition_source:{type:"string",enum:["label","database","estimated","user"]},source_note:{type:"string",maxLength:1000},...Object.fromEntries(Object.keys(NUTRITION_FIELDS).map(k=>[k,FOOD_FIELDS[k]]))},required:["operation_id","name","reference_amount","unit","weight_basis","nutrition_source","source_note",...Object.keys(NUTRITION_FIELDS)]},annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false}},
+  {name:"log_registered_food",description:"Log a requested portion using a live registry food_id from search_food_registry. Quantity is in that food's reference unit, including grams or ml. Rechecks the food revision so changed nutrition cannot be silently used. Ask for raw/cooked basis or a matching record when needed. Reuse the same operation_id on retries.",inputSchema:{type:"object",additionalProperties:false,properties:{operation_id:OPERATION_PROPERTY,date:RANGE_PROPERTIES.from,meal:FOOD_FIELDS.meal,food_id:{type:"string",maxLength:3000},expected_food_revision:{type:"string",pattern:"^[a-f0-9]{64}$"},quantity:{type:"number",exclusiveMinimum:0,maximum:10000}},required:["operation_id","date","meal","food_id","expected_food_revision","quantity"]},annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false}},
+  {name:"set_day_complete",description:"Mark a diary day complete or reopen it ONLY when the user explicitly says all food has been logged or requests reopening. Read get_daily_nutrition first and supply day_revision. Later additions or corrections automatically invalidate completion. Missing days are never treated as zero intake.",inputSchema:{type:"object",additionalProperties:false,properties:{operation_id:OPERATION_PROPERTY,date:RANGE_PROPERTIES.from,complete:{type:"boolean"},expected_day_revision:{type:"string",pattern:"^[a-f0-9]{64}$"}},required:["operation_id","date","complete","expected_day_revision"]},annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false}},
+  {name:"undo_food_change",description:"Undo a specific ChatGPT food addition or correction ONLY when requested. Use the original operation ID and the current entry revision from get_daily_nutrition. Refuses if the entry changed after that operation. Undoing an addition deletes it; undoing a correction restores its prior values. Legacy corrections without a before snapshot cannot be undone automatically.",inputSchema:{type:"object",additionalProperties:false,properties:{operation_id:OPERATION_PROPERTY,original_operation_id:OPERATION_PROPERTY,date:RANGE_PROPERTIES.from,expected_revision:{type:"string",pattern:"^[a-f0-9]{64}$"}},required:["operation_id","original_operation_id","date","expected_revision"]},annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:true,openWorldHint:false}},
+  {name:"get_weekly_review",description:"Read a Saturday review of the preceding Saturday-Friday week. Intake averages include only explicitly complete, unchanged days; returns coverage and dated weight/waist endpoints. Does not infer fat or muscle tissue changes from BIA readings or automatically change calorie targets.",inputSchema:{type:"object",additionalProperties:false,properties:{review_date:RANGE_PROPERTIES.from},required:["review_date"]}}
+].map(t=>({...t,annotations:t.annotations || {readOnlyHint:true,destructiveHint:false,openWorldHint:false}}));
+
 const TOOLS = [
   TOOL,
+  ...EXTRA_TOOLS,
   {
     name: "get_latest_measurements",
     description: "Read the latest synced body measurement on or before an optional date. Returns weight in kg, waist in cm, body fat and water percentages, fat and muscle mass in kg, and visceral fat only if recorded. Missing values are null; includes the measurement date and backup update time. Read-only.",
@@ -303,6 +371,7 @@ export function dailyNutrition(payload, date, sourceUpdatedAt = null) {
       carbs_g: round(item.carb),
       fat_g: round(item.fat),
       fiber_g: round(item.fiber),
+      nutrition_source: item.nutritionSource || 'unknown', source_note:text(item.sourceNote,1000), weight_basis:item.weightBasis || 'unspecified',
     }));
 
   const totals = items.reduce(
@@ -450,7 +519,7 @@ export async function foodEntryRevision(entry) {
   // The app supplies fallback timestamps to old rows. Exclude timestamps so the
   // same legacy entry has the same revision on the server and every device.
   const value = JSON.stringify([entry.id, entry.date, entry.name, entry.meal, entry.amountLabel,
-    entry.cal, entry.prot, entry.carb, entry.fat, entry.fiber ?? 0]);
+    entry.cal, entry.prot, entry.carb, entry.fat, entry.fiber ?? 0, entry.nutritionSource ?? "", entry.sourceNote ?? "", entry.weightBasis ?? ""]);
   return digest(value);
 }
 async function digest(value) {
@@ -461,6 +530,8 @@ async function dailyNutritionWithRevisions(payload, date, updatedAt) {
   const result = dailyNutrition(payload, date, updatedAt);
   const entries = foodEntries(payload, date);
   for (let i = 0; i < result.items.length; i++) result.items[i].revision = await foodEntryRevision(entries[i]);
+  result.day_status = NutritionExperience.status(payload.log,payload.dayStatus,date);
+  result.day_revision = await digest(NutritionExperience.signature(entries));
   return result;
 }
 function exactObject(value, allowed, message) {
@@ -483,6 +554,8 @@ export function validateFoodArgs(name, args) {
   }
   for (const key of ["name", "amount"]) if (!update || fields[key] !== undefined) strictText(fields[key], key === "name" ? 200 : 100, key);
   if ((!update || fields.meal !== undefined) && !MEALS.includes(fields.meal)) throw new Error("meal must be Breakfast, Lunch, Dinner or Snack.");
+  for (const [key, choices] of Object.entries({nutrition_source:["label","database","estimated","user"],weight_basis:["raw","cooked","as_sold","unspecified"]})) if (fields[key] !== undefined && !choices.includes(fields[key])) throw new Error("Invalid food provenance.");
+  if (fields.source_note !== undefined && (typeof fields.source_note !== "string" || fields.source_note.length > 1000 || /[\u0000-\u001f]/.test(fields.source_note))) throw new Error("Invalid source note.");
   for (const key of Object.keys(NUTRITION_FIELDS)) {
     const value = fields[key], max = key === "calories" ? 20000 : 5000;
     if ((!update || value !== undefined) && (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > max)) throw new Error(`${key} must be a number from 0 to ${max}, for the logged portion.`);
@@ -549,7 +622,7 @@ function accessToken(access, config) {
   if (!access || access.format !== "nutrilog-connector-access" || access.version !== 1 || access.gist_id !== config.gistId || typeof access.token !== "string" || !/^(ghp_|github_pat_)[A-Za-z0-9_]+$/.test(access.token) || access.token.length > 255) throw new Error("ChatGPT food editing connection is invalid. Enable it again in Nutrilog Settings.");
   return access.token;
 }
-async function saveFoodEdit(config, snapshot, name, args, fetchImpl) {
+async function saveFoodEdit(config, snapshot, name, args, fetchImpl, registryRequestHash=null) {
   const token = await writeAccess(config, snapshot, fetchImpl);
   const requestHash = await digest(JSON.stringify([name, args.date, args.entry_id ?? null, args.expected_revision ?? null,
     Object.keys(name === "add_food_log" ? FOOD_FIELDS : args.changes).sort().map(key => [key, name === "add_food_log" ? args[key] : args.changes[key]])]));
@@ -561,7 +634,7 @@ async function saveFoodEdit(config, snapshot, name, args, fetchImpl) {
     return foodEditResult(snapshot.payload, args.date, edit.entry, true, snapshot.updatedAt);
   }
   if (Object.keys(snapshot.gist.files).filter(k => k.startsWith(EDIT_PREFIX)).length >= MAX_EDIT_FILES) throw new Error("The connector food-change history is full. No data was modified.");
-  let entry;
+  let entry, beforeEntry=null;
   const now = new Date().toISOString();
   if (name === "add_food_log") {
     if (foodEntries(snapshot.payload, args.date).length >= MAX_ITEMS_PER_DAY) throw new Error("This day already contains the maximum number of entries.");
@@ -570,10 +643,12 @@ async function saveFoodEdit(config, snapshot, name, args, fetchImpl) {
     const current = foodEntries(snapshot.payload, args.date).find(item => String(item.id) === args.entry_id);
     if (!current) throw new Error("The food entry was removed or moved. Read the diary again before editing.");
     if (await foodEntryRevision(current) !== args.expected_revision) throw new Error("The food entry changed since it was read. Read the diary again before editing.");
+    beforeEntry={...current};
     entry = { ...current, updatedAt: new Date(Math.max(Date.now(), (Date.parse(current.updatedAt) || 0) + 1)).toISOString() };
   }
   const fields = name === "add_food_log" ? args : args.changes;
   for (const key of ["name", "meal", "amount"]) if (fields[key] !== undefined) entry[key === "amount" ? "amountLabel" : key] = fields[key].trim();
+  for (const [key, field] of Object.entries({nutrition_source:"nutritionSource",source_note:"sourceNote",weight_basis:"weightBasis"})) if (fields[key] !== undefined) entry[field]=fields[key];
   for (const [key, field] of Object.entries(NUTRITION_FIELDS)) {
     if (fields[key] !== undefined) entry[field] = fields[key];
     if (fields.portion_multiplier !== undefined) {
@@ -583,29 +658,233 @@ async function saveFoodEdit(config, snapshot, name, args, fetchImpl) {
     }
   }
   const edit = { format: "nutrilog-food-edit", version: 1, action: name, operation_id: args.operation_id,
-    request_hash: requestHash, created_at: entry.updatedAt, entry };
-  const envelope = await encryptNutrilogPayload(edit, config.encryptionKey);
-  const content = JSON.stringify(envelope);
-  const response = await fetchImpl(`https://api.github.com/gists/${encodeURIComponent(config.gistId)}`, {
-    method: "PATCH", redirect: "manual", signal: AbortSignal.timeout(20000),
-    headers: { accept: "application/vnd.github+json", "content-type": "application/json", authorization: "Bearer " + token,
-      "user-agent": "nutrilog-private-chatgpt-connector", "x-github-api-version": "2022-11-28" },
-    body: JSON.stringify({ files: { [filename]: { content } } }),
-  });
-  if (!response.ok) throw new Error(response.status === 401 || response.status === 403
-    ? "GitHub refused the save. Check that your token has gist permission, then enable ChatGPT editing again in Nutrilog Settings."
-    : `GitHub returned ${response.status}. Retry with the same operation_id and identical arguments to avoid duplicates.`);
-  // Do not trust a success status alone: verify the immutable encrypted operation.
-  const verified = await readNutrilogGist(config, fetchImpl);
-  const saved = verified.gist?.files?.[filename];
-  if (!saved || (await decodedGistFile(saved, config, fetchImpl)).request_hash !== requestHash) throw new Error("Save could not be verified. Retry with the same operation_id and identical arguments.");
-  return foodEditResult(verified.payload, args.date, entry, false, verified.updatedAt);
+    request_hash: requestHash, created_at: entry.updatedAt, entry, before_entry:beforeEntry, registry_request_hash:registryRequestHash };
+  const verified = await writeVerifiedChange(config,snapshot,filename,edit,token,fetchImpl);
+  return foodEditResult(verified.payload,args.date,entry,false,verified.updatedAt);
+
 }
 async function foodEditResult(payload, date, entry, replayed, updatedAt) {
   const data = await dailyNutritionWithRevisions(payload, date, updatedAt);
   const item = data.items.find(item => item.entry_id === String(entry.id));
-  return { content: [{ type: "text", text: `${replayed ? "Already saved" : "Saved"}: ${entry.name} (${entry.amountLabel}) on ${date}. Open or Pull Nutrilog to sync it to your device.` }],
+  return { content: [{ type: "text", text: `${replayed ? "Already saved" : "Saved"}: ${entry.name} (${entry.amountLabel}) on ${date}. Reopen Nutrilog to sync it automatically.` }],
     structuredContent: { saved: true, replayed, date, entry: item ?? null, totals: data.totals, sync: "encrypted_cloud_change", device_sync_required: true } };
+}
+
+
+const CHANGE_PREFIX = "nutrilog-experience-";
+function canonicalJSON(value){
+  function sorted(v){if(Array.isArray(v))return v.map(sorted);if(v&&typeof v==="object")return Object.fromEntries(Object.keys(v).sort().map(k=>[k,sorted(v[k])]));return v;}
+  return JSON.stringify(sorted(value));
+}
+async function writeVerifiedChange(config,snapshot,filename,edit,token,fetchImpl) {
+  const content=JSON.stringify(await encryptNutrilogPayload(edit,config.encryptionKey));
+  const response=await fetchImpl("https://api.github.com/gists/"+encodeURIComponent(config.gistId),{
+    method:"PATCH",redirect:"manual",signal:AbortSignal.timeout(20000),
+    headers:{accept:"application/vnd.github+json","content-type":"application/json",authorization:"Bearer "+token,
+      "user-agent":"nutrilog-private-chatgpt-connector","x-github-api-version":"2022-11-28"},
+    body:JSON.stringify({files:{[filename]:{content}}})
+  });
+  if(!response.ok) throw new Error("GitHub refused the save ("+response.status+"). Retry the identical operation_id and arguments to avoid duplicates.");
+  // PATCH returns the committed Gist. Verify that immutable operation directly,
+  // avoiding eventually consistent cached public GETs after a successful write.
+  let gist;
+  try { gist=await response.json(); } catch {}
+  if(gist?.files?.[filename] && (await decodedGistFile(gist.files[filename],config,fetchImpl)).request_hash===edit.request_hash) {
+    const payload=gist.files["nutrilog.json"] ? await decodedGistFile(gist.files["nutrilog.json"],config,fetchImpl) : structuredClone(snapshot.payload);
+    if(gist.files["nutrilog.json"]) {
+      await applyGistFoodEdits(payload,gist,config.encryptionKey,fetchImpl);
+      await applyExperienceChanges(payload,gist,config,fetchImpl);
+    } else {
+      if(edit.format==="nutrilog-food-edit") applyFoodEdits(payload,[edit]);
+      else applyExperienceEdit(payload,edit);
+    }
+    return {payload,gist,updatedAt:gist.updated_at || edit.created_at};
+  }
+  // Older/partial API responses: confirm using an authenticated, uncached read.
+  const raw=await fetchTextWithLimit("https://api.github.com/gists/"+encodeURIComponent(config.gistId),
+    {accept:"application/vnd.github+json",authorization:"Bearer "+token,"cache-control":"no-cache","user-agent":"nutrilog-private-chatgpt-connector"},fetchImpl);
+  gist=JSON.parse(raw);
+  if(!gist.files?.[filename] || (await decodedGistFile(gist.files[filename],config,fetchImpl)).request_hash!==edit.request_hash) throw new Error("Save could not be verified. Retry the identical operation_id and arguments.");
+  const payload=await decodedGistFile(gist.files["nutrilog.json"],config,fetchImpl);
+  await applyGistFoodEdits(payload,gist,config.encryptionKey,fetchImpl);
+  await applyExperienceChanges(payload,gist,config,fetchImpl);
+  return {payload,gist,updatedAt:gist.updated_at || edit.created_at};
+}
+export function applyExperienceEdit(payload,edit) {
+  if(edit.format!=="nutrilog-experience" || edit.version!==1 || !/^[A-Za-z0-9_-]{8,64}$/.test(edit.operation_id || "") || !Number.isFinite(Date.parse(edit.created_at))) throw new Error("Invalid encrypted Nutrilog change.");
+  if(edit.action==="registry_save") {
+    if((payload.customFoods||[]).length>5000)throw new Error("Too many custom registry foods.");
+    if(!edit.food?.id || !edit.food.name || !Number.isFinite(Date.parse(edit.food.updatedAt))) throw new Error("Invalid registry change.");
+    payload.customFoods=NutritionExperience.mergeFoods(payload.customFoods,[edit.food],payload.customFoodTombstones);
+  } else if(edit.action==="day_status") {
+    if(!validDate(edit.date) || typeof edit.status?.complete!=="boolean" || typeof edit.status.signature!=="string") throw new Error("Invalid completion change.");
+    payload.dayStatus=NutritionExperience.mergeDays(payload.dayStatus,{[edit.date]:edit.status});
+  } else if(edit.action==="entry_delete") {
+    if(!validDate(edit.date) || typeof edit.entry_id!=="string") throw new Error("Invalid deletion change.");
+    payload.tombstones ||= {};
+    const tombs=payload.tombstones[edit.date] ||= [];
+    if(!tombs.some(t=>t.id===edit.entry_id)) tombs.push({id:edit.entry_id,ts:Date.parse(edit.created_at)});
+    payload.log ||= {};
+    payload.log[edit.date]=(payload.log[edit.date] || []).filter(e=>String(e.id)!==edit.entry_id);
+  } else if(edit.action==="entry_restore") {
+    applyFoodEdits(payload,[{...edit,entry:edit.entry}]);
+  } else throw new Error("Unsupported encrypted Nutrilog change.");
+  return payload;
+}
+async function applyExperienceChanges(payload,gist,config,fetchImpl) {
+  if(gist.truncated) throw new Error("Incomplete Gist file list.");
+  const names=Object.keys(gist.files || {}).filter(n=>n.startsWith(CHANGE_PREFIX)&&n.endsWith(".json"));
+  if(names.length>MAX_EDIT_FILES) throw new Error("Nutrilog change history is full.");
+  const edits=[];
+  for(let i=0;i<names.length;i+=10) edits.push(...await Promise.all(names.slice(i,i+10).map(n=>decodedGistFile(gist.files[n],config,fetchImpl))));
+  for(const edit of edits.sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at))||String(a.operation_id).localeCompare(String(b.operation_id)))) applyExperienceEdit(payload,edit);
+}
+function csvRows(csv) {
+  const delim=csv.split(/\r?\n/)[0].includes(";")?";":",";
+  const rows=[];let row=[],cell="",quoted=false;
+  for(let i=0;i<csv.length;i++) {
+    const c=csv[i];
+    if(c==='"') {if(quoted&&csv[i+1]==='"'){cell+='"';i++;} else quoted=!quoted;}
+    else if(c===delim&&!quoted){row.push(cell.trim());cell="";}
+    else if((c==="\n"||c==="\r")&&!quoted){if(c==="\r"&&csv[i+1]==="\n")i++;row.push(cell.trim());if(row.some(Boolean))rows.push(row);row=[];cell="";}
+    else cell+=c;
+  }
+  if(quoted) throw new Error("Food registry CSV has an unclosed quote.");
+  row.push(cell.trim());if(row.some(Boolean))rows.push(row);
+  return rows;
+}
+export function registryCSV(csv) {
+  const rows=csvRows(csv);
+  const header=(rows.shift()||[]).map(h=>h.toLowerCase().replace(/^\ufeff/,"").trim());
+  const col=(...names)=>header.findIndex(h=>names.includes(h));
+  const indices={name:col("food list","food","name"),amount:col("amount"),unit:col("unit"),
+    cal:col("calories","cal"),fat:col("fats","fat"),carb:col("carbs","carb"),prot:col("prots","prot","protein"),fiber:col("fiber","fibre"),
+    source:col("source"),sourceId:col("source id","sourceid"),weightBasis:col("weight basis"),nutritionSource:col("nutrition source")};
+  if(indices.name<0 || indices.cal<0) throw new Error("Food registry CSV is missing required headings.");
+  return rows.flatMap(row=>{
+    const name=row[indices.name],amount=Number(row[indices.amount] || 100),unit=(row[indices.unit] || "g").toLowerCase();
+    if(!name || !Number.isFinite(amount) || amount<=0 || !["g","ml","pc","piece","serving","slice","scoop","tsp","tbsp"].includes(unit))return [];
+    const factor=(unit==="g"||unit==="ml"?100:1)/amount;
+    const f={name,unit:unit==="pc"?"piece":unit,source:row[indices.source] || "",sourceId:row[indices.sourceId] || "",
+      weightBasis:row[indices.weightBasis] || undefined,nutritionSource:row[indices.nutritionSource] || "database"};
+    for(const k of ["cal","prot","carb","fat","fiber"]) {
+      const v=Number(row[indices[k]] || 0);
+      if(!Number.isFinite(v) || v<0)return [];
+      f[k]=v*factor;
+    }
+    return [NutritionExperience.normalizeFood(f,"db")];
+  });
+}
+async function liveRegistry(snapshot,config,fetchImpl) {
+  const csvFile=snapshot.gist.files?.["foods.csv"];
+  const db=csvFile ? registryCSV(await decryptGistTextForRegistry(csvFile,config,fetchImpl)) : [];
+  const custom=NutritionExperience.mergeFoods(snapshot.payload.customFoods,[],snapshot.payload.customFoodTombstones);
+  const all=new Map(custom.map(f=>[f.id,f]));
+  for(const f of db)if(!all.has(f.id)&&!snapshot.payload.customFoodTombstones?.[f.id])all.set(f.id,f);
+  return [...all.values()];
+}
+async function decryptGistTextForRegistry(file,config,fetchImpl) {
+  const envelope=JSON.parse(await gistFileText(file,config,fetchImpl));
+  if(envelope?.format!==ENCRYPTED_FORMAT || envelope.version!==1 || envelope.algorithm!=="A256GCM")throw new Error("Food registry is not encrypted.");
+  try {
+    const key=await importEncryptionKey(config.encryptionKey,"decrypt");
+    const plaintext=await crypto.subtle.decrypt({name:"AES-GCM",iv:base64UrlToBytes(envelope.iv)},key,base64UrlToBytes(envelope.ciphertext));
+    return new TextDecoder().decode(plaintext);
+  } catch {throw new Error("Unable to decrypt the live food registry.");}
+}
+export async function registryRevision(food) {
+  return digest(JSON.stringify([food.id,food.name,food.unit,food.cal,food.prot,food.carb,food.fat,food.fiber,food.weightBasis,food.nutritionSource,food.sourceNote]));
+}
+async function registryResult(food) {
+  return {food_id:food.id,revision:await registryRevision(food),name:food.name,
+    reference_amount:["g","ml"].includes(food.unit)?100:1,unit:food.unit || "g",
+    calories:round(food.cal),protein_g:round(food.prot),carbs_g:round(food.carb),fat_g:round(food.fat),fiber_g:round(food.fiber),
+    weight_basis:food.weightBasis,nutrition_source:food.nutritionSource,source_note:text(food.sourceNote,1000)};
+}
+function validateExtraArgs(name,args) {
+  const schema=EXTRA_TOOLS.find(t=>t.name===name).inputSchema;
+  exactObject(args,Object.keys(schema.properties),"Unexpected arguments.");
+  for(const k of schema.required || []) if(args[k]===undefined) throw new Error("Missing "+k+".");
+  if(args.date!==undefined&&!validDate(args.date))throw new Error("Invalid date.");
+  if(args.review_date!==undefined&&!validDate(args.review_date))throw new Error("Invalid review date.");
+  for(const k of ["operation_id","original_operation_id"]) if(args[k]!==undefined&&(typeof args[k]!=="string"||!/^[A-Za-z0-9_-]{8,64}$/.test(args[k])))throw new Error("Invalid operation ID.");
+  for(const k of ["expected_revision","expected_day_revision","expected_food_revision"]) if(args[k]!==undefined&&!/^[a-f0-9]{64}$/.test(args[k]))throw new Error("Read the current revision first.");
+  if(name==="search_food_registry") {if(typeof args.query!=="string" || args.query.length>200 || args.limit!==undefined&&(!Number.isInteger(args.limit)||args.limit<1||args.limit>30))throw new Error("Invalid search.");}
+  if(name==="log_registered_food") {strictText(args.food_id,3000,"food_id");if(!MEALS.includes(args.meal)||typeof args.quantity!=="number"||!Number.isFinite(args.quantity)||args.quantity<=0||args.quantity>10000)throw new Error("Invalid registry portion.");}
+  if(name==="set_day_complete"&&typeof args.complete!=="boolean")throw new Error("complete must be boolean.");
+  if(name==="save_food_to_registry") {
+    strictText(args.name,200,"name");
+    if(typeof args.reference_amount!=="number"||!Number.isFinite(args.reference_amount)||args.reference_amount<0.001||args.reference_amount>10000)throw new Error("Invalid reference amount.");
+    if(!schema.properties.unit.enum.includes(args.unit)||!schema.properties.weight_basis.enum.includes(args.weight_basis)||!schema.properties.nutrition_source.enum.includes(args.nutrition_source))throw new Error("Invalid unit or source.");
+    if(typeof args.source_note!=="string"||args.source_note.length>1000||/[\u0000-\u001f]/.test(args.source_note))throw new Error("Invalid source note.");
+    for(const k of Object.keys(NUTRITION_FIELDS)) if(typeof args[k]!=="number"||!Number.isFinite(args[k])||args[k]<0||args[k]>(k==="calories"?20000:5000))throw new Error("Invalid nutrition value.");
+  }
+}
+async function extraOperation(config,snapshot,name,args,fetchImpl) {
+  if(name==="search_food_registry") {
+    const all=await liveRegistry(snapshot,config,fetchImpl);
+    const matches=all.filter(f=>f.name.toLowerCase().includes(args.query.trim().toLowerCase()));
+    return {content:[{type:"text",text:matches.length+" matching live registry foods."}],structuredContent:{total_count:matches.length,foods:await Promise.all(matches.slice(0,args.limit || 15).map(registryResult)),source_updated_at:snapshot.updatedAt}};
+  }
+  if(name==="get_weekly_review") {
+    const review=NutritionExperience.review(snapshot.payload.log,snapshot.payload.dayStatus,args.review_date,d=>({cal:targetForDate(snapshot.payload,d)?.calories}));
+    const progress=weightProgress(snapshot.payload,{from:review.from,to:args.review_date},snapshot.updatedAt);
+    return {content:[{type:"text",text:review.complete_days+" of 7 days complete. Averages exclude partial and unlogged days."}],structuredContent:{...review,measurements:progress,measurement_note:"Weight and waist are dated observations; BIA shifts are not proof of tissue gain or loss.",source_updated_at:snapshot.updatedAt}};
+  }
+  if(name==="log_registered_food") {
+    // Replay the same derived operation even if the registry subsequently changes.
+    const existing=snapshot.gist.files[EDIT_PREFIX+args.operation_id+".json"];
+    if(existing) {
+      const old=await decodedGistFile(existing,config,fetchImpl);
+      if(old.registry_request_hash!==await digest(canonicalJSON(args)))throw new Error("This operation ID belongs to a different request.");
+      return foodEditResult(snapshot.payload,args.date,old.entry,true,snapshot.updatedAt);
+    }
+    const food=(await liveRegistry(snapshot,config,fetchImpl)).find(f=>f.id===args.food_id);
+    if(!food||await registryRevision(food)!==args.expected_food_revision)throw new Error("The registry food changed. Search again before logging.");
+    const ratio=args.quantity/(["g","ml"].includes(food.unit)?100:1);
+    const values={date:args.date,operation_id:args.operation_id,name:food.name,meal:args.meal,amount:args.quantity+" "+food.unit,
+      nutrition_source:food.nutritionSource,source_note:food.sourceNote,weight_basis:food.weightBasis};
+    for(const [key,field] of Object.entries(NUTRITION_FIELDS)) values[key]=round(food[field]*ratio);
+    validateFoodArgs("add_food_log",values);
+    return saveFoodEdit(config,snapshot,"add_food_log",values,fetchImpl,await digest(canonicalJSON(args)));
+  }
+  const filename=CHANGE_PREFIX+args.operation_id+".json",requestHash=await digest(canonicalJSON([name,args]));
+  const token=await writeAccess(config,snapshot,fetchImpl);
+  if(snapshot.gist.files[filename]) {
+    const old=await decodedGistFile(snapshot.gist.files[filename],config,fetchImpl);
+    if(old.request_hash!==requestHash)throw new Error("Operation ID already used for different changes.");
+    return {content:[{type:"text",text:"Already saved; reopen Nutrilog to sync."}],structuredContent:{saved:true,replayed:true,operation_id:args.operation_id}};
+  }
+  if(Object.keys(snapshot.gist.files).filter(n=>n.startsWith(CHANGE_PREFIX)).length>=MAX_EDIT_FILES)throw new Error("Nutrilog change history is full.");
+  const now=new Date().toISOString();
+  const edit={format:"nutrilog-experience",version:1,operation_id:args.operation_id,request_hash:requestHash,created_at:now};
+  if(name==="save_food_to_registry") {
+    edit.action="registry_save";
+    const factor=(["g","ml"].includes(args.unit)?100:1)/args.reference_amount;
+    edit.food={id:"custom-"+args.operation_id,name:args.name.trim(),unit:args.unit,updatedAt:now,weightBasis:args.weight_basis,nutritionSource:args.nutrition_source,sourceNote:args.source_note};
+    for(const [key,field] of Object.entries(NUTRITION_FIELDS)) {
+      edit.food[field]=args[key]*factor;
+      if(!Number.isFinite(edit.food[field])||edit.food[field]>(field==="cal"?20000:5000))throw new Error("Reference nutrition normalizes outside the supported range. Check the amount and unit.");
+    }
+  } else if(name==="set_day_complete") {
+    const signature=NutritionExperience.signature(foodEntries(snapshot.payload,args.date));
+    if(await digest(signature)!==args.expected_day_revision)throw new Error("This day changed. Read it again before marking complete.");
+    edit.action="day_status";edit.date=args.date;edit.status={complete:args.complete,signature,updatedAt:now};
+  } else if(name==="undo_food_change") {
+    const originalFile=snapshot.gist.files[EDIT_PREFIX+args.original_operation_id+".json"];
+    if(!originalFile)throw new Error("The original food change is missing.");
+    const original=await decodedGistFile(originalFile,config,fetchImpl);
+    const current=foodEntries(snapshot.payload,args.date).find(e=>e.id===original.entry?.id);
+    if(!current || await foodEntryRevision(current)!==args.expected_revision || await foodEntryRevision(current)!==await foodEntryRevision(original.entry))throw new Error("This entry changed after that operation. Read the diary and correct its current values.");
+    if(original.action==="add_food_log") {edit.action="entry_delete";edit.date=args.date;edit.entry_id=current.id;}
+    else {
+      if(!original.before_entry)throw new Error("This older correction has no undo snapshot. Supply the desired values explicitly.");
+      edit.action="entry_restore";edit.entry={...original.before_entry,updatedAt:new Date(Math.max(Date.now(),(Date.parse(current.updatedAt)||0)+1)).toISOString()};
+    }
+  }
+  const verified=await writeVerifiedChange(config,snapshot,filename,edit,token,fetchImpl);
+  return {content:[{type:"text",text:"Saved. Reopen Nutrilog to sync automatically."}],structuredContent:{saved:true,replayed:false,operation_id:args.operation_id,
+    ...(edit.food?{food:await registryResult(edit.food)}:{}),...(args.date?{day:await dailyNutritionWithRevisions(verified.payload,args.date,verified.updatedAt)}:{})}};
 }
 
 function configuration(env) {
@@ -697,6 +976,7 @@ export async function readNutrilogGist(config, fetchImpl = fetch) {
   }
   const payload = await decryptNutrilogPayload(envelope, config.encryptionKey);
   await applyGistFoodEdits(payload, gist, config.encryptionKey, fetchImpl);
+  await applyExperienceChanges(payload,gist,config,fetchImpl);
   return { payload, updatedAt: text(gist.updated_at, 40) || null, gist };
 }
 
@@ -759,6 +1039,7 @@ async function mcp(request, env, fetchImpl) {
     } else if (name === "get_food_editing_status") {
       if (!args || typeof args !== "object" || Array.isArray(args) || Object.keys(args).length) throw new Error("Unexpected editing status arguments.");
     } else if (name === "add_food_log" || name === "update_food_log") validateFoodArgs(name, args);
+    else if(EXTRA_TOOLS.some(t=>t.name===name)) validateExtraArgs(name,args);
     else validateMeasurementArgs(name, args);
   } catch (error) {
     return rpcResult(body.id, toolFailure(error.message));
@@ -773,6 +1054,7 @@ async function mcp(request, env, fetchImpl) {
       const enabled = !!snapshot.gist?.files?.[ACCESS_FILE];
       return rpcResult(body.id, { content: [{ type: "text", text: enabled ? "Food editing is enabled." : "Open Nutrilog Settings and tap Enable ChatGPT food editing first." }], structuredContent: { enabled } });
     }
+    if(EXTRA_TOOLS.some(t=>t.name===name)) return rpcResult(body.id,await extraOperation(config,snapshot,name,args,fetchImpl));
     if (name === "add_food_log" || name === "update_food_log") return rpcResult(body.id, await saveFoodEdit(config, snapshot, name, args, fetchImpl));
     if (name === TOOL.name) return rpcResult(body.id, toolSuccess(await dailyNutritionWithRevisions(payload, args.date, updatedAt)));
     const operation = { get_latest_measurements: latestMeasurements, get_measurement_history: measurementHistory, get_weight_progress: weightProgress }[name];

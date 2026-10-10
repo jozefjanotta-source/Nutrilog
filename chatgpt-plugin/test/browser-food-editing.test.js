@@ -15,6 +15,10 @@ function context(){
     ENCRYPTED_GIST_FORMAT:'nutrilog-encrypted',ENCRYPTED_GIST_VERSION:1,document:{getElementById:id=>elements[id]},
     state:{log:{},tombstones:{},gistToken:'ghp_fixtureTokenOnly',gistId:'abc123',gistEncryptionKey:key},persist(){},lsSet(){},lsGet:()=> '[]',showSyncStatus(){},recordSyncSuccess(){},mergeBodyMeasurements(){},mergeRecoveryData(){},
   });
+  vm.runInContext(range('const NutritionExperience =','const SK='),ctx);
+  vm.runInContext(range('let experienceSyncQueue=','function foodSourceLabel'),ctx);
+  vm.runInContext(range('let autoSyncTimer=null;','function mergeLogData(local'),ctx);
+  ctx.navigator={onLine:true};ctx.refreshExperienceView=()=>{};ctx.mergeTargetHistory=()=>{};ctx.updateCurrentTargetsFromHistory=()=>{};ctx.saveTargetHistory=()=>{};
   vm.runInContext(range('function bytesToBase64Url(bytes)','function todayISO()'),ctx);
   vm.runInContext(range('function createLogEntryId()','state.log=normalizeLogData(state.log)'),ctx);
   vm.runInContext(range('function mergeLogData(local','function showSyncStatus(status)'),ctx);
@@ -59,4 +63,50 @@ test('auto push stops rather than overwriting data when remote read or edit decr
     ctx.fetch=async(url,options)=>{if(options.method==='PATCH')patched=true;return new Response(JSON.stringify(cloud),{status:bad==='http'?403:200});};
     await ctx.silentPush();assert.equal(patched,false);
   }
+});
+
+test('queued automatic saves never overlap and preserve edits made while a save is in flight',async()=>{
+  const {ctx}=context();let cloud=await gist();let active=0,maxActive=0,release,started;
+  const firstStarted=new Promise(r=>started=r),gate=new Promise(r=>release=r);let writes=0;
+  ctx.fetch=async(url,options)=>{
+    if(options.method==='PATCH'){
+      active++;maxActive=Math.max(maxActive,active);writes++;
+      const body=JSON.parse(options.body);
+      if(writes===1){started();await gate;}
+      cloud.files['nutrilog.json']=body.files['nutrilog.json'];active--;
+      return new Response(JSON.stringify(cloud),{status:200});
+    }
+    return new Response(JSON.stringify(cloud),{status:200});
+  };
+  const first=ctx.silentPush();await firstStarted;
+  ctx.state.log['2026-10-10'].push({...base,id:'row-2',name:'New food',cal:100,updatedAt:'2026-10-10T12:00:00Z'});
+  vm.runInContext('experienceDirty++;experiencePending=true;',ctx);
+  const second=ctx.silentPush();release();await Promise.all([first,second]);
+  assert.equal(maxActive,1);assert.equal(writes,2);
+  const final=await decryptNutrilogPayload(JSON.parse(cloud.files['nutrilog.json'].content),key);
+  assert.equal(final.log['2026-10-10'].length,2);
+  assert.equal(final.log['2026-10-10'].find(e=>e.id==='row-2').cal,100);
+});
+test('foreground checks skip offline and hidden devices, and merge pending local foods safely',async()=>{
+  const {ctx}=context();ctx.document.visibilityState='visible';
+  ctx.state.targets={cal:2100};ctx.state.customFoods=[{id:'custom-local',name:'Local food',cal:100,updatedAt:'2026-10-10T12:00:00Z'}];
+  vm.runInContext(range('async function pullOnReturn(force=false)','function initExperience()'),ctx);
+  ctx.applyRemotePayload=p=>{ctx.state.log=ctx.mergeLogData(ctx.state.log,p.log,p.tombstones);ctx.mergeRemoteExperience(p);};
+  let calls=0;const cloud=await gist();
+  ctx.fetch=async()=>{calls++;return new Response(JSON.stringify(cloud),{status:200});};
+  ctx.navigator.onLine=false;await ctx.pullOnReturn(true);assert.equal(calls,0);
+  ctx.navigator.onLine=true;ctx.document.visibilityState='hidden';await ctx.pullOnReturn(true);assert.equal(calls,0);
+  ctx.document.visibilityState='visible';await ctx.pullOnReturn(true);assert.equal(calls,1);
+  assert.equal(ctx.state.log['2026-10-10'][0].cal,190);
+  assert.equal(ctx.state.customFoods[0].id,'custom-local');
+  // Pending union gets its own queued push, tested above; cancel its timer here.
+  vm.runInContext('clearTimeout(autoSyncTimer)',ctx);
+});
+test('custom foods persist under the correct key and day completion persists with the diary',()=>{
+  const values=new Map();const ctx=vm.createContext({state:{customFoods:[{name:'Saved food'}],dayStatus:{'2026-10-09':{complete:true}}},
+    SK:{custom:'nl_custom',dayStatus:'nl_day_status'},lsSet:(k,v)=>values.set(k,v)});
+  vm.runInContext(range('function persist(k)','function createLogEntryId()'),ctx);
+  ctx.persist('custom');ctx.persist('dayStatus');
+  assert.equal(values.get('nl_custom')[0].name,'Saved food');
+  assert.equal(values.get('nl_day_status')['2026-10-09'].complete,true);
 });
