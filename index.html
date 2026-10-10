@@ -658,6 +658,7 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     <div class="form-field" style="margin-bottom:12px">
       <label>GitHub Token</label>
       <input type="password" id="gist-token-input" placeholder="ghp_..." style="padding:10px 12px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs-sm);outline:none;width:100%;margin-top:6px">
+      <button type="button" class="btn-sm" style="margin-top:6px" onclick="copyEncryptedConnectionValue('gist-token-input','GitHub token')">Copy GitHub token</button>
     </div>
     <details style="margin-bottom:12px">
       <summary style="font-size:var(--fs-sm);color:var(--text2);cursor:pointer">Connect this device to an existing encrypted backup</summary>
