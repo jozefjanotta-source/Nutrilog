@@ -25,6 +25,33 @@ const TOOL = {
   },
 };
 
+const RANGE_PROPERTIES = {
+  from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "Inclusive start date, YYYY-MM-DD." },
+  to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "Inclusive end date, YYYY-MM-DD. Use the user's local date for today." },
+};
+const TOOLS = [
+  TOOL,
+  {
+    name: "get_latest_measurements",
+    description: "Read the latest synced body measurement on or before an optional date. Returns weight in kg, waist in cm, body fat and water percentages, fat and muscle mass in kg, and visceral fat only if recorded. Missing values are null; includes the measurement date and backup update time. Read-only.",
+    inputSchema: { type: "object", additionalProperties: false, properties: { to: RANGE_PROPERTIES.to } },
+  },
+  {
+    name: "get_measurement_history",
+    description: "Read dated body measurements and legacy weight-only records, oldest first, with optional inclusive date filters. Use offset and limit for pagination. Missing values are null. Read-only; omits comments, recovery, goals and raw backup data.",
+    inputSchema: { type: "object", additionalProperties: false, properties: {
+      ...RANGE_PROPERTIES,
+      limit: { type: "integer", minimum: 1, maximum: 1000, default: 100 },
+      offset: { type: "integer", minimum: 0, default: 0 },
+    } },
+  },
+  {
+    name: "get_weight_progress",
+    description: "Compare first and last recorded values of body metrics within an optional inclusive date range. Returns dated endpoints, change (last minus first), and sample counts per metric; does not infer fat or muscle changes from weight alone. Reads the full filtered history without pagination. Read-only.",
+    inputSchema: { type: "object", additionalProperties: false, properties: RANGE_PROPERTIES },
+  },
+].map((tool) => ({ ...tool, annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false } }));
+
 const page = `<!doctype html>
 <html lang="en">
   <head>
@@ -44,7 +71,7 @@ const page = `<!doctype html>
     <main>
       <h1>Nutrilog read-only connector</h1>
       <p><strong>Nutrilog remains the primary application.</strong></p>
-      <p>This private connector lets ChatGPT read one requested diary day. It cannot add, edit, or delete Nutrilog data.</p>
+      <p>This private connector lets ChatGPT read diary days, body measurements and progress. It cannot add, edit, or delete Nutrilog data.</p>
     </main>
   </body>
 </html>`;
@@ -82,7 +109,7 @@ function round(value) {
 }
 
 function validDate(date) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
   const parsed = new Date(`${date}T12:00:00Z`);
   return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === date;
 }
@@ -261,6 +288,110 @@ export function dailyNutrition(payload, date, sourceUpdatedAt = null) {
   };
 }
 
+const METRICS = {
+  weight_kg: "weight", waist_cm: "waist", body_fat_percent: "bf",
+  fat_mass_kg: "fat", muscle_mass_kg: "muscle", body_water_percent: "water",
+  visceral_fat: "visceralFat",
+};
+
+function optionalNumber(value) {
+  if (value === null || value === undefined || value === "" || typeof value === "boolean") return null;
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  if (typeof value === "string" && !value.trim()) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? round(parsed) : null;
+}
+
+// Match the app's tombstone keys without returning IDs or comments.
+function bodyKey(item) {
+  if (item.id !== null && item.id !== undefined && item.id !== "") return "id:" + String(item.id);
+  return "body:" + [item.date || "", item.weight ?? "", item.waist ?? "", item.bf ?? "",
+    item.muscle ?? "", item.water ?? "", item.comment || ""].join("|");
+}
+
+function validateMeasurementArgs(name, args = {}) {
+  const allowed = name === "get_latest_measurements" ? ["to"]
+    : name === "get_measurement_history" ? ["from", "to", "limit", "offset"] : ["from", "to"];
+  if (!args || typeof args !== "object" || Array.isArray(args) || Object.keys(args).some((key) => !allowed.includes(key))) {
+    throw new Error("Unexpected measurement arguments.");
+  }
+  for (const key of ["from", "to"]) {
+    if (args[key] !== undefined && (typeof args[key] !== "string" || !validDate(args[key]))) {
+      throw new Error(`${key} must be a real date in YYYY-MM-DD form.`);
+    }
+  }
+  if (args.from && args.to && args.from > args.to) throw new Error("from must be on or before to.");
+  if (args.limit !== undefined && (!Number.isInteger(args.limit) || args.limit < 1 || args.limit > 1000)) {
+    throw new Error("limit must be an integer from 1 to 1000.");
+  }
+  if (args.offset !== undefined && (!Number.isSafeInteger(args.offset) || args.offset < 0)) {
+    throw new Error("offset must be a nonnegative safe integer.");
+  }
+  return args;
+}
+
+export function measurementRecords(payload, args = {}) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("The Nutrilog Gist does not contain a JSON object.");
+  const tombs = new Set((Array.isArray(payload.measurementTombstones) ? payload.measurementTombstones : []).map(String));
+  const byKey = new Map();
+  for (const item of Array.isArray(payload.measurements) ? payload.measurements : []) {
+    if (!item || typeof item !== "object" || !validDate(item.date) || tombs.has(bodyKey(item))) continue;
+    const current = byKey.get(bodyKey(item));
+    const stamp = Date.parse(item.updatedAt) || 0;
+    if (!current || stamp >= (Date.parse(current.updatedAt) || 0)) byKey.set(bodyKey(item), item);
+  }
+  const rows = [...byKey.values()].sort((a, b) => a.date.localeCompare(b.date)
+    || (Date.parse(a.updatedAt) || 0) - (Date.parse(b.updatedAt) || 0)
+    || number(a.id) - number(b.id)).map((item) => {
+      const record = { date: item.date, source: "body_measurement" };
+      for (const [field, key] of Object.entries(METRICS)) record[field] = optionalNumber(item[key]);
+      return record;
+    }).filter((record) => Object.keys(METRICS).some((key) => record[key] !== null));
+  const dates = new Set(rows.map((row) => row.date));
+  // The app has a separate older weight diary. Use it only for dates without body records.
+  for (const [date, value] of Object.entries(payload.weight || {})) {
+    const weight = optionalNumber(value);
+    if (!validDate(date) || weight === null || dates.has(date)) continue;
+    rows.push({ date, source: "weight_diary", ...Object.fromEntries(Object.keys(METRICS).map((key) => [key, null])), weight_kg: weight });
+  }
+  return rows.filter((row) => (!args.from || row.date >= args.from) && (!args.to || row.date <= args.to))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export function latestMeasurements(payload, args = {}, sourceUpdatedAt = null) {
+  validateMeasurementArgs("get_latest_measurements", args);
+  const rows = measurementRecords(payload, args);
+  return { found: rows.length > 0, measurement: rows.at(-1) ?? null, source_updated_at: sourceUpdatedAt };
+}
+
+export function measurementHistory(payload, args = {}, sourceUpdatedAt = null) {
+  validateMeasurementArgs("get_measurement_history", args);
+  const rows = measurementRecords(payload, args);
+  const offset = args.offset ?? 0, limit = args.limit ?? 100;
+  const items = rows.slice(offset, offset + limit);
+  const hasMore = offset + items.length < rows.length;
+  return { from: args.from ?? null, to: args.to ?? null, total_count: rows.length,
+    count: items.length, offset, limit, has_more: hasMore, next_offset: hasMore ? offset + items.length : null,
+    measurements: items, source_updated_at: sourceUpdatedAt };
+}
+
+export function weightProgress(payload, args = {}, sourceUpdatedAt = null) {
+  validateMeasurementArgs("get_weight_progress", args);
+  const rows = measurementRecords(payload, args);
+  const metrics = {};
+  for (const field of Object.keys(METRICS)) {
+    const samples = rows.filter((row) => row[field] !== null);
+    const first = samples[0], last = samples.at(-1);
+    metrics[field] = { sample_count: samples.length,
+      first: first ? { date: first.date, value: first[field] } : null,
+      last: last ? { date: last.date, value: last[field] } : null,
+      change: samples.length >= 2 ? round(last[field] - first[field]) : null };
+  }
+  return { from: args.from ?? null, to: args.to ?? null, record_count: rows.length,
+    first_date: rows[0]?.date ?? null, last_date: rows.at(-1)?.date ?? null,
+    metrics, source_updated_at: sourceUpdatedAt };
+}
+
 function configuration(env) {
   const gistId = text(env.NUTRILOG_GIST_ID, 100);
   const encryptionKey = text(env.NUTRILOG_ENCRYPTION_KEY, 100);
@@ -393,22 +524,36 @@ async function mcp(request, env, fetchImpl) {
   }
 
   if (body.method === "tools/list") {
-    return rpcResult(body.id, { tools: [TOOL] });
+    return rpcResult(body.id, { tools: TOOLS });
   }
 
   if (body.method !== "tools/call") return rpcError(body.id, -32601, "Method not found.");
 
-  if (body.params?.name !== TOOL.name) return rpcError(body.id, -32602, "Unknown tool.");
-  const args = body.params?.arguments;
-  if (!args || Object.keys(args).some((key) => key !== "date") || !validDate(args.date)) {
-    return rpcResult(body.id, toolFailure("date must be a real date in YYYY-MM-DD form."));
+  const name = body.params?.name;
+  if (!TOOLS.some((tool) => tool.name === name)) return rpcError(body.id, -32602, "Unknown tool.");
+  const args = body.params?.arguments ?? {};
+  try {
+    if (name === TOOL.name) {
+      if (!args || typeof args !== "object" || Array.isArray(args) || Object.keys(args).some((key) => key !== "date") || typeof args.date !== "string" || !validDate(args.date)) {
+        throw new Error("date must be a real date in YYYY-MM-DD form.");
+      }
+    } else validateMeasurementArgs(name, args);
+  } catch (error) {
+    return rpcResult(body.id, toolFailure(error.message));
   }
 
   try {
     const config = configuration(env);
     authorize(request, config.ownerEmail);
     const { payload, updatedAt } = await readNutrilogGist(config, fetchImpl);
-    return rpcResult(body.id, toolSuccess(dailyNutrition(payload, args.date, updatedAt)));
+    if (name === TOOL.name) return rpcResult(body.id, toolSuccess(dailyNutrition(payload, args.date, updatedAt)));
+    const operation = { get_latest_measurements: latestMeasurements, get_measurement_history: measurementHistory, get_weight_progress: weightProgress }[name];
+    const data = operation(payload, args, updatedAt);
+    const summary = name === "get_latest_measurements"
+      ? data.found ? `Latest synced body measurement: ${data.measurement.date}.` : "No body measurements are synced."
+      : name === "get_measurement_history" ? `${data.count} of ${data.total_count} measurement records.`
+      : `Progress across ${data.record_count} measurement records.`;
+    return rpcResult(body.id, { content: [{ type: "text", text: summary }], structuredContent: data });
   } catch (error) {
     return rpcResult(body.id, toolFailure(error instanceof Error ? error.message : "Unable to read Nutrilog."));
   }

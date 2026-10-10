@@ -1,8 +1,11 @@
 # Nutrilog read-only ChatGPT connector
 
-This folder contains the first small ChatGPT integration for Nutrilog. Nutrilog remains the primary app and continues to own all logging and synchronization. The connector performs one operation only:
+This folder contains the first small ChatGPT integration for Nutrilog. Nutrilog remains the primary app and continues to own all logging and synchronization. The connector exposes four read-only tools:
 
-> Read the meals, totals, and nutrition target for one requested date.
+- `get_daily_nutrition`: meals, totals and targets for one date.
+- `get_latest_measurements`: latest synced body record, optionally on or before `to`.
+- `get_measurement_history`: dated body records with optional `from`/`to` filters and `limit`/`offset` pagination.
+- `get_weight_progress`: dated first/last values and changes for each body metric in the requested range.
 
 It cannot add, edit, delete, or synchronize Nutrilog data.
 
@@ -30,7 +33,7 @@ The exposed `get_daily_nutrition` tool returns only:
 - the applicable nutrition target;
 - the Gist update time, so ChatGPT can warn when data may be stale.
 
-The response deliberately omits row IDs, row update timestamps, weight, measurements, recovery, goals, decision settings, custom foods, tombstones, and the raw Gist payload. Tests enforce this boundary.
+The daily nutrition response still omits weight and measurements. The measurement tools explicitly return only dated weight, waist, body fat, fat mass, muscle mass, body water and recorded visceral fat. Missing values are null; no value is inferred. Nutrilog currently does not have a visceral-fat input, so this is normally null. Legacy weight-only diary dates are included when no body record exists for that date. Deleted measurement records are excluded, and duplicate IDs use the latest revision. All tools omit IDs, comments, recovery, goals, decision settings, custom foods, tombstones and raw backup data. Each metric in the progress response has its own dated endpoints and sample count; fewer than two samples yield a null change. Historical data is from the synced backup, with its update time returned when available. Tests enforce this boundary.
 
 ## Authentication and secrets
 
@@ -71,7 +74,7 @@ npm run build
 npm run validate
 ```
 
-Tests use invented fixture data. They do not contact GitHub or read the real diary.
+Connector tests use invented fixture data. They do not contact GitHub or read the real diary. The separate `test/browser-gist-file.test.js` checks the main app and can be run with `node --test test/*.test.js` in the full Nutrilog repository.
 
 ## Sites deployment
 
