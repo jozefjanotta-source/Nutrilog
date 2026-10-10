@@ -919,13 +919,22 @@ async function decryptGistText(content,encodedKey,allowPlaintext=false){
 function isEncryptedGistContent(content){
   try{const value=JSON.parse(content);return value&&value.format===ENCRYPTED_GIST_FORMAT}catch(e){return false}
 }
+async function fetchGistWithTimeout(url,options={},timeoutMs=20000){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{return await fetch(url,{...options,signal:controller.signal})}
+  catch(e){
+    if(controller.signal.aborted)throw new Error('GitHub took too long. Your changes are still saved on this device; try Push again.');
+    throw e;
+  }finally{clearTimeout(timer)}
+}
 async function readGistFileContent(file){
   if(!file)throw new Error('Cloud backup file is missing.');
   if(!file.truncated&&typeof file.content==='string')return file.content;
   if(!file.raw_url)throw new Error('GitHub did not provide the complete cloud backup file.');
   const rawUrl=new URL(file.raw_url);
   if(rawUrl.protocol!=='https:'||rawUrl.hostname!=='gist.githubusercontent.com')throw new Error('GitHub returned an unexpected cloud backup address.');
-  const response=await fetch(rawUrl.toString(),{method:'GET'});
+  const response=await fetchGistWithTimeout(rawUrl.toString(),{method:'GET'});
   if(!response.ok)throw new Error('GitHub could not return the complete cloud backup file.');
   return response.text();
 }
@@ -3074,6 +3083,7 @@ async function gistSync(direction){
   }
 
   const headers={'Authorization':'token '+tokenInput,'Content-Type':'application/json'};
+  showSyncStatus('syncing');
 
   try{
     if(direction==='push'){
@@ -3081,7 +3091,7 @@ async function gistSync(direction){
       // Merge with remote before pushing
       if(state.gistId){
         try{
-          const fetchResp=await fetch('https://api.github.com/gists/'+state.gistId,{headers});
+          const fetchResp=await fetchGistWithTimeout('https://api.github.com/gists/'+state.gistId,{headers});
           if(fetchResp.ok){
             const remoteData=await fetchResp.json();
             if(remoteData.files&&remoteData.files['nutrilog.json']){
@@ -3100,9 +3110,9 @@ async function gistSync(direction){
       const body={description:'NutriLog encrypted data',public:false,files:await encryptedGistFiles(state.gistEncryptionKey)};
       let resp, data;
       if(state.gistId){
-        resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
+        resp=await fetchGistWithTimeout('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
       } else {
-        resp=await fetch('https://api.github.com/gists',{method:'POST',headers,body:JSON.stringify(body)});
+        resp=await fetchGistWithTimeout('https://api.github.com/gists',{method:'POST',headers,body:JSON.stringify(body)});
       }
       data=await resp.json();
       if(!resp.ok) throw new Error(data.message||'GitHub error');
@@ -3117,7 +3127,7 @@ async function gistSync(direction){
       let gistId=state.gistId;
       if(!gistId){
         // Search for it
-        const resp=await fetch('https://api.github.com/gists',{headers});
+        const resp=await fetchGistWithTimeout('https://api.github.com/gists',{headers});
         const gists=await resp.json();
         if(!resp.ok) throw new Error(gists.message||'GitHub error');
         const found=gists.find(g=>g.description==='NutriLog encrypted data'&&g.files&&g.files['nutrilog.json']);
@@ -3126,7 +3136,7 @@ async function gistSync(direction){
         state.gistId=gistId;
         lsSet(SK.gist_id,gistId);
       }
-      const resp=await fetch('https://api.github.com/gists/'+gistId,{headers});
+      const resp=await fetchGistWithTimeout('https://api.github.com/gists/'+gistId,{headers});
       const data=await resp.json();
       if(!resp.ok) throw new Error(data.message||'GitHub error');
       // Load log data
@@ -3164,6 +3174,7 @@ async function gistSync(direction){
       lsSet(SK.gist_id,gistId);
       document.getElementById('gist-id-display').textContent='Gist ID: '+gistId;
       recordSyncSuccess(direction,syncStart);
+      showSyncStatus('synced');
       loadTargetsForm();
     }
   }catch(e){
@@ -3264,11 +3275,12 @@ function cleanupData(){
 async function silentPush(){
   if(!state.gistToken||!state.gistId||!state.gistEncryptionKey) return;
   const syncStart=Date.now();
+  showSyncStatus('syncing');
   cleanupData();
   const headers={'Authorization':'token '+state.gistToken,'Content-Type':'application/json'};
   try{
     // Save backup first (fetch remote quickly)
-    const fetchResp=await fetch('https://api.github.com/gists/'+state.gistId,{headers});
+    const fetchResp=await fetchGistWithTimeout('https://api.github.com/gists/'+state.gistId,{headers});
     if(fetchResp.ok){
       const remoteData=await fetchResp.json();
       if(remoteData.files&&remoteData.files['nutrilog.json']){
@@ -3285,17 +3297,22 @@ async function silentPush(){
             persist('log');
             lsSet('nl_tombstones',state.tombstones);
           }
+          mergeBodyMeasurements(remote.measurements,remote.measurementTombstones);
+          persist('measurements');persist('measurementTombstones');
           mergeRecoveryData(remote.recovery);
           persist('recovery');
         }catch(e){}
       }
     }
-    // Just overwrite remote with local state — no merge
-    const body={description:'NutriLog encrypted data',public:false,files:await encryptedGistFiles(state.gistEncryptionKey)};
-    const resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
-    if(resp.ok){recordSyncSuccess('auto',syncStart);showSyncStatus('synced');}
+    // Food changes have their own upload path; ordinary auto saves only need the diary.
+    const body={files:{'nutrilog.json':{content:await encryptGistText(JSON.stringify(dataPayload()),state.gistEncryptionKey)}}};
+    const resp=await fetchGistWithTimeout('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
+    if(!resp.ok)throw new Error('GitHub returned '+resp.status+'. Your changes are still saved on this device.');
+    recordSyncSuccess('auto',syncStart);showSyncStatus('synced');
   }catch(e){
     showSyncStatus('error');
+    const el=document.getElementById('sync-status');
+    if(el){el.textContent='Sync failed — open Settings';el.title=e.message;}
   }
 }
 
@@ -3506,20 +3523,22 @@ function initApp(){
         showSyncStatus('syncing');
         const headers={'Authorization':'token '+state.gistToken};
         try{
-          const resp=await fetch('https://api.github.com/gists/'+state.gistId,{headers});
-          if(resp.ok){
+          const resp=await fetchGistWithTimeout('https://api.github.com/gists/'+state.gistId,{headers});
+          if(!resp.ok)throw new Error('GitHub returned '+resp.status);
+          {
             const data=await resp.json();
             const encryptedContent=await readGistFileContent(data.files['nutrilog.json']);
             const raw=await decryptGistText(encryptedContent,state.gistEncryptionKey,!state.gistEncryptionKey);
             const p=JSON.parse(raw);
-            if(p.targets){
+            if(!p.targets)throw new Error('Cloud backup is missing nutrition data.');
+            {
               applyRemotePayload(p);
               recordSyncSuccess('startup',syncStart);
               renderDash();loadTargetsForm();
             }
             showSyncStatus('synced');
           }
-        }catch(e){showSyncStatus('error');}
+        }catch(e){showSyncStatus('error');const el=document.getElementById('sync-status');if(el)el.title=e.message;}
       },1000);
     }
   }catch(e){
