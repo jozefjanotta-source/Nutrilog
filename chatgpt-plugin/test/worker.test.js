@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { dailyNutrition, handleRequest, readNutrilogGist } from "../worker/index.js";
+import {
+  dailyNutrition,
+  decryptNutrilogPayload,
+  encryptNutrilogPayload,
+  handleRequest,
+  readNutrilogGist,
+} from "../worker/index.js";
 
 const fixture = {
   v: 3,
@@ -52,8 +58,8 @@ const fixture = {
 };
 
 const env = {
-  GITHUB_GIST_TOKEN: "test-token",
   NUTRILOG_GIST_ID: "abc123",
+  NUTRILOG_ENCRYPTION_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
   NUTRILOG_OWNER_EMAIL: "owner@example.com",
 };
 
@@ -68,17 +74,27 @@ function mcpRequest(method, params, email = "owner@example.com") {
   });
 }
 
-function gistFetch() {
-  return Promise.resolve(
-    new Response(
-      JSON.stringify({
-        updated_at: "2026-10-10T08:30:00Z",
-        files: { "nutrilog.json": { content: JSON.stringify(fixture), truncated: false } },
-      }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    ),
+async function gistFetch() {
+  const encrypted = await encryptNutrilogPayload(fixture, env.NUTRILOG_ENCRYPTION_KEY);
+  return new Response(
+    JSON.stringify({
+      updated_at: "2026-10-10T08:30:00Z",
+      files: { "nutrilog.json": { content: JSON.stringify(encrypted), truncated: false } },
+    }),
+    { status: 200, headers: { "content-type": "application/json" } },
   );
 }
+
+test("AES-GCM envelope round-trips and rejects the wrong key", async () => {
+  const encrypted = await encryptNutrilogPayload(fixture, env.NUTRILOG_ENCRYPTION_KEY);
+  assert.equal(encrypted.format, "nutrilog-encrypted");
+  assert.equal(JSON.stringify(encrypted).includes("Oats"), false);
+  assert.deepEqual(await decryptNutrilogPayload(encrypted, env.NUTRILOG_ENCRYPTION_KEY), fixture);
+  await assert.rejects(
+    decryptNutrilogPayload(encrypted, "Hh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg4"),
+    /Unable to decrypt/,
+  );
+});
 
 test("dailyNutrition returns only the deliberately reduced schema", () => {
   const result = dailyNutrition(fixture, "2026-10-10", "2026-10-10T08:30:00Z");
@@ -143,7 +159,7 @@ test("tool call reads the configured Gist using GET and returns no secret", asyn
   assert.equal(calls.length, 1);
   assert.equal(calls[0].options.method, "GET");
   assert.equal(calls[0].url, "https://api.github.com/gists/abc123");
-  assert.equal(JSON.stringify(body).includes("test-token"), false);
+  assert.equal(calls[0].options.headers.authorization, undefined);
 });
 
 test("tool call rejects a caller whose verified email is not allowlisted", async () => {
@@ -185,7 +201,7 @@ test("tool call validates dates before reading private data", async () => {
 });
 
 test("readNutrilogGist follows only GitHub's expected private raw host", async () => {
-  const config = { gistId: "abc123", token: "secret" };
+  const config = { gistId: "abc123", encryptionKey: env.NUTRILOG_ENCRYPTION_KEY };
   await assert.rejects(
     readNutrilogGist(config, async () =>
       new Response(

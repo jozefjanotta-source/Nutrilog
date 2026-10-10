@@ -2,6 +2,8 @@ const MCP_VERSION = "2026-07-28";
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_GIST_BYTES = 5 * 1024 * 1024;
 const MAX_ITEMS_PER_DAY = 500;
+const ENCRYPTED_FORMAT = "nutrilog-encrypted";
+const ENCRYPTED_VERSION = 1;
 
 const TOOL = {
   name: "get_daily_nutrition",
@@ -82,6 +84,73 @@ function validDate(date) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
   const parsed = new Date(`${date}T12:00:00Z`);
   return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === date;
+}
+
+function base64UrlToBytes(value) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9_-]+$/.test(value)) {
+    throw new Error("The Nutrilog encryption key or encrypted payload is invalid.");
+  }
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  let binary;
+  try {
+    binary = atob(padded);
+  } catch {
+    throw new Error("The Nutrilog encryption key or encrypted payload is invalid.");
+  }
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+function bytesToBase64Url(bytes) {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function importEncryptionKey(encodedKey, usage) {
+  const rawKey = base64UrlToBytes(encodedKey);
+  if (rawKey.byteLength !== 32) throw new Error("The Nutrilog encryption key must be 32 bytes.");
+  return crypto.subtle.importKey("raw", rawKey, { name: "AES-GCM" }, false, [usage]);
+}
+
+export async function encryptNutrilogPayload(payload, encodedKey, randomValues = crypto.getRandomValues.bind(crypto)) {
+  const key = await importEncryptionKey(encodedKey, "encrypt");
+  const iv = new Uint8Array(12);
+  randomValues(iv);
+  const plaintext = new TextEncoder().encode(JSON.stringify(payload));
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext);
+  return {
+    format: ENCRYPTED_FORMAT,
+    version: ENCRYPTED_VERSION,
+    algorithm: "A256GCM",
+    iv: bytesToBase64Url(iv),
+    ciphertext: bytesToBase64Url(new Uint8Array(ciphertext)),
+  };
+}
+
+export async function decryptNutrilogPayload(envelope, encodedKey) {
+  if (
+    !envelope ||
+    envelope.format !== ENCRYPTED_FORMAT ||
+    envelope.version !== ENCRYPTED_VERSION ||
+    envelope.algorithm !== "A256GCM"
+  ) {
+    throw new Error("The configured Gist is not an encrypted Nutrilog backup.");
+  }
+  const key = await importEncryptionKey(encodedKey, "decrypt");
+  const iv = base64UrlToBytes(envelope.iv);
+  if (iv.byteLength !== 12) throw new Error("The encrypted Nutrilog backup has an invalid IV.");
+  try {
+    const plaintext = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv },
+      key,
+      base64UrlToBytes(envelope.ciphertext),
+    );
+    return JSON.parse(new TextDecoder().decode(plaintext));
+  } catch {
+    throw new Error("Unable to decrypt Nutrilog. Check the encryption key and Gist ID.");
+  }
 }
 
 function normalizeTargetEntry(entry) {
@@ -193,15 +262,16 @@ export function dailyNutrition(payload, date, sourceUpdatedAt = null) {
 
 function configuration(env) {
   const gistId = text(env.NUTRILOG_GIST_ID, 100);
-  const token = text(env.GITHUB_GIST_TOKEN, 500);
+  const encryptionKey = text(env.NUTRILOG_ENCRYPTION_KEY, 100);
   const ownerEmail = text(env.NUTRILOG_OWNER_EMAIL, 320).toLowerCase();
-  if (!gistId || !token || !ownerEmail) {
+  if (!gistId || !encryptionKey || !ownerEmail) {
     throw new Error(
-      "Connector configuration is incomplete. Set NUTRILOG_GIST_ID, GITHUB_GIST_TOKEN, and NUTRILOG_OWNER_EMAIL as hosted runtime values.",
+      "Connector configuration is incomplete. Set NUTRILOG_GIST_ID, NUTRILOG_ENCRYPTION_KEY, and NUTRILOG_OWNER_EMAIL as hosted runtime values.",
     );
   }
   if (!/^[a-f0-9]+$/i.test(gistId)) throw new Error("NUTRILOG_GIST_ID is invalid.");
-  return { gistId, token, ownerEmail };
+  if (!/^[A-Za-z0-9_-]{43}$/.test(encryptionKey)) throw new Error("NUTRILOG_ENCRYPTION_KEY is invalid.");
+  return { gistId, encryptionKey, ownerEmail };
 }
 
 function authorize(request, ownerEmail) {
@@ -228,7 +298,6 @@ async function fetchTextWithLimit(url, headers, fetchImpl) {
 export async function readNutrilogGist(config, fetchImpl = fetch) {
   const headers = {
     accept: "application/vnd.github+json",
-    authorization: `Bearer ${config.token}`,
     "user-agent": "nutrilog-read-only-chatgpt-connector",
     "x-github-api-version": "2022-11-28",
   };
@@ -253,12 +322,13 @@ export async function readNutrilogGist(config, fetchImpl = fetch) {
   }
   if (typeof content !== "string") throw new Error("nutrilog.json has no readable content.");
 
-  let payload;
+  let envelope;
   try {
-    payload = JSON.parse(content);
+    envelope = JSON.parse(content);
   } catch {
     throw new Error("nutrilog.json is not valid JSON.");
   }
+  const payload = await decryptNutrilogPayload(envelope, config.encryptionKey);
   return { payload, updatedAt: text(gist.updated_at, 40) || null };
 }
 
@@ -339,7 +409,14 @@ export async function handleRequest(request, env = {}, fetchImpl = fetch) {
     });
   }
   if (url.pathname === "/health" && request.method === "GET") {
-    return jsonResponse({ ok: true, configured: Boolean(env.NUTRILOG_GIST_ID && env.GITHUB_GIST_TOKEN && env.NUTRILOG_OWNER_EMAIL) });
+    return jsonResponse({
+      ok: true,
+      configured: Boolean(
+        env.NUTRILOG_GIST_ID &&
+          env.NUTRILOG_ENCRYPTION_KEY &&
+          env.NUTRILOG_OWNER_EMAIL,
+      ),
+    });
   }
   if (url.pathname === "/mcp" && request.method === "POST") return mcp(request, env, fetchImpl);
   return new Response("Not found", { status: 404 });
