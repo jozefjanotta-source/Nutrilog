@@ -671,7 +671,8 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
         <input type="password" id="gist-key-input" autocomplete="off" style="padding:10px 12px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs-sm);outline:none;width:100%;margin-top:6px">
         <button class="btn-sm" style="margin-top:6px" onclick="copyEncryptedConnectionValue('gist-key-input','Recovery key')">Copy recovery key</button>
       </div>
-      <button class="btn-sm" style="margin-top:10px" onclick="saveEncryptedGistConnection()">Save connection on this device</button>
+      <button type="button" class="btn-primary" style="margin-top:14px" onclick="saveEncryptedGistConnection()">Save connection on this device</button>
+      <div id="gist-connection-msg" role="status" aria-live="polite" style="display:none;font-size:var(--fs-sm);margin-top:8px;line-height:1.4"></div>
     </details>
     <button class="btn-primary" id="encrypt-gist-btn" style="width:100%;margin-bottom:12px;background:var(--info)" onclick="createEncryptedGist()">Create new encrypted cloud backup</button>
     <div id="encryption-key-panel" style="display:none;background:var(--accent-light);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;font-size:var(--fs-sm);line-height:1.5">
@@ -1858,10 +1859,13 @@ async function copyEncryptionKey(){
 function saveEncryptedGistConnection(){
   const gistId=document.getElementById('gist-id-input').value.trim();
   const encryptionKey=document.getElementById('gist-key-input').value.trim();
-  const msg=document.getElementById('gist-msg');
+  const msg=document.getElementById('gist-connection-msg');
   msg.style.display='block';
-  if(!/^[a-f0-9]+$/i.test(gistId)||!/^[A-Za-z0-9_-]{43}$/.test(encryptionKey)){
-    msg.style.color='var(--danger)';msg.textContent='Check the encrypted Gist ID and recovery key.';return;
+  if(!/^[a-f0-9]+$/i.test(gistId)){
+    msg.style.color='var(--danger)';msg.textContent='Enter the existing encrypted Gist ID above.';return;
+  }
+  if(!/^[A-Za-z0-9_-]{43}$/.test(encryptionKey)){
+    msg.style.color='var(--danger)';msg.textContent='Enter the 43-character recovery key from your password manager above.';return;
   }
   state.gistId=gistId;state.gistEncryptionKey=encryptionKey;
   lsSet(SK.gist_id,gistId);lsSet(SK.gist_key,encryptionKey);
