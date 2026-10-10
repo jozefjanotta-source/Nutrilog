@@ -648,7 +648,8 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 
   <div class="section-hd" style="margin-top:20px">GitHub Gist sync</div>
   <div style="background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:16px">
-    <p style="font-size:var(--fs-sm);color:var(--text2);margin-bottom:14px;line-height:1.6">Enter your GitHub Personal Access Token (gist scope) once on each device. Then use Sync to push or pull all your data via a private GitHub Gist.</p>
+    <p style="font-size:var(--fs-sm);color:var(--text2);margin-bottom:14px;line-height:1.6">Enter your GitHub Personal Access Token (gist scope) once on each device. NutriLog encrypts your diary in the browser before it is sent to GitHub.</p>
+    <div id="gist-privacy-panel" style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;font-size:var(--fs-sm);color:var(--text2);line-height:1.5"></div>
     <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;font-size:var(--fs-sm);color:var(--text2)">
       <b style="color:var(--text)">Food database:</b> <span id="foods-db-count">0 foods loaded</span><br>
       <span style="font-size:11px;margin-top:4px;display:block">To update: upload your foods.csv here and it will be stored in your Gist.</span>
@@ -657,6 +658,25 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
     <div class="form-field" style="margin-bottom:12px">
       <label>GitHub Token</label>
       <input type="password" id="gist-token-input" placeholder="ghp_..." style="padding:10px 12px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs-sm);outline:none;width:100%;margin-top:6px">
+    </div>
+    <details style="margin-bottom:12px">
+      <summary style="font-size:var(--fs-sm);color:var(--text2);cursor:pointer">Connect this device to an existing encrypted backup</summary>
+      <div class="form-field" style="margin-top:10px">
+        <label>Encrypted Gist ID</label>
+        <input type="password" id="gist-id-input" autocomplete="off" style="padding:10px 12px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs-sm);outline:none;width:100%;margin-top:6px">
+      </div>
+      <div class="form-field" style="margin-top:10px">
+        <label>Recovery key</label>
+        <input type="password" id="gist-key-input" autocomplete="off" style="padding:10px 12px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs-sm);outline:none;width:100%;margin-top:6px">
+      </div>
+      <button class="btn-sm" style="margin-top:10px" onclick="saveEncryptedGistConnection()">Save connection on this device</button>
+    </details>
+    <button class="btn-primary" id="encrypt-gist-btn" style="width:100%;margin-bottom:12px;background:var(--info)" onclick="createEncryptedGist()">Create new encrypted cloud backup</button>
+    <div id="encryption-key-panel" style="display:none;background:var(--accent-light);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;font-size:var(--fs-sm);line-height:1.5">
+      <b>Save this recovery key now</b>
+      <p style="margin:6px 0;color:var(--text2)">Keep it in your password manager. NutriLog cannot recover it if it is lost. Do not send it in chat.</p>
+      <textarea id="encryption-key-output" readonly rows="2" style="width:100%;padding:8px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-family:monospace;resize:none"></textarea>
+      <button class="btn-sm" style="margin-top:8px" onclick="copyEncryptionKey()">Copy recovery key</button>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:12px">
       <button class="btn-primary" style="flex:1" onclick="gistSync('push')">&#8593; Push (save to cloud)</button>
@@ -805,7 +825,7 @@ async function loadFoodsCSV(){
         const resp=await fetch('https://api.github.com/gists',{headers});
         if(resp.ok){
           const gists=await resp.json();
-          const found=gists.find(g=>g.files&&g.files['nutrilog.json']);
+          const found=gists.find(g=>g.description==='NutriLog encrypted data'&&g.files&&g.files['nutrilog.json'])||gists.find(g=>g.files&&g.files['nutrilog.json']);
           if(found) gistId=found.id;
         }
       }
@@ -814,7 +834,7 @@ async function loadFoodsCSV(){
         if(resp.ok){
           const data=await resp.json();
           if(data.files&&data.files['foods.csv']){
-            const text=data.files['foods.csv'].content;
+            const text=await decryptGistText(data.files['foods.csv'].content,state.gistEncryptionKey,!state.gistEncryptionKey);
             const foods=parseCSVText(text);
             if(foods.length>0){
               DB=foods;
@@ -850,9 +870,52 @@ function parseCSVLine(line){
   return result;
 }
 
-const SK={targets:'nl_targets',targetHistory:'nl_target_history',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',recovery:'nl_recovery',goalHistory:'nl_goal_history',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',tombstones:'nl_tombstones',measurementTombstones:'nl_measurement_tombstones',syncMeta:'nl_sync_meta'};
+const SK={targets:'nl_targets',targetHistory:'nl_target_history',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',recovery:'nl_recovery',goalHistory:'nl_goal_history',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',gist_key:'nl_gist_encryption_key',legacy_gist_id:'nl_legacy_gist_id',tombstones:'nl_tombstones',measurementTombstones:'nl_measurement_tombstones',syncMeta:'nl_sync_meta'};
+const ENCRYPTED_GIST_FORMAT='nutrilog-encrypted';
+const ENCRYPTED_GIST_VERSION=1;
 function lsGet(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch(e){return fb}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function bytesToBase64Url(bytes){
+  let binary='';
+  for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
+  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/g,'');
+}
+function base64UrlToBytes(value){
+  const padded=value.replace(/-/g,'+').replace(/_/g,'/').padEnd(Math.ceil(value.length/4)*4,'=');
+  const binary=atob(padded);
+  return Uint8Array.from(binary,c=>c.charCodeAt(0));
+}
+function generateEncryptionKey(){const key=new Uint8Array(32);crypto.getRandomValues(key);return bytesToBase64Url(key)}
+async function importGistKey(encodedKey,usage){
+  const raw=base64UrlToBytes(encodedKey);
+  if(raw.byteLength!==32)throw new Error('Encryption key must contain 32 bytes.');
+  return crypto.subtle.importKey('raw',raw,{name:'AES-GCM'},false,[usage]);
+}
+async function encryptGistText(plaintext,encodedKey){
+  const key=await importGistKey(encodedKey,'encrypt');
+  const iv=new Uint8Array(12);crypto.getRandomValues(iv);
+  const encrypted=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(plaintext));
+  return JSON.stringify({format:ENCRYPTED_GIST_FORMAT,version:ENCRYPTED_GIST_VERSION,algorithm:'A256GCM',iv:bytesToBase64Url(iv),ciphertext:bytesToBase64Url(new Uint8Array(encrypted))});
+}
+async function decryptGistText(content,encodedKey,allowPlaintext=false){
+  let envelope;
+  try{envelope=JSON.parse(content)}catch(e){if(allowPlaintext)return content;throw new Error('Cloud backup is not valid JSON.')}
+  if(!envelope||envelope.format!==ENCRYPTED_GIST_FORMAT){
+    if(allowPlaintext)return content;
+    throw new Error('This cloud backup is not encrypted. Create a new encrypted backup first.');
+  }
+  if(!encodedKey)throw new Error('This device needs the NutriLog recovery key before it can decrypt the cloud backup.');
+  if(envelope.version!==ENCRYPTED_GIST_VERSION||envelope.algorithm!=='A256GCM')throw new Error('Unsupported encrypted backup format.');
+  try{
+    const key=await importGistKey(encodedKey,'decrypt');
+    const iv=base64UrlToBytes(envelope.iv);
+    const decrypted=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,base64UrlToBytes(envelope.ciphertext));
+    return new TextDecoder().decode(decrypted);
+  }catch(e){throw new Error('Unable to decrypt the cloud backup. Check the recovery key.')}
+}
+function isEncryptedGistContent(content){
+  try{const value=JSON.parse(content);return value&&value.format===ENCRYPTED_GIST_FORMAT}catch(e){return false}
+}
 function todayISO(){
   const d=new Date();
   const yyyy=d.getFullYear();
@@ -875,6 +938,8 @@ const state={
   decision:lsGet(SK.decision,{phase:'',goalHistory:[]}),
   gistToken:lsGet(SK.gist_token,''),
   gistId:lsGet(SK.gist_id,''),
+  gistEncryptionKey:lsGet(SK.gist_key,''),
+  legacyGistId:lsGet(SK.legacy_gist_id,''),
   syncMeta:lsGet(SK.syncMeta,null),
   tombstones:lsGet('nl_tombstones',{}),
   measurementTombstones:lsGet(SK.measurementTombstones,[]),
@@ -1697,9 +1762,9 @@ function foodDatabaseCSV(){
 async function saveFoodDatabase(){
   lsSet('nl_foods_csv',DB);
   const count=document.getElementById('foods-db-count');if(count)count.textContent=DB.length+' foods loaded';
-  if(!state.gistToken||!state.gistId)return;
+  if(!state.gistToken||!state.gistId||!state.gistEncryptionKey)return;
   const headers={'Authorization':'token '+state.gistToken,'Content-Type':'application/json'};
-  const body={files:{'foods.csv':{content:foodDatabaseCSV()}}};
+  const body={files:{'foods.csv':{content:await encryptGistText(foodDatabaseCSV(),state.gistEncryptionKey)}}};
   try{
     const resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
     if(!resp.ok)showToast('Saved locally; cloud food sync failed',3000);
@@ -1737,12 +1802,50 @@ function loadTargetsForm(){
   ['cal','prot','carb','fat','fiber'].forEach(k=>document.getElementById('t-'+k).value=state.targets[k]);
   const eff=document.getElementById('t-effective-date');if(eff&&!eff.value)eff.value=todayISO();
   document.getElementById('gist-token-input').value=state.gistToken||'';
+  document.getElementById('gist-id-input').value=state.gistId||'';
+  document.getElementById('gist-key-input').value=state.gistEncryptionKey||'';
   const gid=state.gistId;
   document.getElementById('gist-id-display').textContent=gid?'Gist ID: '+gid:'No gist created yet.';
+  renderGistPrivacy();
   const fdc=document.getElementById('foods-db-count');if(fdc)fdc.textContent=DB.length+' foods loaded';
   renderGoalHistorySettings();
   renderSyncStatusPanel();
   renderBackupList();
+}
+
+function renderGistPrivacy(){
+  const panel=document.getElementById('gist-privacy-panel');
+  const button=document.getElementById('encrypt-gist-btn');
+  if(!panel||!button)return;
+  if(state.gistEncryptionKey&&state.gistId){
+    panel.innerHTML='<b style="color:var(--accent-text)">Encrypted cloud backup active.</b><br>Your diary is encrypted before it leaves this browser.'+(state.legacyGistId?'<br><span style="color:var(--danger)">Old unencrypted Gist still needs to be deleted after verification.</span>':'');
+    button.style.display='none';
+  }else{
+    panel.innerHTML='<b style="color:var(--danger)">Privacy upgrade required.</b><br>Your existing secret Gist is unlisted, not access-controlled. Create a new encrypted backup before connecting ChatGPT.';
+    button.style.display='block';
+  }
+}
+
+async function copyEncryptionKey(){
+  const output=document.getElementById('encryption-key-output');
+  if(!output||!output.value)return;
+  try{await navigator.clipboard.writeText(output.value);showToast('Recovery key copied',2000)}
+  catch(e){output.select();document.execCommand('copy');showToast('Recovery key copied',2000)}
+}
+
+function saveEncryptedGistConnection(){
+  const gistId=document.getElementById('gist-id-input').value.trim();
+  const encryptionKey=document.getElementById('gist-key-input').value.trim();
+  const msg=document.getElementById('gist-msg');
+  msg.style.display='block';
+  if(!/^[a-f0-9]+$/i.test(gistId)||!/^[A-Za-z0-9_-]{43}$/.test(encryptionKey)){
+    msg.style.color='var(--danger)';msg.textContent='Check the encrypted Gist ID and recovery key.';return;
+  }
+  state.gistId=gistId;state.gistEncryptionKey=encryptionKey;
+  lsSet(SK.gist_id,gistId);lsSet(SK.gist_key,encryptionKey);
+  document.getElementById('gist-id-display').textContent='Gist ID: '+gistId;
+  renderGistPrivacy();
+  msg.style.color='var(--accent)';msg.textContent='Encrypted backup connection saved on this device. Tap Pull to verify it.';
 }
 function saveTargets(){
   const effectiveDate=document.getElementById('t-effective-date').value||todayISO();
@@ -2833,9 +2936,9 @@ function uploadFoodsCSV(input){
     // Also push to Gist if configured
     const tok=(document.getElementById('gist-token-input').value.trim())||state.gistToken;
     const gid=state.gistId;
-    if(tok&&gid){
+    if(tok&&gid&&state.gistEncryptionKey){
       const headers={'Authorization':'token '+tok,'Content-Type':'application/json'};
-      const body={files:{'foods.csv':{content:text}}};
+      const body={files:{'foods.csv':{content:await encryptGistText(text,state.gistEncryptionKey)}}};
       try{
         const resp=await fetch('https://api.github.com/gists/'+gid,{method:'PATCH',headers,body:JSON.stringify(body)});
         if(resp.ok){
@@ -2855,6 +2958,69 @@ function uploadFoodsCSV(input){
 }
 
 // ---- GIST SYNC ----
+function applyRemotePayload(p){
+  if(!p||!p.targets)throw new Error('Invalid NutriLog data in cloud backup.');
+  state.log=mergeLogData(state.log,p.log||{},p.tombstones||{});
+  state.targets=p.targets;
+  state.customFoods=p.customFoods||[];
+  state.weight=p.weight||{};
+  mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
+  updateCurrentTargetsFromHistory();
+  mergeBodyMeasurements(p.measurements,p.measurementTombstones);
+  mergeRecoveryData(p.recovery);
+  state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
+  state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
+  persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
+  lsSet('nl_tombstones',state.tombstones);
+}
+
+async function encryptedGistFiles(encryptionKey){
+  return{
+    'nutrilog.json':{content:await encryptGistText(JSON.stringify(dataPayload()),encryptionKey)},
+    'foods.csv':{content:await encryptGistText(foodDatabaseCSV(),encryptionKey)}
+  };
+}
+
+async function createEncryptedGist(){
+  const tokenInput=document.getElementById('gist-token-input').value.trim()||state.gistToken;
+  const msg=document.getElementById('gist-msg');
+  msg.style.display='block';msg.style.color='var(--text2)';msg.textContent='Creating a new encrypted cloud backup...';
+  if(!tokenInput){msg.style.color='var(--danger)';msg.textContent='Enter your GitHub token first.';return}
+  if(!window.crypto||!crypto.subtle){msg.style.color='var(--danger)';msg.textContent='This browser does not support secure encryption.';return}
+  try{
+    const headers={'Authorization':'token '+tokenInput,'Content-Type':'application/json'};
+    const oldGistId=state.gistId;
+    if(oldGistId){
+      const oldResp=await fetch('https://api.github.com/gists/'+oldGistId,{headers});
+      const oldData=await oldResp.json();
+      if(!oldResp.ok)throw new Error(oldData.message||'Could not read the existing Gist.');
+      const oldFile=oldData.files&&oldData.files['nutrilog.json'];
+      if(oldFile){
+        if(isEncryptedGistContent(oldFile.content))throw new Error('This Gist is already encrypted. Enter its recovery key on this device instead.');
+        applyRemotePayload(JSON.parse(await decryptGistText(oldFile.content,'',true)));
+      }
+      const oldFoods=oldData.files&&oldData.files['foods.csv'];
+      if(oldFoods){
+        const parsedFoods=parseCSVText(await decryptGistText(oldFoods.content,'',true));
+        if(parsedFoods.length){DB=parsedFoods;DB_LOADED=true;lsSet('nl_foods_csv',parsedFoods)}
+      }
+    }
+    cleanupData();
+    const encryptionKey=generateEncryptionKey();
+    const body={description:'NutriLog encrypted data',public:false,files:await encryptedGistFiles(encryptionKey)};
+    const resp=await fetch('https://api.github.com/gists',{method:'POST',headers,body:JSON.stringify(body)});
+    const data=await resp.json();
+    if(!resp.ok)throw new Error(data.message||'GitHub error');
+    state.gistToken=tokenInput;state.gistEncryptionKey=encryptionKey;state.legacyGistId=oldGistId||'';state.gistId=data.id;
+    lsSet(SK.gist_token,tokenInput);lsSet(SK.gist_key,encryptionKey);lsSet(SK.legacy_gist_id,state.legacyGistId);lsSet(SK.gist_id,data.id);
+    document.getElementById('gist-id-display').textContent='Gist ID: '+data.id;
+    document.getElementById('encryption-key-output').value=encryptionKey;
+    document.getElementById('encryption-key-panel').style.display='block';
+    renderGistPrivacy();
+    msg.style.color='var(--accent)';msg.textContent='Encrypted backup created. Save the recovery key before leaving this page.';
+  }catch(e){msg.style.color='var(--danger)';msg.textContent='Error: '+e.message}
+}
+
 async function gistSync(direction){
   const syncStart=Date.now();
   const tokenInput=document.getElementById('gist-token-input').value.trim();
@@ -2873,7 +3039,11 @@ async function gistSync(direction){
   state.gistToken=tokenInput;
   lsSet(SK.gist_token, tokenInput);
 
-  const payload=JSON.stringify(dataPayload());
+  if(!state.gistEncryptionKey){
+    msg.style.color='var(--danger)';
+    msg.textContent='Create a new encrypted cloud backup first.';
+    return;
+  }
 
   const headers={'Authorization':'token '+tokenInput,'Content-Type':'application/json'};
 
@@ -2887,25 +3057,18 @@ async function gistSync(direction){
           if(fetchResp.ok){
             const remoteData=await fetchResp.json();
             if(remoteData.files&&remoteData.files['nutrilog.json']){
-              const remote=JSON.parse(remoteData.files['nutrilog.json'].content);
-              if(remote.log) state.log=mergeLogData(state.log,remote.log,remote.tombstones||{});
-              mergeTargetHistory(state.targetHistory,remote.targetHistory,remote.calorieTargetHistory,remote.decision&&remote.decision.targetHistory);
-              updateCurrentTargetsFromHistory();
-              mergeBodyMeasurements(remote.measurements,remote.measurementTombstones);
-              mergeRecoveryData(remote.recovery);
-              persist('targets');saveTargetHistory();persist('log');
-              persist('measurements');persist('measurementTombstones');persist('recovery');
+              const remote=JSON.parse(await decryptGistText(remoteData.files['nutrilog.json'].content,state.gistEncryptionKey));
+              applyRemotePayload(remote);
               // Save backup
               const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
-              backups.unshift({ts:new Date().toISOString(),data:remoteData.files['nutrilog.json'].content});
+              backups.unshift({ts:new Date().toISOString(),data:JSON.stringify(remote)});
               if(backups.length>7) backups.pop();
               lsSet('nl_backups',JSON.stringify(backups));
             }
           }
         }catch(e){}
       }
-      const mergedPayload=JSON.stringify(dataPayload());
-      const body={description:'NutriLog data',public:false,files:{'nutrilog.json':{content:mergedPayload}}};
+      const body={description:'NutriLog encrypted data',public:false,files:await encryptedGistFiles(state.gistEncryptionKey)};
       let resp, data;
       if(state.gistId){
         resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
@@ -2919,7 +3082,7 @@ async function gistSync(direction){
       document.getElementById('gist-id-display').textContent='Gist ID: '+data.id;
       recordSyncSuccess(direction,syncStart);
       msg.style.color='var(--accent)';
-      msg.textContent='Pushed successfully! Share your Gist ID with your other device or just enter the same token and push once.';
+      msg.textContent='Encrypted backup pushed successfully.';
     } else {
       // Pull - find gist by looking for nutrilog.json in user gists
       let gistId=state.gistId;
@@ -2928,8 +3091,8 @@ async function gistSync(direction){
         const resp=await fetch('https://api.github.com/gists',{headers});
         const gists=await resp.json();
         if(!resp.ok) throw new Error(gists.message||'GitHub error');
-        const found=gists.find(g=>g.files&&g.files['nutrilog.json']);
-        if(!found) throw new Error('No NutriLog gist found. Push from your other device first.');
+        const found=gists.find(g=>g.description==='NutriLog encrypted data'&&g.files&&g.files['nutrilog.json']);
+        if(!found) throw new Error('No encrypted NutriLog Gist found. Enter the Gist ID from your other device.');
         gistId=found.id;
         state.gistId=gistId;
         lsSet(SK.gist_id,gistId);
@@ -2939,30 +3102,19 @@ async function gistSync(direction){
       if(!resp.ok) throw new Error(data.message||'GitHub error');
       // Load log data
       if(data.files['nutrilog.json']){
-        const raw=data.files['nutrilog.json'].content;
+        const raw=await decryptGistText(data.files['nutrilog.json'].content,state.gistEncryptionKey);
         let p;
         try{
           p=JSON.parse(raw);
         }catch(parseErr){
           throw new Error('JSON parse error. Data starts with: '+raw.slice(0,100));
         }
-        if(!p.targets) throw new Error('Invalid data in gist');
-        const mergedLog=mergeLogData(state.log,p.log||{},p.tombstones||{});
-        state.targets=p.targets;state.log=mergedLog;
-        state.customFoods=p.customFoods||[];state.weight=p.weight||{};
-        mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
-        updateCurrentTargetsFromHistory();
-        mergeBodyMeasurements(p.measurements,p.measurementTombstones);
-        mergeRecoveryData(p.recovery);
-        state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
-        state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
-        persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
-        lsSet('nl_tombstones',state.tombstones);
+        applyRemotePayload(p);
       }
       // Load foods
       let foodsLoaded=0;
       if(data.files&&data.files['foods.csv']){
-        const foodsText=data.files['foods.csv'].content;
+        const foodsText=await decryptGistText(data.files['foods.csv'].content,state.gistEncryptionKey);
         const foods=parseCSVText(foodsText);
         foodsLoaded=foods.length;
         if(foods.length>0){
@@ -2993,7 +3145,7 @@ async function gistSync(direction){
 // ---- AUTO SYNC ----
 let autoSyncTimer=null;
 function scheduleAutoSync(){
-  if(!state.gistToken||!state.gistId) return;
+  if(!state.gistToken||!state.gistId||!state.gistEncryptionKey) return;
   clearTimeout(autoSyncTimer);
   autoSyncTimer=setTimeout(()=>silentPush(),3000);
 }
@@ -3079,7 +3231,7 @@ function cleanupData(){
 }
 
 async function silentPush(){
-  if(!state.gistToken||!state.gistId) return;
+  if(!state.gistToken||!state.gistId||!state.gistEncryptionKey) return;
   const syncStart=Date.now();
   cleanupData();
   const headers={'Authorization':'token '+state.gistToken,'Content-Type':'application/json'};
@@ -3089,12 +3241,13 @@ async function silentPush(){
     if(fetchResp.ok){
       const remoteData=await fetchResp.json();
       if(remoteData.files&&remoteData.files['nutrilog.json']){
+        const remoteText=await decryptGistText(remoteData.files['nutrilog.json'].content,state.gistEncryptionKey);
         const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
-        backups.unshift({ts:new Date().toISOString(),data:remoteData.files['nutrilog.json'].content});
+        backups.unshift({ts:new Date().toISOString(),data:remoteText});
         if(backups.length>7) backups.pop();
         lsSet('nl_backups',JSON.stringify(backups));
         try{
-          const remote=JSON.parse(remoteData.files['nutrilog.json'].content);
+          const remote=JSON.parse(remoteText);
           if(remote.log){
             state.log=mergeLogData(state.log,remote.log,remote.tombstones||{});
             persist('log');
@@ -3106,8 +3259,7 @@ async function silentPush(){
       }
     }
     // Just overwrite remote with local state — no merge
-    const payload=JSON.stringify(dataPayload());
-    const body={description:'NutriLog data',public:false,files:{'nutrilog.json':{content:payload}}};
+    const body={description:'NutriLog encrypted data',public:false,files:await encryptedGistFiles(state.gistEncryptionKey)};
     const resp=await fetch('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
     if(resp.ok){recordSyncSuccess('auto',syncStart);showSyncStatus('synced');}
   }catch(e){
@@ -3325,22 +3477,10 @@ function initApp(){
           const resp=await fetch('https://api.github.com/gists/'+state.gistId,{headers});
           if(resp.ok){
             const data=await resp.json();
-            const raw=data.files['nutrilog.json'].content;
+            const raw=await decryptGistText(data.files['nutrilog.json'].content,state.gistEncryptionKey,!state.gistEncryptionKey);
             const p=JSON.parse(raw);
             if(p.targets){
-              // Merge remote log with local, respecting tombstones
-              const mergedLog=mergeLogData(state.log,p.log||{},p.tombstones||{});
-              state.targets=p.targets;
-              state.log=mergedLog;
-              state.customFoods=p.customFoods||[];state.weight=p.weight||{};
-              mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
-              updateCurrentTargetsFromHistory();
-              mergeBodyMeasurements(p.measurements,p.measurementTombstones);
-              mergeRecoveryData(p.recovery);
-              state.goalHistory=p.goalHistory||(p.decision&&p.decision.goalHistory)||state.goalHistory||[];
-              state.decision=p.decision||state.decision||{phase:'',goalHistory:[]};
-              persist('targets');saveTargetHistory();persist('log');persist('custom');persist('weight');persist('measurements');persist('measurementTombstones');persist('recovery');persist('goalHistory');persist('decision');
-              lsSet('nl_tombstones',state.tombstones);
+              applyRemotePayload(p);
               recordSyncSuccess('startup',syncStart);
               renderDash();loadTargetsForm();
             }
