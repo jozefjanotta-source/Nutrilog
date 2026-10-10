@@ -543,7 +543,10 @@ async function applyGistFoodEdits(payload, gist, encryptionKey, fetchImpl) {
 async function writeAccess(config, snapshot, fetchImpl) {
   if (!snapshot.gist?.files?.[ACCESS_FILE]) throw new Error("Food editing is not enabled. In Nutrilog Settings, tap Enable ChatGPT food editing, then retry.");
   const access = await decodedGistFile(snapshot.gist.files[ACCESS_FILE], config, fetchImpl);
-  if (access.format !== "nutrilog-connector-access" || access.version !== 1 || access.gist_id !== config.gistId || typeof access.token !== "string" || !/^(ghp_|github_pat_)[A-Za-z0-9_]+$/.test(access.token) || access.token.length > 255) throw new Error("ChatGPT food editing connection is invalid. Enable it again in Nutrilog Settings.");
+  return accessToken(access, config);
+}
+function accessToken(access, config) {
+  if (!access || access.format !== "nutrilog-connector-access" || access.version !== 1 || access.gist_id !== config.gistId || typeof access.token !== "string" || !/^(ghp_|github_pat_)[A-Za-z0-9_]+$/.test(access.token) || access.token.length > 255) throw new Error("ChatGPT food editing connection is invalid. Enable it again in Nutrilog Settings.");
   return access.token;
 }
 async function saveFoodEdit(config, snapshot, name, args, fetchImpl) {
@@ -654,8 +657,18 @@ export async function readNutrilogGist(config, fetchImpl = fetch) {
     rawGist = await fetchTextWithLimit(apiUrl, headers, fetchImpl);
   } catch (error) {
     if (error.status !== 403 && error.status !== 429) throw error;
-    throw new Error("GitHub is temporarily rate limited. Try again shortly; the diary and food changes were not modified.");
-
+    // Bootstrap from the encrypted access file without exposing or caching its
+    // credential. Then fetch the complete file list with authenticated limits.
+    // Never fall back to just nutrilog.json: that would hide pending food edits.
+    try {
+      const rawUrl = `https://gist.githubusercontent.com/${GIST_OWNER}/${encodeURIComponent(config.gistId)}/raw/${ACCESS_FILE}`;
+      const accessText = await fetchTextWithLimit(rawUrl, { "user-agent": headers["user-agent"] }, fetchImpl);
+      const access = await decryptNutrilogPayload(JSON.parse(accessText), config.encryptionKey);
+      const token = accessToken(access, config);
+      rawGist = await fetchTextWithLimit(apiUrl, { ...headers, authorization: "Bearer " + token }, fetchImpl);
+    } catch {
+      throw new Error("GitHub is temporarily rate limited and an enabled editing connection could not be used. No food was modified. Check the token in Nutrilog Settings or try again shortly.");
+    }
   }
   let gist;
   try {

@@ -67,3 +67,30 @@ test('retry after saved-but-response-lost does not duplicate entry',async()=>{
   assert.equal((await call(cloud,'add_food_log',add)).isError,true);
   const retry=await call(cloud,'add_food_log',add);assert.equal(retry.structuredContent.replayed,true);assert.equal(retry.structuredContent.totals.calories,487);
 });
+
+test('rate-limited reads bootstrap encrypted access and fetch complete metadata authenticated',async()=>{
+  const cloud=await fakeCloud();const underlying=cloud.fetch;const requests=[];
+  cloud.fetch=async(url,opts)=>{
+    requests.push({url,opts});
+    if(url.includes('gist.githubusercontent.com')){
+      assert.equal(opts.headers.authorization,undefined);
+      assert.equal(url,'https://gist.githubusercontent.com/jozefjanotta-source/abc123/raw/nutrilog-connector-access.json');
+      return new Response(cloud.files['nutrilog-connector-access.json'].content,{status:200});
+    }
+    if(opts.method==='GET'&&!opts.headers.authorization)return new Response('limited',{status:403});
+    if(opts.method==='GET')assert.equal(opts.headers.authorization,'Bearer ghp_fixtureTokenOnly');
+    return underlying(url,opts);
+  };
+  const saved=await call(cloud,'add_food_log',add);assert.equal(saved.isError,undefined);assert.equal(saved.structuredContent.saved,true);
+  assert.equal(saved.structuredContent.totals.calories,487);
+  assert.ok(requests.some(r=>r.url.includes('gist.githubusercontent.com')));
+});
+test('rate-limit bootstrap never uses credentials from a different backup',async()=>{
+  const bad=await encryptNutrilogPayload({format:'nutrilog-connector-access',version:1,gist_id:'other123',token:'ghp_fixtureTokenOnly'},env.NUTRILOG_ENCRYPTION_KEY);
+  const cloud=await fakeCloud();let authenticated=false;
+  cloud.fetch=async(url,opts)=>{
+    if(opts.headers.authorization)authenticated=true;
+    return url.includes('gist.githubusercontent.com')?new Response(JSON.stringify(bad),{status:200}):new Response('limited',{status:403});
+  };
+  const r=await call(cloud,'add_food_log',add);assert.equal(r.isError,true);assert.equal(authenticated,false);
+});
