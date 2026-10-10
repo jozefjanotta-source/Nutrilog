@@ -687,6 +687,15 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
       <button class="btn-primary" style="flex:1;background:var(--info)" onclick="gistSync('pull')">&#8595; Pull (load from cloud)</button>
     </div>
     <div id="gist-msg" style="display:none;font-size:var(--fs-sm);margin-top:8px"></div>
+    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;margin-top:14px;font-size:var(--fs-sm);line-height:1.5">
+      <b>ChatGPT food editing</b>
+      <p style="margin:6px 0;color:var(--text2)">Let your private connector add or change food entries when you ask. Your GitHub token is stored encrypted with your recovery key. Pull or reopen NutriLog to receive the changes.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn-sm" onclick="setChatGPTFoodEditing(true)">Enable ChatGPT food editing</button>
+        <button type="button" class="btn-sm" onclick="setChatGPTFoodEditing(false)">Disable editing</button>
+      </div>
+      <div id="chatgpt-editing-msg" role="status" aria-live="polite" style="margin-top:8px;color:var(--text2)">Editing requires your existing encrypted backup connection.</div>
+    </div>
     <div style="height:.5px;background:var(--border);margin:14px 0"></div>
     <div class="section-hd" style="margin-bottom:8px">Sync Status</div>
     <div id="sync-status-panel" style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px;font-size:var(--fs-sm);color:var(--text2)"></div>
@@ -2998,6 +3007,55 @@ function uploadFoodsCSV(input){
 }
 
 // ---- GIST SYNC ----
+// ChatGPT saves each change separately, so a stale device cannot overwrite it.
+const CONNECTOR_ACCESS_FILE='nutrilog-connector-access.json';
+const CONNECTOR_EDIT_PREFIX='nutrilog-food-edit-';
+function showChatGPTEditingState(data){
+  const el=document.getElementById('chatgpt-editing-msg');
+  if(el)el.textContent=data.files&&data.files[CONNECTOR_ACCESS_FILE]?'ChatGPT food editing is enabled.':'ChatGPT food editing is disabled.';
+}
+async function mergeConnectorFoodEdits(payload,gist){
+  if(gist.truncated)throw new Error('GitHub returned an incomplete file list. Sync stopped to protect your diary.');
+  const names=Object.keys(gist.files||{}).filter(name=>name.startsWith(CONNECTOR_EDIT_PREFIX)&&name.endsWith('.json'));
+  if(names.length>1000)throw new Error('Too many ChatGPT food changes. Sync stopped to protect your diary.');
+  const edits=[];
+  for(let i=0;i<names.length;i+=10){
+    const batch=await Promise.all(names.slice(i,i+10).map(async name=>{
+      const content=await readGistFileContent(gist.files[name]);
+      const edit=JSON.parse(await decryptGistText(content,state.gistEncryptionKey));
+      if(edit.format!=='nutrilog-food-edit'||edit.version!==1||!['add_food_log','update_food_log'].includes(edit.action)||!/^[A-Za-z0-9_-]{8,64}$/.test(edit.operation_id||'')||!Number.isFinite(Date.parse(edit.created_at))||!edit.entry||!edit.entry.id||!/^\d{4}-\d{2}-\d{2}$/.test(edit.entry.date)||!Number.isFinite(Date.parse(edit.entry.updatedAt)))throw new Error('An encrypted ChatGPT food change is invalid. Sync stopped.');
+      return edit;
+    }));
+    edits.push(...batch);
+  }
+  edits.sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.operation_id.localeCompare(b.operation_id));
+  const overlay={};
+  for(const edit of edits)(overlay[edit.entry.date]||(overlay[edit.entry.date]=[])).push(edit.entry);
+  payload.log=mergeLogData(payload.log||{},overlay,payload.tombstones||{});
+  showChatGPTEditingState(gist);
+  return payload;
+}
+async function setChatGPTFoodEditing(enabled){
+  const msg=document.getElementById('chatgpt-editing-msg');
+  msg.style.color='var(--text2)';msg.textContent=enabled?'Enabling ChatGPT food editing...':'Disabling ChatGPT food editing...';
+  try{
+    const token=document.getElementById('gist-token-input').value.trim()||state.gistToken;
+    if(!token||!state.gistId||!state.gistEncryptionKey)throw new Error('Save your token, Gist ID and recovery key on this device first.');
+    const headers={'Authorization':'token '+token,'Content-Type':'application/json'};
+    const response=await fetchGistWithTimeout('https://api.github.com/gists/'+state.gistId,{headers});
+    if(!response.ok)throw new Error('GitHub could not verify this connection ('+response.status+').');
+    const data=await response.json();
+    const backup=await readGistFileContent(data.files&&data.files['nutrilog.json']);
+    await decryptGistText(backup,state.gistEncryptionKey);
+    const access={format:'nutrilog-connector-access',version:1,gist_id:state.gistId,token,created_at:new Date().toISOString()};
+    const file=enabled?{content:await encryptGistText(JSON.stringify(access),state.gistEncryptionKey)}:null;
+    const saved=await fetchGistWithTimeout('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify({files:{[CONNECTOR_ACCESS_FILE]:file}})});
+    if(!saved.ok)throw new Error('GitHub refused the change ('+saved.status+'). Check your token has gist permission.');
+    msg.style.color='var(--accent)';msg.textContent=enabled?'Enabled. You can now ask ChatGPT to add or change food entries.':'Disabled. ChatGPT can still read your diary; existing saved food changes remain.';
+  }catch(e){msg.style.color='var(--danger)';msg.textContent=e.message;}
+}
+
+
 function applyRemotePayload(p){
   if(!p||!p.targets)throw new Error('Invalid NutriLog data in cloud backup.');
   state.log=mergeLogData(state.log,p.log||{},p.tombstones||{});
@@ -3097,11 +3155,14 @@ async function gistSync(direction){
       if(state.gistId){
         try{
           const fetchResp=await fetchGistWithTimeout('https://api.github.com/gists/'+state.gistId,{headers});
-          if(fetchResp.ok){
+          if(!fetchResp.ok)throw new Error('GitHub returned '+fetchResp.status);
+          {
             const remoteData=await fetchResp.json();
-            if(remoteData.files&&remoteData.files['nutrilog.json']){
+            if(!remoteData.files||!remoteData.files['nutrilog.json'])throw new Error('Cloud diary file is missing.');
+            {
               const remoteContent=await readGistFileContent(remoteData.files['nutrilog.json']);
               const remote=JSON.parse(await decryptGistText(remoteContent,state.gistEncryptionKey));
+              await mergeConnectorFoodEdits(remote,remoteData);
               applyRemotePayload(remote);
               // Save backup
               const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
@@ -3110,7 +3171,7 @@ async function gistSync(direction){
               lsSet('nl_backups',JSON.stringify(backups));
             }
           }
-        }catch(e){}
+        }catch(e){throw new Error('Could not merge the cloud diary safely: '+e.message)}
       }
       const body={description:'NutriLog encrypted data',public:false,files:await encryptedGistFiles(state.gistEncryptionKey)};
       let resp, data;
@@ -3154,6 +3215,7 @@ async function gistSync(direction){
         }catch(parseErr){
           throw new Error('JSON parse error. Data starts with: '+raw.slice(0,100));
         }
+        await mergeConnectorFoodEdits(p,data);
         applyRemotePayload(p);
       }
       // Load foods
@@ -3264,16 +3326,8 @@ function cleanupData(){
   for(const date in state.log){
     if(!state.log[date]||state.log[date].length===0) delete state.log[date];
   }
-  // Keep tombstones only for last 60 days
-  const cutoff=new Date();cutoff.setDate(cutoff.getDate()-60);
-  const cutoffISO=cutoff.toISOString().slice(0,10);
-  for(const date in state.tombstones){
-    if(date<cutoffISO) delete state.tombstones[date];
-  }
-  // Trim tombstone arrays to max 50 per day
-  for(const date in state.tombstones){
-    if(state.tombstones[date].length>50) state.tombstones[date]=state.tombstones[date].slice(0,50);
-  }
+  // Keep deletion tombstones: encrypted ChatGPT changes remain in cloud history.
+  // Pruning these could resurrect an entry deleted on another device.
   lsSet('nl_tombstones',state.tombstones);
 }
 
@@ -3286,9 +3340,11 @@ async function silentPush(){
   try{
     // Save backup first (fetch remote quickly)
     const fetchResp=await fetchGistWithTimeout('https://api.github.com/gists/'+state.gistId,{headers});
-    if(fetchResp.ok){
+    if(!fetchResp.ok)throw new Error('GitHub returned '+fetchResp.status);
+    {
       const remoteData=await fetchResp.json();
-      if(remoteData.files&&remoteData.files['nutrilog.json']){
+      if(!remoteData.files||!remoteData.files['nutrilog.json'])throw new Error('Cloud diary file is missing.');
+      {
         const remoteContent=await readGistFileContent(remoteData.files['nutrilog.json']);
         const remoteText=await decryptGistText(remoteContent,state.gistEncryptionKey);
         const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
@@ -3297,6 +3353,7 @@ async function silentPush(){
         lsSet('nl_backups',JSON.stringify(backups));
         try{
           const remote=JSON.parse(remoteText);
+          await mergeConnectorFoodEdits(remote,remoteData);
           if(remote.log){
             state.log=mergeLogData(state.log,remote.log,remote.tombstones||{});
             persist('log');
@@ -3306,7 +3363,7 @@ async function silentPush(){
           persist('measurements');persist('measurementTombstones');
           mergeRecoveryData(remote.recovery);
           persist('recovery');
-        }catch(e){}
+        }catch(e){throw new Error('Could not merge the cloud diary safely: '+e.message)}
       }
     }
     // Food changes have their own upload path; ordinary auto saves only need the diary.
@@ -3537,6 +3594,7 @@ function initApp(){
             const p=JSON.parse(raw);
             if(!p.targets)throw new Error('Cloud backup is missing nutrition data.');
             {
+              await mergeConnectorFoodEdits(p,data);
               applyRemotePayload(p);
               recordSyncSuccess('startup',syncStart);
               renderDash();loadTargetsForm();

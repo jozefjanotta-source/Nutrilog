@@ -5,6 +5,18 @@ const MAX_ITEMS_PER_DAY = 500;
 const ENCRYPTED_FORMAT = "nutrilog-encrypted";
 const ENCRYPTED_VERSION = 1;
 const GIST_OWNER = "jozefjanotta-source";
+const ACCESS_FILE = "nutrilog-connector-access.json";
+const EDIT_PREFIX = "nutrilog-food-edit-";
+const MAX_EDIT_FILES = 1000;
+const MEALS = ["Breakfast", "Lunch", "Dinner", "Snack"];
+const NUTRITION_FIELDS = { calories: "cal", protein_g: "prot", carbs_g: "carb", fat_g: "fat", fiber_g: "fiber" };
+const FOOD_FIELDS = {
+  name: { type: "string", minLength: 1, maxLength: 200 },
+  meal: { type: "string", enum: MEALS },
+  amount: { type: "string", minLength: 1, maxLength: 100, description: "Portion label, e.g. 150g or 1 serving." },
+  ...Object.fromEntries(Object.keys(NUTRITION_FIELDS).map(key => [key, { type: "number", minimum: 0, maximum: key === "calories" ? 20000 : 5000, description: "Total for the logged portion, not per 100g. Use supplied values or a verified label; disclose estimates." }])),
+};
+const OPERATION_PROPERTY = { type: "string", pattern: "^[A-Za-z0-9_-]{8,64}$", description: "Unique operation ID. Reuse the identical ID and arguments when retrying an uncertain save; use a new ID for a new user request." };
 
 const TOOL = {
   name: "get_daily_nutrition",
@@ -50,14 +62,40 @@ const TOOLS = [
     description: "Compare first and last recorded values of body metrics within an optional inclusive date range. Returns dated endpoints, change (last minus first), and sample counts per metric; does not infer fat or muscle changes from weight alone. Reads the full filtered history without pagination. Read-only.",
     inputSchema: { type: "object", additionalProperties: false, properties: RANGE_PROPERTIES },
   },
-].map((tool) => ({ ...tool, annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false } }));
+  {
+    name: "get_food_editing_status",
+    description: "Check whether the owner enabled ChatGPT food editing in Nutrilog Settings. Returns only enabled state, never credentials. Read-only.",
+    inputSchema: { type: "object", additionalProperties: false, properties: {} },
+  },
+  {
+    name: "add_food_log",
+    description: "Add one food entry to the owner's encrypted Nutrilog diary ONLY when the user asks to log food. All nutrition numbers are totals for the stated portion. Ask about ambiguous food, date, portion or nutrition; disclose estimates. Saves an encrypted change that appears in Nutrilog on its next Pull or auto-sync. Reuse operation_id on retries to prevent duplicates. Does not change targets, measurements, the food database or existing entries.",
+    inputSchema: { type: "object", additionalProperties: false, properties: {
+      date: RANGE_PROPERTIES.from, operation_id: OPERATION_PROPERTY, ...FOOD_FIELDS,
+    }, required: ["date", "operation_id", "name", "meal", "amount", "calories", "protein_g", "carbs_g", "fat_g", "fiber_g"] },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  {
+    name: "update_food_log",
+    description: "Change exactly one existing food entry ONLY when the user requests it. First read get_daily_nutrition to obtain its entry_id and revision; resolve duplicate/ambiguous names before writing. Rejects stale revisions. Supply changed portion totals, or portion_multiplier plus a new amount to scale all existing nutrition. Date is the entry's current date; this tool does not move or delete entries. Encrypted changes merge into Nutrilog on its next sync. Reuse operation_id and identical arguments on retries.",
+    inputSchema: { type: "object", additionalProperties: false, properties: {
+      date: RANGE_PROPERTIES.from, operation_id: OPERATION_PROPERTY,
+      entry_id: { type: "string", minLength: 1, maxLength: 2000 },
+      expected_revision: { type: "string", pattern: "^[a-f0-9]{64}$" },
+      changes: { type: "object", additionalProperties: false, minProperties: 1, properties: {
+        ...FOOD_FIELDS, portion_multiplier: { type: "number", exclusiveMinimum: 0, maximum: 100, description: "Scales every existing nutrition total. Requires a new amount label; cannot be combined with explicit nutrition totals." },
+      } },
+    }, required: ["date", "operation_id", "entry_id", "expected_revision", "changes"] },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  },
+].map((tool) => ({ ...tool, annotations: tool.annotations ?? { readOnlyHint: true, destructiveHint: false, openWorldHint: false } }));
 
 const page = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Nutrilog read-only connector</title>
+    <title>Nutrilog private connector</title>
     <style>
       :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
       body { display: grid; min-height: 100vh; margin: 0; place-items: center; background: #101612; }
@@ -69,9 +107,9 @@ const page = `<!doctype html>
   </head>
   <body>
     <main>
-      <h1>Nutrilog read-only connector</h1>
+      <h1>Nutrilog private connector</h1>
       <p><strong>Nutrilog remains the primary application.</strong></p>
-      <p>This private connector lets ChatGPT read diary days, body measurements and progress. It cannot add, edit, or delete Nutrilog data.</p>
+      <p>This private connector lets ChatGPT read diary days, body measurements and progress. When you enable food editing in Nutrilog Settings, ChatGPT can also add or change food entries you request. Updates appear in Nutrilog on its next sync.</p>
     </main>
   </body>
 </html>`;
@@ -248,7 +286,7 @@ export function dailyNutrition(payload, date, sourceUpdatedAt = null) {
   }
   if (!validDate(date)) throw new Error("date must be a real date in YYYY-MM-DD form.");
 
-  const rawItems = Array.isArray(payload.log?.[date]) ? payload.log[date] : [];
+  const rawItems = foodEntries(payload, date);
   if (rawItems.length > MAX_ITEMS_PER_DAY) {
     throw new Error("The requested day contains too many diary rows to return safely.");
   }
@@ -256,6 +294,7 @@ export function dailyNutrition(payload, date, sourceUpdatedAt = null) {
   const items = rawItems
     .filter((item) => item && typeof item === "object")
     .map((item) => ({
+      entry_id: String(item.id),
       name: text(item.name),
       meal: text(item.meal, 50),
       amount: text(item.amountLabel, 100),
@@ -392,6 +431,180 @@ export function weightProgress(payload, args = {}, sourceUpdatedAt = null) {
     metrics, source_updated_at: sourceUpdatedAt };
 }
 
+function legacyFoodKey(date, item) {
+  return [item.date || date, item.name || "", item.meal || "", item.amountLabel || "",
+    item.cal ?? "", item.prot ?? "", item.carb ?? "", item.fat ?? "", item.fiber ?? ""].join("|");
+}
+function normalizedFood(item, date, index) {
+  return { ...item, date: item.date || date, id: item.id || "legacy:" + legacyFoodKey(date, item) + "|" + index };
+}
+function foodDeleted(payload, entry) {
+  return Object.entries(payload.tombstones || {}).some(([date, tombs]) => (Array.isArray(tombs) ? tombs : []).some(t =>
+    t.id && String(t.id) === String(entry.id) || (!t.id || String(t.id).startsWith("legacy:")) && String(entry.id).startsWith("legacy:") && t.key === legacyFoodKey(date, entry)));
+}
+export function foodEntries(payload, date) {
+  return (Array.isArray(payload.log?.[date]) ? payload.log[date] : []).map((item, index) =>
+    item && typeof item === "object" ? normalizedFood(item, date, index) : null).filter(item => item && !foodDeleted(payload, item));
+}
+export async function foodEntryRevision(entry) {
+  // The app supplies fallback timestamps to old rows. Exclude timestamps so the
+  // same legacy entry has the same revision on the server and every device.
+  const value = JSON.stringify([entry.id, entry.date, entry.name, entry.meal, entry.amountLabel,
+    entry.cal, entry.prot, entry.carb, entry.fat, entry.fiber ?? 0]);
+  return digest(value);
+}
+async function digest(value) {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(bytes)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+async function dailyNutritionWithRevisions(payload, date, updatedAt) {
+  const result = dailyNutrition(payload, date, updatedAt);
+  const entries = foodEntries(payload, date);
+  for (let i = 0; i < result.items.length; i++) result.items[i].revision = await foodEntryRevision(entries[i]);
+  return result;
+}
+function exactObject(value, allowed, message) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some(k => !allowed.includes(k))) throw new Error(message);
+}
+function strictText(value, max, label) {
+  if (typeof value !== "string" || !value.trim() || value.length > max || /[\u0000-\u001f]/.test(value)) throw new Error(`${label} must be nonempty text of at most ${max} characters.`);
+}
+export function validateFoodArgs(name, args) {
+  const update = name === "update_food_log";
+  exactObject(args, update ? ["date", "operation_id", "entry_id", "expected_revision", "changes"] : ["date", "operation_id", ...Object.keys(FOOD_FIELDS)], "Unexpected food arguments.");
+  if (!validDate(args.date)) throw new Error("date must be a real date in YYYY-MM-DD form.");
+  if (typeof args.operation_id !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(args.operation_id)) throw new Error("operation_id must contain 8–64 letters, digits, underscores or hyphens.");
+  const fields = update ? args.changes : args;
+  if (update) {
+    strictText(args.entry_id, 2000, "entry_id");
+    if (typeof args.expected_revision !== "string" || !/^[a-f0-9]{64}$/.test(args.expected_revision)) throw new Error("Read the current entry revision before editing.");
+    exactObject(fields, [...Object.keys(FOOD_FIELDS), "portion_multiplier"], "Unexpected food changes.");
+    if (!Object.keys(fields).length) throw new Error("Supply at least one food change.");
+  }
+  for (const key of ["name", "amount"]) if (!update || fields[key] !== undefined) strictText(fields[key], key === "name" ? 200 : 100, key);
+  if ((!update || fields.meal !== undefined) && !MEALS.includes(fields.meal)) throw new Error("meal must be Breakfast, Lunch, Dinner or Snack.");
+  for (const key of Object.keys(NUTRITION_FIELDS)) {
+    const value = fields[key], max = key === "calories" ? 20000 : 5000;
+    if ((!update || value !== undefined) && (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > max)) throw new Error(`${key} must be a number from 0 to ${max}, for the logged portion.`);
+  }
+  if (fields.portion_multiplier !== undefined) {
+    if (typeof fields.portion_multiplier !== "number" || !Number.isFinite(fields.portion_multiplier) || fields.portion_multiplier <= 0 || fields.portion_multiplier > 100 || !fields.amount || Object.keys(NUTRITION_FIELDS).some(k => fields[k] !== undefined)) throw new Error("portion_multiplier must be greater than 0 and at most 100, requires amount, and cannot accompany explicit nutrition totals.");
+  }
+}
+async function gistFileText(file, config, fetchImpl, headers = {}) {
+  if (!file) throw new Error("The requested encrypted connector file is missing.");
+  if (!file.truncated && typeof file.content === "string") return file.content;
+  const url = new URL(file.raw_url);
+  const parts = url.pathname.split("/");
+  if (url.protocol !== "https:" || url.hostname !== "gist.githubusercontent.com" || parts[1].toLowerCase() !== GIST_OWNER || parts[2] !== config.gistId) throw new Error("GitHub returned an unexpected connector file URL.");
+  // Never forward the GitHub token to the raw-file host.
+  return fetchTextWithLimit(url.toString(), { "user-agent": "nutrilog-private-chatgpt-connector" }, fetchImpl);
+}
+async function decodedGistFile(file, config, fetchImpl) {
+  return decryptNutrilogPayload(JSON.parse(await gistFileText(file, config, fetchImpl)), config.encryptionKey);
+}
+export function applyFoodEdits(payload, edits) {
+  payload.log ||= {};
+  const byId = new Map();
+  for (const date of Object.keys(payload.log)) for (const entry of foodEntries(payload, date)) {
+    const current = byId.get(String(entry.id));
+    if (!current || (Date.parse(entry.updatedAt) || 0) >= (Date.parse(current.updatedAt) || 0)) byId.set(String(entry.id), entry);
+  }
+  for (const edit of edits.sort((a, b) => a.created_at.localeCompare(b.created_at) || a.operation_id.localeCompare(b.operation_id))) {
+    const entry = edit.entry;
+    if (!entry || !validDate(entry.date) || !entry.id || !Number.isFinite(Date.parse(entry.updatedAt))) throw new Error("An encrypted food change is invalid. No data was modified.");
+    if (foodDeleted(payload, entry)) continue;
+    const current = byId.get(String(entry.id));
+    // Stable IDs and latest timestamps keep app edits, moves and deletions.
+    if (!current || (Date.parse(entry.updatedAt) || 0) > (Date.parse(current.updatedAt) || 0)) byId.set(String(entry.id), { ...entry });
+  }
+  const log = {};
+  for (const entry of byId.values()) (log[entry.date] ||= []).push(entry);
+  payload.log = log;
+  return payload;
+}
+async function applyGistFoodEdits(payload, gist, encryptionKey, fetchImpl) {
+  if (gist.truncated) throw new Error("GitHub returned an incomplete file list. No data was modified.");
+  const names = Object.keys(gist.files || {}).filter(name => name.startsWith(EDIT_PREFIX) && name.endsWith(".json"));
+  if (names.length > MAX_EDIT_FILES) throw new Error("The connector food-change history is full. No data was modified.");
+  const config = { encryptionKey, gistId: String(gist.id || "") };
+  const edits = [];
+  // Bounded parallel batches avoid hundreds of simultaneous raw-file requests.
+  for (let i = 0; i < names.length; i += 10) {
+    const batch = await Promise.all(names.slice(i, i + 10).map(async name => {
+      const edit = await decodedGistFile(gist.files[name], config, fetchImpl);
+      if (edit.format !== "nutrilog-food-edit" || edit.version !== 1 || !["add_food_log", "update_food_log"].includes(edit.action) || !/^[A-Za-z0-9_-]{8,64}$/.test(edit.operation_id || "") || !Number.isFinite(Date.parse(edit.created_at))) throw new Error("An encrypted food change is invalid.");
+      return edit;
+    }));
+    edits.push(...batch);
+  }
+  applyFoodEdits(payload, edits);
+}
+async function writeAccess(config, snapshot, fetchImpl) {
+  if (!snapshot.gist?.files?.[ACCESS_FILE]) throw new Error("Food editing is not enabled. In Nutrilog Settings, tap Enable ChatGPT food editing, then retry.");
+  const access = await decodedGistFile(snapshot.gist.files[ACCESS_FILE], config, fetchImpl);
+  if (access.format !== "nutrilog-connector-access" || access.version !== 1 || access.gist_id !== config.gistId || typeof access.token !== "string" || !/^(ghp_|github_pat_)[A-Za-z0-9_]+$/.test(access.token) || access.token.length > 255) throw new Error("ChatGPT food editing connection is invalid. Enable it again in Nutrilog Settings.");
+  return access.token;
+}
+async function saveFoodEdit(config, snapshot, name, args, fetchImpl) {
+  const token = await writeAccess(config, snapshot, fetchImpl);
+  const requestHash = await digest(JSON.stringify([name, args.date, args.entry_id ?? null, args.expected_revision ?? null,
+    Object.keys(name === "add_food_log" ? FOOD_FIELDS : args.changes).sort().map(key => [key, name === "add_food_log" ? args[key] : args.changes[key]])]));
+  const filename = EDIT_PREFIX + args.operation_id + ".json";
+  const previous = snapshot.gist.files[filename];
+  if (previous) {
+    const edit = await decodedGistFile(previous, config, fetchImpl);
+    if (edit.request_hash !== requestHash) throw new Error("This operation_id was already used for different changes. Use a new operation_id.");
+    return foodEditResult(snapshot.payload, args.date, edit.entry, true, snapshot.updatedAt);
+  }
+  if (Object.keys(snapshot.gist.files).filter(k => k.startsWith(EDIT_PREFIX)).length >= MAX_EDIT_FILES) throw new Error("The connector food-change history is full. No data was modified.");
+  let entry;
+  const now = new Date().toISOString();
+  if (name === "add_food_log") {
+    if (foodEntries(snapshot.payload, args.date).length >= MAX_ITEMS_PER_DAY) throw new Error("This day already contains the maximum number of entries.");
+    entry = { id: "chatgpt-" + args.operation_id, date: args.date, updatedAt: now };
+  } else {
+    const current = foodEntries(snapshot.payload, args.date).find(item => String(item.id) === args.entry_id);
+    if (!current) throw new Error("The food entry was removed or moved. Read the diary again before editing.");
+    if (await foodEntryRevision(current) !== args.expected_revision) throw new Error("The food entry changed since it was read. Read the diary again before editing.");
+    entry = { ...current, updatedAt: new Date(Math.max(Date.now(), (Date.parse(current.updatedAt) || 0) + 1)).toISOString() };
+  }
+  const fields = name === "add_food_log" ? args : args.changes;
+  for (const key of ["name", "meal", "amount"]) if (fields[key] !== undefined) entry[key === "amount" ? "amountLabel" : key] = fields[key].trim();
+  for (const [key, field] of Object.entries(NUTRITION_FIELDS)) {
+    if (fields[key] !== undefined) entry[field] = fields[key];
+    if (fields.portion_multiplier !== undefined) {
+      const value = (entry[field] ?? (field === "fiber" ? 0 : NaN)) * fields.portion_multiplier;
+      if (!Number.isFinite(value) || value < 0 || value > (field === "cal" ? 20000 : 5000)) throw new Error("Scaled nutrition is missing or outside the supported range. Supply explicit portion totals instead.");
+      entry[field] = round(value);
+    }
+  }
+  const edit = { format: "nutrilog-food-edit", version: 1, action: name, operation_id: args.operation_id,
+    request_hash: requestHash, created_at: entry.updatedAt, entry };
+  const envelope = await encryptNutrilogPayload(edit, config.encryptionKey);
+  const content = JSON.stringify(envelope);
+  const response = await fetchImpl(`https://api.github.com/gists/${encodeURIComponent(config.gistId)}`, {
+    method: "PATCH", redirect: "manual", signal: AbortSignal.timeout(20000),
+    headers: { accept: "application/vnd.github+json", "content-type": "application/json", authorization: "Bearer " + token,
+      "user-agent": "nutrilog-private-chatgpt-connector", "x-github-api-version": "2022-11-28" },
+    body: JSON.stringify({ files: { [filename]: { content } } }),
+  });
+  if (!response.ok) throw new Error(response.status === 401 || response.status === 403
+    ? "GitHub refused the save. Check that your token has gist permission, then enable ChatGPT editing again in Nutrilog Settings."
+    : `GitHub returned ${response.status}. Retry with the same operation_id and identical arguments to avoid duplicates.`);
+  // Do not trust a success status alone: verify the immutable encrypted operation.
+  const verified = await readNutrilogGist(config, fetchImpl);
+  const saved = verified.gist?.files?.[filename];
+  if (!saved || (await decodedGistFile(saved, config, fetchImpl)).request_hash !== requestHash) throw new Error("Save could not be verified. Retry with the same operation_id and identical arguments.");
+  return foodEditResult(verified.payload, args.date, entry, false, verified.updatedAt);
+}
+async function foodEditResult(payload, date, entry, replayed, updatedAt) {
+  const data = await dailyNutritionWithRevisions(payload, date, updatedAt);
+  const item = data.items.find(item => item.entry_id === String(entry.id));
+  return { content: [{ type: "text", text: `${replayed ? "Already saved" : "Saved"}: ${entry.name} (${entry.amountLabel}) on ${date}. Open or Pull Nutrilog to sync it to your device.` }],
+    structuredContent: { saved: true, replayed, date, entry: item ?? null, totals: data.totals, sync: "encrypted_cloud_change", device_sync_required: true } };
+}
+
 function configuration(env) {
   const gistId = text(env.NUTRILOG_GIST_ID, 100);
   const encryptionKey = text(env.NUTRILOG_ENCRYPTION_KEY, 100);
@@ -414,7 +627,7 @@ function authorize(request, ownerEmail) {
 }
 
 async function fetchTextWithLimit(url, headers, fetchImpl) {
-  const response = await fetchImpl(url, { method: "GET", headers, redirect: "manual" });
+  const response = await fetchImpl(url, { method: "GET", headers, redirect: "manual", signal: AbortSignal.timeout(20000) });
   if (!response.ok) {
     const error = new Error(`GitHub returned ${response.status} while reading the Nutrilog Gist.`);
     error.status = response.status;
@@ -432,7 +645,7 @@ async function fetchTextWithLimit(url, headers, fetchImpl) {
 export async function readNutrilogGist(config, fetchImpl = fetch) {
   const headers = {
     accept: "application/vnd.github+json",
-    "user-agent": "nutrilog-read-only-chatgpt-connector",
+    "user-agent": "nutrilog-private-chatgpt-connector",
     "x-github-api-version": "2022-11-28",
   };
   const apiUrl = `https://api.github.com/gists/${encodeURIComponent(config.gistId)}`;
@@ -441,16 +654,8 @@ export async function readNutrilogGist(config, fetchImpl = fetch) {
     rawGist = await fetchTextWithLimit(apiUrl, headers, fetchImpl);
   } catch (error) {
     if (error.status !== 403 && error.status !== 429) throw error;
-    const rawUrl = `https://gist.githubusercontent.com/${GIST_OWNER}/${encodeURIComponent(config.gistId)}/raw/nutrilog.json`;
-    const content = await fetchTextWithLimit(rawUrl, { "user-agent": headers["user-agent"] }, fetchImpl);
-    let envelope;
-    try {
-      envelope = JSON.parse(content);
-    } catch {
-      throw new Error("nutrilog.json is not valid JSON.");
-    }
-    const payload = await decryptNutrilogPayload(envelope, config.encryptionKey);
-    return { payload, updatedAt: null };
+    throw new Error("GitHub is temporarily rate limited. Try again shortly; the diary and food changes were not modified.");
+
   }
   let gist;
   try {
@@ -478,7 +683,8 @@ export async function readNutrilogGist(config, fetchImpl = fetch) {
     throw new Error("nutrilog.json is not valid JSON.");
   }
   const payload = await decryptNutrilogPayload(envelope, config.encryptionKey);
-  return { payload, updatedAt: text(gist.updated_at, 40) || null };
+  await applyGistFoodEdits(payload, gist, config.encryptionKey, fetchImpl);
+  return { payload, updatedAt: text(gist.updated_at, 40) || null, gist };
 }
 
 function toolSuccess(data) {
@@ -537,7 +743,10 @@ async function mcp(request, env, fetchImpl) {
       if (!args || typeof args !== "object" || Array.isArray(args) || Object.keys(args).some((key) => key !== "date") || typeof args.date !== "string" || !validDate(args.date)) {
         throw new Error("date must be a real date in YYYY-MM-DD form.");
       }
-    } else validateMeasurementArgs(name, args);
+    } else if (name === "get_food_editing_status") {
+      if (!args || typeof args !== "object" || Array.isArray(args) || Object.keys(args).length) throw new Error("Unexpected editing status arguments.");
+    } else if (name === "add_food_log" || name === "update_food_log") validateFoodArgs(name, args);
+    else validateMeasurementArgs(name, args);
   } catch (error) {
     return rpcResult(body.id, toolFailure(error.message));
   }
@@ -545,8 +754,14 @@ async function mcp(request, env, fetchImpl) {
   try {
     const config = configuration(env);
     authorize(request, config.ownerEmail);
-    const { payload, updatedAt } = await readNutrilogGist(config, fetchImpl);
-    if (name === TOOL.name) return rpcResult(body.id, toolSuccess(dailyNutrition(payload, args.date, updatedAt)));
+    const snapshot = await readNutrilogGist(config, fetchImpl);
+    const { payload, updatedAt } = snapshot;
+    if (name === "get_food_editing_status") {
+      const enabled = !!snapshot.gist?.files?.[ACCESS_FILE];
+      return rpcResult(body.id, { content: [{ type: "text", text: enabled ? "Food editing is enabled." : "Open Nutrilog Settings and tap Enable ChatGPT food editing first." }], structuredContent: { enabled } });
+    }
+    if (name === "add_food_log" || name === "update_food_log") return rpcResult(body.id, await saveFoodEdit(config, snapshot, name, args, fetchImpl));
+    if (name === TOOL.name) return rpcResult(body.id, toolSuccess(await dailyNutritionWithRevisions(payload, args.date, updatedAt)));
     const operation = { get_latest_measurements: latestMeasurements, get_measurement_history: measurementHistory, get_weight_progress: weightProgress }[name];
     const data = operation(payload, args, updatedAt);
     const summary = name === "get_latest_measurements"

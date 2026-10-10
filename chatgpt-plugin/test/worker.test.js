@@ -111,13 +111,11 @@ test("dailyNutrition returns only the deliberately reduced schema", () => {
 
   const serialized = JSON.stringify(result);
   for (const forbidden of [
-    "private-row-id",
     "updatedAt",
     "weight",
     "measurements",
     "recovery",
     "sleepHours",
-    "private",
     "goalHistory",
     "decision",
     "tombstones",
@@ -163,24 +161,8 @@ test("tool call reads the configured Gist using GET and returns no secret", asyn
   assert.equal(calls[0].options.headers.authorization, undefined);
 });
 
-test("readNutrilogGist falls back to the encrypted raw file when GitHub API is rate limited", async () => {
-  const encrypted = await encryptNutrilogPayload(fixture, env.NUTRILOG_ENCRYPTION_KEY);
-  const calls = [];
-  const result = await readNutrilogGist(
-    { gistId: env.NUTRILOG_GIST_ID, encryptionKey: env.NUTRILOG_ENCRYPTION_KEY },
-    async (url, options) => {
-    calls.push({ url, options });
-    if (calls.length === 1) return new Response("rate limited", { status: 403 });
-    return new Response(JSON.stringify(encrypted), { status: 200 });
-    },
-  );
-
-  assert.equal(calls.length, 2);
-  assert.equal(calls[1].url, "https://gist.githubusercontent.com/jozefjanotta-source/abc123/raw/nutrilog.json");
-  assert.equal(calls[1].options.method, "GET");
-  assert.equal(calls[1].options.redirect, "manual");
-  assert.equal(result.payload.log["2026-10-10"][0].name, "Oats");
-  assert.equal(result.updatedAt, null);
+test("rate limits fail clearly rather than hiding encrypted food changes", async () => {
+  await assert.rejects(readNutrilogGist({gistId: env.NUTRILOG_GIST_ID, encryptionKey: env.NUTRILOG_ENCRYPTION_KEY}, async()=>new Response("limited",{status:403})), /temporarily rate limited/);
 });
 
 test("tool call rejects a caller whose verified email is not allowlisted", async () => {
