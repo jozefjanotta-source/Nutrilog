@@ -834,7 +834,8 @@ async function loadFoodsCSV(){
         if(resp.ok){
           const data=await resp.json();
           if(data.files&&data.files['foods.csv']){
-            const text=await decryptGistText(data.files['foods.csv'].content,state.gistEncryptionKey,!state.gistEncryptionKey);
+            const foodContent=await readGistFileContent(data.files['foods.csv']);
+            const text=await decryptGistText(foodContent,state.gistEncryptionKey,!state.gistEncryptionKey);
             const foods=parseCSVText(text);
             if(foods.length>0){
               DB=foods;
@@ -915,6 +916,16 @@ async function decryptGistText(content,encodedKey,allowPlaintext=false){
 }
 function isEncryptedGistContent(content){
   try{const value=JSON.parse(content);return value&&value.format===ENCRYPTED_GIST_FORMAT}catch(e){return false}
+}
+async function readGistFileContent(file){
+  if(!file)throw new Error('Cloud backup file is missing.');
+  if(!file.truncated&&typeof file.content==='string')return file.content;
+  if(!file.raw_url)throw new Error('GitHub did not provide the complete cloud backup file.');
+  const rawUrl=new URL(file.raw_url);
+  if(rawUrl.protocol!=='https:'||rawUrl.hostname!=='gist.githubusercontent.com')throw new Error('GitHub returned an unexpected cloud backup address.');
+  const response=await fetch(rawUrl.toString(),{method:'GET'});
+  if(!response.ok)throw new Error('GitHub could not return the complete cloud backup file.');
+  return response.text();
 }
 function todayISO(){
   const d=new Date();
@@ -2996,12 +3007,14 @@ async function createEncryptedGist(){
       if(!oldResp.ok)throw new Error(oldData.message||'Could not read the existing Gist.');
       const oldFile=oldData.files&&oldData.files['nutrilog.json'];
       if(oldFile){
-        if(isEncryptedGistContent(oldFile.content))throw new Error('This Gist is already encrypted. Enter its recovery key on this device instead.');
-        applyRemotePayload(JSON.parse(await decryptGistText(oldFile.content,'',true)));
+        const oldContent=await readGistFileContent(oldFile);
+        if(isEncryptedGistContent(oldContent))throw new Error('This Gist is already encrypted. Enter its recovery key on this device instead.');
+        applyRemotePayload(JSON.parse(await decryptGistText(oldContent,'',true)));
       }
       const oldFoods=oldData.files&&oldData.files['foods.csv'];
       if(oldFoods){
-        const parsedFoods=parseCSVText(await decryptGistText(oldFoods.content,'',true));
+        const oldFoodsContent=await readGistFileContent(oldFoods);
+        const parsedFoods=parseCSVText(await decryptGistText(oldFoodsContent,'',true));
         if(parsedFoods.length){DB=parsedFoods;DB_LOADED=true;lsSet('nl_foods_csv',parsedFoods)}
       }
     }
@@ -3057,7 +3070,8 @@ async function gistSync(direction){
           if(fetchResp.ok){
             const remoteData=await fetchResp.json();
             if(remoteData.files&&remoteData.files['nutrilog.json']){
-              const remote=JSON.parse(await decryptGistText(remoteData.files['nutrilog.json'].content,state.gistEncryptionKey));
+              const remoteContent=await readGistFileContent(remoteData.files['nutrilog.json']);
+              const remote=JSON.parse(await decryptGistText(remoteContent,state.gistEncryptionKey));
               applyRemotePayload(remote);
               // Save backup
               const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
@@ -3102,7 +3116,8 @@ async function gistSync(direction){
       if(!resp.ok) throw new Error(data.message||'GitHub error');
       // Load log data
       if(data.files['nutrilog.json']){
-        const raw=await decryptGistText(data.files['nutrilog.json'].content,state.gistEncryptionKey);
+        const encryptedContent=await readGistFileContent(data.files['nutrilog.json']);
+        const raw=await decryptGistText(encryptedContent,state.gistEncryptionKey);
         let p;
         try{
           p=JSON.parse(raw);
@@ -3114,7 +3129,8 @@ async function gistSync(direction){
       // Load foods
       let foodsLoaded=0;
       if(data.files&&data.files['foods.csv']){
-        const foodsText=await decryptGistText(data.files['foods.csv'].content,state.gistEncryptionKey);
+        const encryptedFoods=await readGistFileContent(data.files['foods.csv']);
+        const foodsText=await decryptGistText(encryptedFoods,state.gistEncryptionKey);
         const foods=parseCSVText(foodsText);
         foodsLoaded=foods.length;
         if(foods.length>0){
@@ -3241,7 +3257,8 @@ async function silentPush(){
     if(fetchResp.ok){
       const remoteData=await fetchResp.json();
       if(remoteData.files&&remoteData.files['nutrilog.json']){
-        const remoteText=await decryptGistText(remoteData.files['nutrilog.json'].content,state.gistEncryptionKey);
+        const remoteContent=await readGistFileContent(remoteData.files['nutrilog.json']);
+        const remoteText=await decryptGistText(remoteContent,state.gistEncryptionKey);
         const backups=JSON.parse(lsGet('nl_backups','[]')||'[]');
         backups.unshift({ts:new Date().toISOString(),data:remoteText});
         if(backups.length>7) backups.pop();
@@ -3477,7 +3494,8 @@ function initApp(){
           const resp=await fetch('https://api.github.com/gists/'+state.gistId,{headers});
           if(resp.ok){
             const data=await resp.json();
-            const raw=await decryptGistText(data.files['nutrilog.json'].content,state.gistEncryptionKey,!state.gistEncryptionKey);
+            const encryptedContent=await readGistFileContent(data.files['nutrilog.json']);
+            const raw=await decryptGistText(encryptedContent,state.gistEncryptionKey,!state.gistEncryptionKey);
             const p=JSON.parse(raw);
             if(p.targets){
               applyRemotePayload(p);
