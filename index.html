@@ -1843,8 +1843,8 @@ function renderGistPrivacy(){
     panel.innerHTML='<b style="color:var(--accent-text)">Encrypted cloud backup active.</b><br>Your diary is encrypted before it leaves this browser.'+(state.legacyGistId?'<br><span style="color:var(--danger)">Old unencrypted Gist still needs to be deleted after verification.</span>':'');
     button.style.display='none';
   }else{
-    panel.innerHTML='<b style="color:var(--danger)">Privacy upgrade required.</b><br>Your existing secret Gist is unlisted, not access-controlled. Create a new encrypted backup before connecting ChatGPT.';
-    button.style.display='block';
+    panel.innerHTML=state.gistId?'<b style="color:var(--danger)">Recovery key missing on this device.</b><br>Open Connect this device to an existing encrypted backup, enter its recovery key, then save the connection.':'<b>Connect to your existing encrypted backup.</b><br>Enter its Gist ID and recovery key below. Create a new backup only if this is your first setup.';
+    button.style.display=state.gistId?'none':'block';
   }
 }
 
@@ -1867,7 +1867,7 @@ function saveEncryptedGistConnection(){
   lsSet(SK.gist_id,gistId);lsSet(SK.gist_key,encryptionKey);
   document.getElementById('gist-id-display').textContent='Gist ID: '+gistId;
   renderGistPrivacy();
-  msg.style.color='var(--accent)';msg.textContent='Encrypted backup connection saved on this device. Tap Pull to verify it.';
+  msg.style.color='var(--accent)';msg.textContent='Existing backup connected. If you have new entries on this device, tap Push (save to cloud).';
 }
 
 async function copyEncryptedConnectionValue(inputId,label){
@@ -3078,7 +3078,7 @@ async function gistSync(direction){
 
   if(!state.gistEncryptionKey){
     msg.style.color='var(--danger)';
-    msg.textContent='Create a new encrypted cloud backup first.';
+    msg.textContent='Recovery key missing on this device. Open Connect this device to an existing encrypted backup and save its Gist ID and recovery key.';
     return;
   }
 
