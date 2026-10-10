@@ -753,6 +753,7 @@ function parseCSVText(text){
   const foods=[];
   const seen=new Set();
   let startRow=1;
+  let colBasis=-1,colNutritionSource=-1;
   let colName=0,colAmount=1,colUnit=2,colCal=3,colFat=4,colCarb=5,colProt=6,colFiber=7,colSource=8,colSourceId=9;
   for(let i=0;i<lines.length;i++){
     const lower=lines[i].toLowerCase();
@@ -770,6 +771,7 @@ function parseCSVText(text){
         else if(hl==='fiber'||hl==='fibre') colFiber=idx;
         else if(hl==='source') colSource=idx;
         else if(hl==='source id'||hl==='sourceid') colSourceId=idx;
+        else if(hl==='weight basis')colBasis=idx;else if(hl==='nutrition source')colNutritionSource=idx;
       });
       startRow=i+1;break;
     }
@@ -812,9 +814,10 @@ function parseCSVText(text){
         prot:Math.round(prot*r*10)/10,
         carb:Math.round(carb*r*10)/10,
         fat:Math.round(fat*r*10)/10,
-        fiber:Math.round(fiber*r*10)/10,piece:amount!==100?Math.round(amount):null,unit:'g',source,sourceId};
+        fiber:Math.round(fiber*r*10)/10,piece:amount!==100?Math.round(amount):null,unit:unit==='ml'?'ml':'g',source,sourceId};
       if(entry.cal>2000) continue;
     }
+    entry.weightBasis=cols[colBasis]||(/\braw\b/i.test(name)?'raw':/\bcooked\b/i.test(name)?'cooked':'unspecified');entry.nutritionSource=cols[colNutritionSource]||'database';
     foods.push(entry);
   }
   return foods;
@@ -871,12 +874,14 @@ async function loadFoodsCSV(){
 
 function parseCSVLine(line){
   // Auto-detect delimiter: semicolon or comma
-  const delim=line.includes(';')?';':',';
+  let headerQuoted=false,delimiterCount=0;
+  for(let i=0;i<line.length;i++){if(line[i]==='"')headerQuoted=!headerQuoted;else if(line[i]===';'&&!headerQuoted)delimiterCount++;}
+  const delim=delimiterCount?';':',';
   const result=[];
   let cur='';let inQuote=false;
   for(let i=0;i<line.length;i++){
     const ch=line[i];
-    if(ch==='"'){inQuote=!inQuote;}
+    if(ch==='"'){if(inQuote&&line[i+1]==='"'){cur+='"';i++;}else inQuote=!inQuote;}
     else if(ch===delim&&!inQuote){result.push(cur.trim());cur='';}
     else{cur+=ch;}
   }
@@ -884,7 +889,61 @@ function parseCSVLine(line){
   return result;
 }
 
-const SK={targets:'nl_targets',targetHistory:'nl_target_history',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',recovery:'nl_recovery',goalHistory:'nl_goal_history',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',gist_key:'nl_gist_encryption_key',legacy_gist_id:'nl_legacy_gist_id',tombstones:'nl_tombstones',measurementTombstones:'nl_measurement_tombstones',syncMeta:'nl_sync_meta'};
+// Shared deterministic data rules for the app and encrypted connector.
+const NutritionExperience = (() => {
+  const fields = ['id','date','name','meal','amountLabel','cal','prot','carb','fat','fiber','nutritionSource','sourceNote','weightBasis'];
+  const stamp = x => Date.parse(x?.updatedAt) || 0;
+  function signature(entries) {
+    return JSON.stringify((entries || []).map(e => fields.map(k => e[k] ?? (['cal','prot','carb','fat','fiber'].includes(k) ? 0 : ''))).sort((a,b) => String(a[0]) < String(b[0]) ? -1 : String(a[0]) > String(b[0]) ? 1 : 0));
+  }
+  function status(log, days, date) {
+    const mark = days?.[date];
+    return mark?.complete && mark.signature === signature(log?.[date]) ? 'complete' : (log?.[date]?.length ? 'partial' : 'unlogged');
+  }
+  function mergeDays(local, remote) {
+    const out = {...(remote || {})};
+    for (const [d, v] of Object.entries(local || {})) if (!out[d] || stamp(v) >= stamp(out[d])) out[d] = v;
+    return out;
+  }
+  function foodId(f, prefix='custom') {
+    return f.id || prefix + '-legacy:' + encodeURIComponent(JSON.stringify([f.name,f.unit || 'g',f.cal,f.prot,f.carb,f.fat,f.fiber || 0]));
+  }
+  function normalizeFood(f, prefix='custom') {
+    return {...f, id:foodId(f,prefix), updatedAt:f.updatedAt || '1970-01-01T00:00:00.000Z',
+      weightBasis:f.weightBasis || (/\braw\b/i.test(f.name) ? 'raw' : /\bcooked\b/i.test(f.name) ? 'cooked' : 'unspecified'),
+      nutritionSource:f.nutritionSource || (prefix === 'db' ? 'database' : 'user'), sourceNote:f.sourceNote || f.source || ''};
+  }
+  function mergeFoods(local, remote, tombstones={}) {
+    const out = new Map();
+    for (const f of [...(remote || []),...(local || [])]) {
+      const item = normalizeFood(f);
+      if (tombstones[item.id]) continue;
+      if (!out.has(item.id) || stamp(item) >= stamp(out.get(item.id))) out.set(item.id,item);
+    }
+    return [...out.values()];
+  }
+  function totals(entries) {
+    const sum = {cal:0,prot:0,carb:0,fat:0,fiber:0};
+    for (const e of entries || []) for (const k of Object.keys(sum)) sum[k] += Number(e[k]) || 0;
+    return sum;
+  }
+  function review(log, days, saturday, targetsForDate) {
+    const end = new Date(saturday + 'T12:00:00Z');
+    if (Number.isNaN(+end) || end.toISOString().slice(0,10) !== saturday || end.getUTCDay() !== 6) throw new Error('Choose a real Saturday for the review date.');
+    const dates = Array.from({length:7},(_,i) => new Date(+end - (7-i)*86400000).toISOString().slice(0,10));
+    const complete = dates.filter(d => status(log,days,d) === 'complete');
+    const partial = dates.filter(d => status(log,days,d) === 'partial');
+    const average = complete.length ? totals(complete.flatMap(d => log?.[d] || [])) : null;
+    if (average) for (const k of Object.keys(average)) average[k] = Math.round(average[k] / complete.length * 10) / 10;
+    const targetValues = dates.map(d => targetsForDate(d)?.cal).filter(v => typeof v === 'number' && v > 0);
+    return {review_date:saturday, from:dates[0], to:dates[6], complete_days:complete.length, partial_days:partial.length,
+      unlogged_days:7-complete.length-partial.length, average, average_target:targetValues.length ? Math.round(targetValues.reduce((a,b)=>a+b,0)/targetValues.length) : null,
+      target_days:targetValues.length, days:dates.map(date => ({date,status:status(log,days,date)}))};
+  }
+  return {signature,status,mergeDays,foodId,normalizeFood,mergeFoods,totals,review};
+})();
+
+const SK={dayStatus:'nl_day_status',customFoodTombstones:'nl_custom_food_tombstones',targets:'nl_targets',targetHistory:'nl_target_history',log:'nl_log',custom:'nl_custom',weight:'nl_weight',measurements:'nl_measurements',recovery:'nl_recovery',goalHistory:'nl_goal_history',decision:'nl_decision',gist_token:'nl_gist_token',gist_id:'nl_gist_id',gist_key:'nl_gist_encryption_key',legacy_gist_id:'nl_legacy_gist_id',tombstones:'nl_tombstones',measurementTombstones:'nl_measurement_tombstones',syncMeta:'nl_sync_meta'};
 const ENCRYPTED_GIST_FORMAT='nutrilog-encrypted';
 const ENCRYPTED_GIST_VERSION=1;
 function lsGet(k,fb){try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch(e){return fb}}
@@ -960,6 +1019,7 @@ function fmt(n){return Math.round(n*10)/10}
 function fmtI(n){return Math.round(n)}
 
 const state={
+  dayStatus:lsGet(SK.dayStatus,{}),customFoodTombstones:lsGet(SK.customFoodTombstones,{}),foodUndo:lsGet('nl_food_undo',[]),cloudFoodChanges:[],activeView:'dash',
   targets:lsGet(SK.targets,{cal:2200,prot:150,carb:200,fat:80,fiber:30}),
   targetHistory:lsGet(SK.targetHistory,[]),
   log:lsGet(SK.log,{}),
@@ -1000,7 +1060,7 @@ const state={
   weeklyHistoryExpanded:false,
   moveMode:false
 };
-function persist(k){lsSet(SK[k],state[k])}
+function persist(k){lsSet(SK[k],k==='custom'?state.customFoods:state[k])}
 
 function createLogEntryId(){
   return 'log-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
@@ -1235,6 +1295,7 @@ let chartCal=null,chartMacro=null,ringChart=null,dashCalChart=null,chartWeeklyAv
 
 const VIEWS=['dash','log','add','summary','measurements','custom','targets'];
 function switchView(v){
+  state.activeView=v;
   VIEWS.forEach(id=>{
     const el=document.getElementById('view-'+id);
     if(el) el.style.display=id===v?'block':'none';
@@ -1461,6 +1522,7 @@ function calorieTargetLine(data){
 
 // ---- LOG PAGE ----
 function renderLog(){
+  renderDayCompletion();
   const lbl=dayLabel(state.currentDate);
   const ldEl=document.getElementById('log-date-label-text');if(ldEl)ldEl.textContent=lbl;
   const printDate=document.getElementById('print-log-date');if(printDate)printDate.textContent=lbl+' - '+state.currentDate;
@@ -1481,8 +1543,8 @@ function renderLog(){
       html+='<div class="food-item'+(checked?' selected':'')+'" >'+
         '<div class="food-item-cb'+(checked?' checked':'')+'" onclick="event.stopPropagation();toggleSelect('+idx+')">'+( checked?'&#10003;':'')+'</div>'+
         '<div class="food-item-info" onclick="event.stopPropagation();editEntry(\''+entryKey+'\')">'+
-          '<div class="food-item-name">'+e.name+' <span style="font-size:10px;color:var(--accent);opacity:.7">✎</span></div>'+
-          '<div class="food-item-meta">'+e.amountLabel+' &nbsp;P '+fmtI(e.prot)+'g &nbsp;C '+fmtI(e.carb)+'g &nbsp;F '+fmtI(e.fat)+'g</div>'+
+          '<div class="food-item-name">'+escHtml(e.name)+' <span style="font-size:10px;color:var(--accent);opacity:.7">✎</span></div>'+
+          '<div class="food-item-meta">'+escHtml(e.amountLabel)+' &nbsp;P '+fmtI(e.prot)+'g &nbsp;C '+fmtI(e.carb)+'g &nbsp;F '+fmtI(e.fat)+'g <span class="tag" title="'+escHtml(e.sourceNote||'')+'">'+escHtml(foodSourceLabel(e))+'</span></div>'+
         '</div>'+
         '<div class="food-item-cal">'+fmtI(e.cal)+' kcal</div>'+
       '</div>';
@@ -1555,6 +1617,7 @@ function deleteSelected(){
   const entries=state.log[state.currentDate]||[];
   const removedCount=state.selected.size;
   const selectedIndices=[...state.selected];
+  rememberFoodUndo(selectedIndices.map(i=>entries[i]),[]);
   recordTombstones(state.currentDate, entries, selectedIndices);
   state.log[state.currentDate]=entries.filter((_,i)=>!state.selected.has(i));
   state.selected=new Set();
@@ -1590,6 +1653,7 @@ function confirmCopyMove(){
     const item=normalizeLogEntry(e,sourceDate,i);
     return {...item,id:state.moveMode?item.id:createLogEntryId(),date:targetDate,meal:targetMeal||item.meal,updatedAt:now};
   });
+  rememberFoodUndo(state.moveMode?toProcess:[],toCopy);
   if(!state.log[targetDate])state.log[targetDate]=[];
   state.log[targetDate].push(...toCopy);
   if(state.moveMode){
@@ -1615,11 +1679,11 @@ function handleSearch(q){
     ...state.customFoods.map((f,i)=>({...f,_src:'custom',_index:i})).filter(f=>f.name.toLowerCase().includes(ql)),
     ...DB.map((f,i)=>({...f,_src:'builtin',_index:i})).filter(f=>f.name.toLowerCase().includes(ql))
   ];
-  if(!all.length){document.getElementById('search-results').innerHTML='<div class="no-results">No results for "'+q+'". Add it under My foods.</div>';document.getElementById('search-status').textContent='';return;}
+  if(!all.length){document.getElementById('search-results').innerHTML='<div class="no-results">No results for "'+escHtml(q)+'". Add it under My foods.</div>';document.getElementById('search-status').textContent='';return;}
   document.getElementById('search-status').textContent=all.length+' result'+(all.length!==1?'s':'');
   document.getElementById('search-results').innerHTML='<div class="results-list">'+all.map(f=>{
-    const fs=JSON.stringify(f).replace(/'/g,"&#39;");
-    return '<div class="result-item" onclick='+"'"+'pickFood('+fs+')'+"'"+ '><div style="flex:1;min-width:0"><div class="result-name">'+escHtml(f.name)+'<span class="tag '+(f._src==='custom'?'tag-custom':'tag-builtin')+'">'+f._src+'</span></div><div class="result-meta">'+(f.unit&&f.unit!=='g'?'per 1 '+f.unit:'per 100g'+(f.piece?' · 1pc='+f.piece+'g':''))+' &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g'+'</div></div><div class="result-cal">'+fmtI(f.cal)+'</div><button class="btn-sm" onclick="event.stopPropagation();editFood(\''+f._src+'\','+f._index+')">Edit</button></div>';
+    const fs=escHtml(JSON.stringify(f));
+    return '<div class="result-item" onclick='+"'"+'pickFood('+fs+')'+"'"+ '><div style="flex:1;min-width:0"><div class="result-name">'+escHtml(f.name)+'<span class="tag '+(f._src==='custom'?'tag-custom':'tag-builtin')+'">'+f._src+'</span></div><div class="result-meta">'+(f.unit==='ml'?'per 100ml':f.unit&&f.unit!=='g'?'per 1 '+escHtml(f.unit):'per 100g'+(f.piece?' · 1pc='+f.piece+'g':''))+' &nbsp;P '+fmtI(f.prot)+'g &nbsp;C '+fmtI(f.carb)+'g &nbsp;F '+fmtI(f.fat)+'g · '+escHtml(foodSourceLabel(f))+'</div></div><div class="result-cal">'+fmtI(f.cal)+'</div><button class="btn-sm" onclick="event.stopPropagation();editFood(\''+f._src+'\','+f._index+')">Edit</button></div>';
   }).join('')+'</div>';
 }
 function clearSearch(){document.getElementById('search-input').value='';handleSearch('');}
@@ -1631,10 +1695,10 @@ function setUnitMode(mode){
   const f=state.pendingFood;const ai=document.getElementById('af-amount');
   if(mode==='grams'){
     const u=f&&f.unit&&f.unit!=='g'?f.unit:'g';
-    document.getElementById('amount-label').textContent=u==='g'?'Amount (g)':'Number of '+u+'s';
+    document.getElementById('amount-label').textContent=u==='g'?'Amount (g)':u==='ml'?'Amount (ml)':'Number of '+u+'s';
     document.getElementById('field-unit').style.display='none';
     ai.value=1;ai.step=1;
-    if(u==='g'){ai.value=100;}
+    if(u==='g'||u==='ml'){ai.value=100;}
   } else if(mode==='pieces'){
     document.getElementById('amount-label').textContent='Pieces'+(f&&f.piece?' (1pc='+f.piece+'g)':'');
     document.getElementById('field-unit').style.display='none';ai.value=1;ai.step=0.5;
@@ -1675,7 +1739,9 @@ function getAmountLabel(){
   return count+' '+unit;
 }
 function pickFood(food){
+  food=NutritionExperience.normalizeFood(food,food._src==='custom'?'custom':'db');
   state.pendingFood=food;
+  document.querySelectorAll('.unit-tab')[0].textContent=food.unit==='ml'?'Millilitres':['g',undefined].includes(food.unit)?'Grams':'Units';
   document.getElementById('add-panel').style.display='block';
   document.getElementById('af-name').textContent=food.name;
   const hp=food.piece&&food.piece>0;
@@ -1697,9 +1763,11 @@ function addToLog(){
   const f=state.pendingFood;if(!f)return;
   const now=new Date().toISOString();
   const r=getFoodMultiplier();
+  if(!Number.isFinite(r)||r<=0||r>100){showToast('Enter a valid portion amount.');return;}
   const meal=document.getElementById('af-meal').value;
   if(!state.log[state.currentDate])state.log[state.currentDate]=[];
-  state.log[state.currentDate].push({id:createLogEntryId(),date:state.currentDate,updatedAt:now,name:f.name,meal,amountLabel:getAmountLabel(),cal:f.cal*r,prot:f.prot*r,carb:f.carb*r,fat:f.fat*r,fiber:(f.fiber||0)*r});
+  const added={id:createLogEntryId(),date:state.currentDate,updatedAt:now,name:f.name,meal,amountLabel:getAmountLabel(),cal:f.cal*r,prot:f.prot*r,carb:f.carb*r,fat:f.fat*r,fiber:(f.fiber||0)*r,nutritionSource:f.nutritionSource||'database',weightBasis:f.weightBasis||'unspecified',sourceNote:f.sourceNote||f.source||''};
+  state.log[state.currentDate].push(added);rememberFoodUndo([],[added]);
   persist('log');scheduleAutoSync();state.pendingFood=null;clearSearch();
   document.getElementById('add-panel').style.display='none';
   switchView('log');
@@ -1713,6 +1781,7 @@ function resetCustomFoodForm(){
   editingFoodSource=null;
   editingFoodIndex=null;
   ['cf-name','cf-cal','cf-prot','cf-carb','cf-fat','cf-fiber','cf-piece'].forEach(id=>document.getElementById(id).value='');
+  ['cf-unit','cf-source','cf-basis','cf-note'].forEach(id=>{const el=document.getElementById(id);if(el)el.value={ 'cf-unit':'g','cf-source':'user','cf-basis':'unspecified','cf-note':''}[id];});
   document.getElementById('cf-form-title').textContent='Add custom food';
   document.getElementById('cf-cal-label').textContent='Kcal / 100g';
   document.getElementById('cf-save-btn').textContent='Save food';
@@ -1720,16 +1789,17 @@ function resetCustomFoodForm(){
 }
 function saveCustomFood(){
   const name=document.getElementById('cf-name').value.trim();if(!name)return;
-  const original=editingFoodSource==='builtin'?DB[editingFoodIndex]:null;
-  const food={name,
+  const original=editingFoodSource==='builtin'?DB[editingFoodIndex]:editingFoodIndex!==null?state.customFoods[editingFoodIndex]:null;
+  const food={...(original||{}),id:original?NutritionExperience.foodId(original):'custom-'+createLogEntryId(),updatedAt:new Date().toISOString(),name,nutritionSource:document.getElementById('cf-source').value,weightBasis:document.getElementById('cf-basis').value,sourceNote:document.getElementById('cf-note').value.trim(),
     cal:parseFloat(document.getElementById('cf-cal').value)||0,
     prot:parseFloat(document.getElementById('cf-prot').value)||0,
     carb:parseFloat(document.getElementById('cf-carb').value)||0,
     fat:parseFloat(document.getElementById('cf-fat').value)||0,
     fiber:parseFloat(document.getElementById('cf-fiber').value)||0,
     piece:parseFloat(document.getElementById('cf-piece').value)||null,
-    unit:original&&original.unit?original.unit:'g'
+    unit:document.getElementById('cf-unit').value
   };
+  if(['cal','prot','carb','fat','fiber'].some(k=>!Number.isFinite(food[k])||food[k]<0||food[k]>(k==='cal'?20000:5000))){showToast('Enter valid reference nutrition.');return;}
   const isEdit=editingFoodIndex!==null;
   const source=editingFoodSource;
   if(source==='builtin'){
@@ -1746,6 +1816,8 @@ function editFood(source,i){
   const f=source==='builtin'?DB[i]:state.customFoods[i];if(!f)return;
   editingFoodSource=source;
   editingFoodIndex=i;
+  document.getElementById('cf-unit').value=f.unit==='pc'?'piece':f.unit||'g';
+  document.getElementById('cf-source').value=f.nutritionSource||'user';document.getElementById('cf-basis').value=f.weightBasis||'unspecified';document.getElementById('cf-note').value=f.sourceNote||f.source||'';
   document.getElementById('cf-name').value=f.name||'';
   document.getElementById('cf-cal').value=f.cal||0;
   document.getElementById('cf-prot').value=f.prot||0;
@@ -1758,6 +1830,7 @@ function editFood(source,i){
   document.getElementById('cf-save-btn').textContent='Update food';
   document.getElementById('cf-cancel-btn').style.display='block';
   switchView('custom');
+  updateReferenceLabel();
   document.getElementById('cf-name').focus();
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -1771,6 +1844,8 @@ function renderCustomList(){
   ).join('');
 }
 function deleteCustom(i){
+  const food=state.customFoods[i];if(!food)return;
+  state.customFoodTombstones[NutritionExperience.foodId(food)]=new Date().toISOString();persist('customFoodTombstones');
   state.customFoods.splice(i,1);
   if(editingFoodSource==='custom'&&editingFoodIndex===i)resetCustomFoodForm();
   else if(editingFoodSource==='custom'&&editingFoodIndex!==null&&editingFoodIndex>i)editingFoodIndex--;
@@ -1782,17 +1857,18 @@ function csvCell(value){
   return /[;"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
 }
 function foodDatabaseCSV(){
-  const rows=['Food list;Amount;Unit;Calories;Fats;Carbs;Prots;Fiber;Source;Source ID'];
+  const rows=['Food list;Amount;Unit;Calories;Fats;Carbs;Prots;Fiber;Source;Source ID;Weight basis;Nutrition source'];
   DB.forEach(f=>{
     const unit=f.unit||'g';
     const gramBased=unit==='g'||unit==='ml';
     const amount=gramBased?(f.piece||100):1;
     const factor=gramBased?amount/100:1;
-    rows.push([f.name,amount,unit,f.cal*factor,f.fat*factor,f.carb*factor,f.prot*factor,(f.fiber||0)*factor,f.source||'',f.sourceId||''].map(csvCell).join(';'));
+    rows.push([f.name,amount,unit,f.cal*factor,f.fat*factor,f.carb*factor,f.prot*factor,(f.fiber||0)*factor,f.source||f.sourceNote||'',f.sourceId||'',f.weightBasis||'unspecified',f.nutritionSource||'database'].map(csvCell).join(';'));
   });
   return rows.join('\n');
 }
-async function saveFoodDatabase(){
+async function saveFoodDatabase(){return serializeSync(()=>saveFoodDatabaseImpl());}
+async function saveFoodDatabaseImpl(){
   lsSet('nl_foods_csv',DB);
   const count=document.getElementById('foods-db-count');if(count)count.textContent=DB.length+' foods loaded';
   if(!state.gistToken||!state.gistId||!state.gistEncryptionKey)return;
@@ -1982,6 +2058,7 @@ function setRange(n){
   renderSummaryPage();
 }
 function renderSummaryPage(){
+  renderSaturdayReview();
   let dates;
   if(state.chartRange===0){
     const from=document.getElementById('range-from').value;
@@ -2002,17 +2079,18 @@ function renderSummaryPage(){
   const fatData=dates.map(d=>fmt(getTotals(d).fat));
   const labels=dates.map(d=>new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
   const daysLogged=dates.filter(d=>(state.log[d]||[]).length>0).length;
-  const avgCal=daysLogged?Math.round(dates.reduce((a,d)=>a+getTotals(d).cal,0)/daysLogged):0;
-  const avgProt=daysLogged?fmtI(dates.reduce((a,d)=>a+getTotals(d).prot,0)/daysLogged):0;
-  const avgCarb=daysLogged?fmtI(dates.reduce((a,d)=>a+getTotals(d).carb,0)/daysLogged):0;
+  const completeDates=dates.filter(d=>NutritionExperience.status(state.log,state.dayStatus,d)==='complete');
+  const avgCal=completeDates.length?Math.round(completeDates.reduce((a,d)=>a+getTotals(d).cal,0)/completeDates.length):'—';
+  const avgProt=completeDates.length?fmtI(completeDates.reduce((a,d)=>a+getTotals(d).prot,0)/completeDates.length):'—';
+  const avgCarb=completeDates.length?fmtI(completeDates.reduce((a,d)=>a+getTotals(d).carb,0)/completeDates.length):'—';
   const activeMacroTargets=dates.map(d=>getTargetsForDate(d)).filter(t=>t.prot||t.carb);
   const targetProt=activeMacroTargets.length?fmtI(activeMacroTargets.reduce((a,t)=>a+t.prot,0)/activeMacroTargets.length):'-';
   const targetCarb=activeMacroTargets.length?fmtI(activeMacroTargets.reduce((a,t)=>a+t.carb,0)/activeMacroTargets.length):'-';
   document.getElementById('avg-grid').innerHTML=
-    '<div class="week-stat"><div class="ws-lbl">Avg calories</div><div class="ws-val">'+avgCal+'</div><div class="ws-sub">kcal / logged day</div></div>'+
+    '<div class="week-stat"><div class="ws-lbl">Avg calories</div><div class="ws-val">'+avgCal+'</div><div class="ws-sub">kcal / complete day</div></div>'+
     '<div class="week-stat"><div class="ws-lbl">Avg protein</div><div class="ws-val">'+avgProt+'g</div><div class="ws-sub">target: '+targetProt+(targetProt==='-'?'':'g')+'</div></div>'+
     '<div class="week-stat"><div class="ws-lbl">Avg carbs</div><div class="ws-val">'+avgCarb+'g</div><div class="ws-sub">target: '+targetCarb+(targetCarb==='-'?'':'g')+'</div></div>'+
-    '<div class="week-stat"><div class="ws-lbl">Days logged</div><div class="ws-val">'+daysLogged+'</div><div class="ws-sub">of last '+state.chartRange+'</div></div>';
+    '<div class="week-stat"><div class="ws-lbl">Complete days</div><div class="ws-val">'+completeDates.length+'</div><div class="ws-sub">complete of '+dates.length+' days · '+daysLogged+' logged</div></div>';
   const isDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
   const gc=isDark?'rgba(255,255,255,0.10)':'rgba(0,0,0,0.06)';
   const tc=isDark?'#c8d0d8':'#9e9e97';
@@ -2078,7 +2156,7 @@ function renderWeeklyAvgChart(){
       if(dt>now&&dISO!==todayISO()) break;
       weekDates.push(dISO);
     }
-    const logged=weekDates.filter(d=>(state.log[d]||[]).length>0);
+    const logged=weekDates.filter(d=>NutritionExperience.status(state.log,state.dayStatus,d)==='complete');
     if(!logged.length) continue;
     const totals=logged.map(d=>getTotals(d));
     const avgCal=Math.round(totals.reduce((a,t)=>a+t.cal,0)/logged.length);
@@ -2094,7 +2172,7 @@ function renderWeeklyAvgChart(){
   const maxTarget=Math.max(0,...weekTargetAvg.filter(v=>v!==null&&v!==undefined));
   const suggestedMax=Math.max(...weekCalAvg,maxTarget,state.targets.cal||0,1)*1.25;
   const datasets=[
-    {label:'Avg kcal',data:weekCalAvg,backgroundColor:weekCalAvg.map((v,i)=>{
+    {label:'Avg kcal (complete days)',data:weekCalAvg,backgroundColor:weekCalAvg.map((v,i)=>{
       const tgt=weekTargetAvg[i];
       return tgt&&v>tgt*1.1?'rgba(239,68,68,0.82)':'rgba(0,200,83,0.78)';
     }),borderRadius:4}
@@ -2735,7 +2813,7 @@ function getMeasurementWeeklyRows(){
     .sort((a,b)=>a.date.localeCompare(b.date)||(a.id||0)-(b.id||0));
   const rows=checkpoints.map(m=>{
     const windowDates=checkpointWindowDates(m.date);
-    const loggedDays=windowDates.filter(d=>(state.log[d]||[]).length>0);
+    const loggedDays=windowDates.filter(d=>NutritionExperience.status(state.log,state.dayStatus,d)==='complete');
     const avgCal=loggedDays.length?loggedDays.reduce((a,d)=>a+getTotals(d).cal,0)/loggedDays.length:null;
     const prevSat=previousSaturdayISO(m.date);
     const prevMeasurement=saturdayMeasurementForDate(prevSat);
@@ -2937,7 +3015,7 @@ function renderSyncStatusPanel(){
     item('Goals',counts?counts.goals:'-');
 }
 function dataPayload(){
-  return {v:3,targets:state.targets,targetHistory:state.targetHistory,log:state.log,customFoods:state.customFoods,weight:state.weight,measurements:state.measurements,measurementTombstones:state.measurementTombstones,recovery:state.recovery,goalHistory:state.goalHistory,decision:state.decision,tombstones:state.tombstones};
+  return {v:4,dayStatus:state.dayStatus,customFoodTombstones:state.customFoodTombstones,targets:state.targets,targetHistory:state.targetHistory,log:state.log,customFoods:state.customFoods,weight:state.weight,measurements:state.measurements,measurementTombstones:state.measurementTombstones,recovery:state.recovery,goalHistory:state.goalHistory,decision:state.decision,tombstones:state.tombstones};
 }
 function exportData(){
   const payload=JSON.stringify(dataPayload());
@@ -3014,6 +3092,45 @@ function showChatGPTEditingState(data){
   const el=document.getElementById('chatgpt-editing-msg');
   if(el)el.textContent=data.files&&data.files[CONNECTOR_ACCESS_FILE]?'ChatGPT food editing is enabled.':'ChatGPT food editing is disabled.';
 }
+
+function validExperienceDate(value){
+  if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+  const d=new Date(value+'T12:00:00Z');return !Number.isNaN(+d)&&d.toISOString().slice(0,10)===value;
+}
+function applyExperienceEdit(payload,edit) {
+  if(edit.format!=="nutrilog-experience" || edit.version!==1 || !/^[A-Za-z0-9_-]{8,64}$/.test(edit.operation_id || "") || !Number.isFinite(Date.parse(edit.created_at))) throw new Error("Invalid encrypted Nutrilog change.");
+  if(edit.action==="registry_save") {
+    if((payload.customFoods||[]).length>5000)throw new Error("Too many custom registry foods.");
+    if(!edit.food?.id || !edit.food.name || !Number.isFinite(Date.parse(edit.food.updatedAt))) throw new Error("Invalid registry change.");
+    payload.customFoods=NutritionExperience.mergeFoods(payload.customFoods,[edit.food],payload.customFoodTombstones);
+  } else if(edit.action==="day_status") {
+    if(!validExperienceDate(edit.date) || typeof edit.status?.complete!=="boolean" || typeof edit.status.signature!=="string") throw new Error("Invalid completion change.");
+    payload.dayStatus=NutritionExperience.mergeDays(payload.dayStatus,{[edit.date]:edit.status});
+  } else if(edit.action==="entry_delete") {
+    if(!validExperienceDate(edit.date) || typeof edit.entry_id!=="string") throw new Error("Invalid deletion change.");
+    payload.tombstones ||= {};
+    const tombs=payload.tombstones[edit.date] ||= [];
+    if(!tombs.some(t=>t.id===edit.entry_id)) tombs.push({id:edit.entry_id,ts:Date.parse(edit.created_at)});
+    payload.log ||= {};
+    payload.log[edit.date]=(payload.log[edit.date] || []).filter(e=>String(e.id)!==edit.entry_id);
+  } else if(edit.action==="entry_restore") {
+    const entry=edit.entry;
+    if(!entry?.id || !validExperienceDate(entry.date) || !Number.isFinite(Date.parse(entry.updatedAt)))throw new Error('Invalid entry restore.');
+    payload.log=mergeLogData(payload.log||{},{[entry.date]:[entry]},payload.tombstones||{});
+  } else throw new Error("Unsupported encrypted Nutrilog change.");
+  return payload;
+}
+
+async function mergeConnectorExperience(payload,gist){
+  const names=Object.keys(gist.files||{}).filter(n=>n.startsWith('nutrilog-experience-')&&n.endsWith('.json'));
+  if(names.length>1000)throw new Error('Nutrilog change history is full.');
+  const edits=[];
+  for(let i=0;i<names.length;i+=10)edits.push(...await Promise.all(names.slice(i,i+10).map(async n=>JSON.parse(await decryptGistText(await readGistFileContent(gist.files[n]),state.gistEncryptionKey)))));
+  edits.sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at))||String(a.operation_id).localeCompare(String(b.operation_id)));
+  for(const edit of edits)applyExperienceEdit(payload,edit);
+  return payload;
+}
+
 async function mergeConnectorFoodEdits(payload,gist){
   if(gist.truncated)throw new Error('GitHub returned an incomplete file list. Sync stopped to protect your diary.');
   const names=Object.keys(gist.files||{}).filter(name=>name.startsWith(CONNECTOR_EDIT_PREFIX)&&name.endsWith('.json'));
@@ -3032,6 +3149,8 @@ async function mergeConnectorFoodEdits(payload,gist){
   const overlay={};
   for(const edit of edits)(overlay[edit.entry.date]||(overlay[edit.entry.date]=[])).push(edit.entry);
   payload.log=mergeLogData(payload.log||{},overlay,payload.tombstones||{});
+  state.cloudFoodChanges=edits;
+  await mergeConnectorExperience(payload,gist);
   showChatGPTEditingState(gist);
   return payload;
 }
@@ -3060,7 +3179,7 @@ function applyRemotePayload(p){
   if(!p||!p.targets)throw new Error('Invalid NutriLog data in cloud backup.');
   state.log=mergeLogData(state.log,p.log||{},p.tombstones||{});
   state.targets=p.targets;
-  state.customFoods=p.customFoods||[];
+  mergeRemoteExperience(p);
   state.weight=p.weight||{};
   mergeTargetHistory(state.targetHistory,p.targetHistory,p.calorieTargetHistory,p.decision&&p.decision.targetHistory);
   updateCurrentTargetsFromHistory();
@@ -3121,7 +3240,8 @@ async function createEncryptedGist(){
   }catch(e){msg.style.color='var(--danger)';msg.textContent='Error: '+e.message}
 }
 
-async function gistSync(direction){
+async function gistSync(direction){return serializeSync(()=>gistSyncImpl(direction));}
+async function gistSyncImpl(direction){
   const syncStart=Date.now();
   const tokenInput=document.getElementById('gist-token-input').value.trim();
   const msg=document.getElementById('gist-msg');
@@ -3254,6 +3374,7 @@ async function gistSync(direction){
 // ---- AUTO SYNC ----
 let autoSyncTimer=null;
 function scheduleAutoSync(){
+  experienceDirty++;experiencePending=true;lsSet('nl_sync_pending',true);showSyncStatus('pending');
   if(!state.gistToken||!state.gistId||!state.gistEncryptionKey) return;
   clearTimeout(autoSyncTimer);
   autoSyncTimer=setTimeout(()=>silentPush(),3000);
@@ -3331,7 +3452,8 @@ function cleanupData(){
   lsSet('nl_tombstones',state.tombstones);
 }
 
-async function silentPush(){
+async function silentPush(){return serializeSync(()=>silentPushImpl());}
+async function silentPushImpl(){
   if(!state.gistToken||!state.gistId||!state.gistEncryptionKey) return;
   const syncStart=Date.now();
   showSyncStatus('syncing');
@@ -3359,6 +3481,8 @@ async function silentPush(){
             persist('log');
             lsSet('nl_tombstones',state.tombstones);
           }
+          mergeRemoteExperience(remote);
+          mergeTargetHistory(state.targetHistory,remote.targetHistory,remote.calorieTargetHistory,remote.decision&&remote.decision.targetHistory);updateCurrentTargetsFromHistory();saveTargetHistory();
           mergeBodyMeasurements(remote.measurements,remote.measurementTombstones);
           persist('measurements');persist('measurementTombstones');
           mergeRecoveryData(remote.recovery);
@@ -3367,10 +3491,12 @@ async function silentPush(){
       }
     }
     // Food changes have their own upload path; ordinary auto saves only need the diary.
+    const savedRevision=experienceDirty;
     const body={files:{'nutrilog.json':{content:await encryptGistText(JSON.stringify(dataPayload()),state.gistEncryptionKey)}}};
     const resp=await fetchGistWithTimeout('https://api.github.com/gists/'+state.gistId,{method:'PATCH',headers,body:JSON.stringify(body)});
     if(!resp.ok)throw new Error('GitHub returned '+resp.status+'. Your changes are still saved on this device.');
-    recordSyncSuccess('auto',syncStart);showSyncStatus('synced');
+    if(experienceDirty===savedRevision){experiencePending=false;lsSet('nl_sync_pending',false);}
+    recordSyncSuccess('auto',syncStart);refreshExperienceView();showSyncStatus(experiencePending?'pending':'synced');
   }catch(e){
     showSyncStatus('error');
     const el=document.getElementById('sync-status');
@@ -3392,11 +3518,13 @@ function showSyncStatus(status){
   } else if(status==='synced'){
     el.style.background='var(--accent-light)';el.style.color='var(--accent-text)';el.style.opacity='1';
     el.textContent='Synced';
-    setTimeout(()=>el.style.opacity='0',2000);
+    el.textContent=state.syncMeta?.lastSuccessAt?'Synced '+new Date(state.syncMeta.lastSuccessAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}):'Cloud sync ready';
+  } else if(status==='pending'){
+    el.style.background='var(--surface2)';el.style.color='var(--text2)';el.style.opacity='1';el.textContent=navigator.onLine===false?'Saved locally · offline':'Saved locally · sync pending';
   } else {
     el.style.background='var(--danger-light,#fdecea)';el.style.color='var(--danger)';el.style.opacity='1';
     el.textContent='Sync failed';
-    setTimeout(()=>el.style.opacity='0',3000);
+    el.textContent='Saved locally · sync failed';
   }
 }
 
@@ -3513,7 +3641,8 @@ function toggleFoodList(){
 }
 
 // ---- EDIT ENTRY ----
-function editEntry(encodedEntryId){
+function editEntry(encodedEntryId){return openFoodEditor(encodedEntryId);}
+function legacyEditEntry(encodedEntryId){
   const entries=state.log[state.currentDate]||[];
   const entryId=decodeURIComponent(encodedEntryId);
   const item=entries.find(entry=>String(entry.id)===entryId);
@@ -3566,6 +3695,198 @@ function renderMacroPie(totals){
   });
 }
 
+
+let experienceSyncQueue=Promise.resolve(),experienceDirty=0,experiencePending=lsGet('nl_sync_pending',false),experienceLastCheck=0;
+function serializeSync(task){
+  const result=experienceSyncQueue.then(task,task);
+  experienceSyncQueue=result.catch(()=>{});
+  return result;
+}
+function mergeRemoteExperience(p){
+  state.dayStatus=NutritionExperience.mergeDays(state.dayStatus,p.dayStatus);
+  state.customFoodTombstones={...(p.customFoodTombstones||{}),...(state.customFoodTombstones||{})};
+  state.customFoods=NutritionExperience.mergeFoods(state.customFoods,p.customFoods,state.customFoodTombstones);
+  persist('dayStatus');persist('customFoodTombstones');persist('custom');
+}
+function foodSourceLabel(e){
+  return (e.nutritionSource||'source unknown')+(e.weightBasis&&e.weightBasis!=='unspecified'?' · '+e.weightBasis.replace('_',' '):'');
+}
+function renderDayCompletion(){
+  const el=document.getElementById('day-completion');
+  if(!el)return;
+  const complete=NutritionExperience.status(state.log,state.dayStatus,state.currentDate)==='complete';
+  el.innerHTML='<button class="tb-btn '+(complete?'accent':'')+'" onclick="toggleDayComplete()">'+(complete?'✓ Day complete':'Mark day complete')+'</button><span style="font-size:12px;color:var(--text2)">'+(complete?'All food logged. Later changes reopen this day.':'Partial logs stay out of complete-day averages.')+'</span>';
+  const undo=document.getElementById('undo-food-btn');
+  if(undo)undo.disabled=!latestFoodUndo();
+}
+function toggleDayComplete(){
+  const date=state.currentDate,complete=NutritionExperience.status(state.log,state.dayStatus,date)!=='complete';
+  state.dayStatus[date]={complete,signature:NutritionExperience.signature(state.log[date]),updatedAt:new Date().toISOString()};
+  persist('dayStatus');scheduleAutoSync();renderLog();renderSaturdayReview();
+  showToast(complete?'Day marked complete':'Day reopened');
+}
+function rememberFoodUndo(before,after){
+  const record={at:new Date().toISOString(),before:structuredClone(before),after:structuredClone(after)};
+  state.foodUndo=[record,...(state.foodUndo||[])].slice(0,20);
+  lsSet('nl_food_undo',state.foodUndo);
+}
+function latestFoodUndo(){
+  if(state.foodUndo?.length)return state.foodUndo[0];
+  const edits=state.cloudFoodChanges||[];
+  for(let i=edits.length-1;i>=0;i--){
+    const edit=edits[i],current=(state.log[edit.entry.date]||[]).find(e=>e.id===edit.entry.id);
+    if(current&&NutritionExperience.signature([current])===NutritionExperience.signature([edit.entry])&&(edit.action==='add_food_log'||edit.before_entry)) {
+      return {cloud:true,at:edit.created_at,before:edit.before_entry?[edit.before_entry]:[],after:[edit.entry]};
+    }
+  }
+  return null;
+}
+function undoFood(){
+  const record=latestFoodUndo();if(!record)return;
+  const all=Object.values(state.log).flat();
+  for(const after of record.after){
+    const current=all.find(e=>e.id===after.id);
+    if(!current||NutritionExperience.signature([current])!==NutritionExperience.signature([after])){showToast('This entry changed. Edit its current values instead.',4000);return;}
+  }
+  const afterIds=new Set(record.after.map(e=>e.id));
+  if(record.before.some(e=>!afterIds.has(e.id)&&all.some(current=>current.id===e.id))){showToast('An entry was restored elsewhere. Read it before undoing.',4000);return;}
+  const beforeIds=new Set(record.before.map(e=>e.id));
+  for(const after of record.after){
+    const entries=state.log[after.date]||[],index=entries.findIndex(e=>e.id===after.id);
+    if(index<0)continue;
+    if(!beforeIds.has(after.id))recordTombstones(after.date,entries,[index]);
+    entries.splice(index,1);
+  }
+  const now=new Date(Math.max(Date.now(),...record.after.map(e=>(Date.parse(e.updatedAt)||0)+1))).toISOString();
+  for(const before of record.before){
+    const isDeleted=Object.values(state.tombstones).flat().some(t=>t.id===before.id);
+    const item={...before,id:isDeleted?createLogEntryId():before.id,updatedAt:now};
+    (state.log[item.date]||(state.log[item.date]=[])).push(item);
+  }
+  if(!record.cloud){state.foodUndo.shift();lsSet('nl_food_undo',state.foodUndo);}
+  persist('log');scheduleAutoSync();state.selected=new Set();renderLog();renderDash();showToast('Undone');
+}
+let foodEditSnapshot=null;
+function openFoodEditor(encodedId){
+  const id=decodeURIComponent(encodedId),entry=(state.log[state.currentDate]||[]).find(e=>String(e.id)===id);
+  if(!entry){showToast('Entry changed during sync. Try again.');return;}
+  foodEditSnapshot=structuredClone(entry);
+  const box=document.getElementById('food-editor');box.style.display='flex';
+  for(const [id,key] of Object.entries({'fe-name':'name','fe-meal':'meal','fe-amount':'amountLabel','fe-cal':'cal','fe-prot':'prot','fe-carb':'carb','fe-fat':'fat','fe-fiber':'fiber'}))document.getElementById(id).value=entry[key]||0;
+  document.getElementById('fe-source').value=entry.nutritionSource||'user';
+  document.getElementById('fe-basis').value=entry.weightBasis||'unspecified';
+  document.getElementById('fe-note').value=entry.sourceNote||'';
+  document.getElementById('fe-scale').value=1;
+  document.getElementById('fe-name').focus();
+}
+function scaleFoodEditor(){
+  const ratio=Number(document.getElementById('fe-scale').value);
+  if(!foodEditSnapshot||!Number.isFinite(ratio)||ratio<=0||ratio>100)return;
+  for(const field of ['cal','prot','carb','fat','fiber'])document.getElementById('fe-'+field).value=Math.round((foodEditSnapshot[field]||0)*ratio*100)/100;
+  const match=String(foodEditSnapshot.amountLabel).match(/^([0-9]+(?:\.[0-9]+)?)(.*)$/);
+  if(match)document.getElementById('fe-amount').value=Math.round(Number(match[1])*ratio*100)/100+match[2];
+}
+function saveFoodEntryEdit(){
+  if(!foodEditSnapshot)return;
+  const entries=state.log[foodEditSnapshot.date]||[],index=entries.findIndex(e=>e.id===foodEditSnapshot.id),current=entries[index];
+  if(!current||NutritionExperience.signature([current])!==NutritionExperience.signature([foodEditSnapshot])){showToast('Entry changed during sync. Reopen it before editing.',4000);return;}
+  const next={...current,name:document.getElementById('fe-name').value.trim(),meal:document.getElementById('fe-meal').value,amountLabel:document.getElementById('fe-amount').value.trim(),
+    nutritionSource:document.getElementById('fe-source').value,weightBasis:document.getElementById('fe-basis').value,sourceNote:document.getElementById('fe-note').value.trim(),
+    updatedAt:new Date(Math.max(Date.now(),(Date.parse(current.updatedAt)||0)+1)).toISOString()};
+  if(!next.name||next.name.length>200||!next.amountLabel||next.amountLabel.length>100||next.sourceNote.length>1000){showToast('Check name, amount and source note.');return;}
+  for(const field of ['cal','prot','carb','fat','fiber']){
+    const value=Number(document.getElementById('fe-'+field).value);
+    if(!Number.isFinite(value)||value<0||value>(field==='cal'?20000:5000)){showToast('Enter valid portion nutrition.');return;}next[field]=value;
+  }
+  entries[index]=next;rememberFoodUndo([current],[next]);persist('log');scheduleAutoSync();closeFoodEditor();renderLog();renderDash();showToast('Updated — Undo available');
+}
+function closeFoodEditor(){document.getElementById('food-editor').style.display='none';foodEditSnapshot=null;}
+function renderSaturdayReview(){
+  const el=document.getElementById('saturday-review');if(!el)return;
+  const selected=document.getElementById('review-date').value || todayISO();
+  const d=new Date(selected+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-(d.getUTCDay()+1)%7);
+  const saturday=d.toISOString().slice(0,10);document.getElementById('review-date').value=saturday;
+  const review=NutritionExperience.review(state.log,state.dayStatus,saturday,getTargetsForDate);
+  const rows=(state.measurements||[]).filter(m=>m.date>=review.from&&m.date<=saturday).sort((a,b)=>a.date.localeCompare(b.date));
+  function observed(key,unit){
+    const values=rows.filter(m=>m[key]!==null&&m[key]!==undefined&&Number.isFinite(Number(m[key]))&&Number(m[key])>0);
+    if(!values.length)return 'No '+key+' recorded';
+    const first=values[0],last=values[values.length-1],change=values.length>1?Math.round((last[key]-first[key])*10)/10:null;
+    return escHtml(key)+' '+last[key]+unit+' ('+last.date+')'+(change===null?'':' · '+(change>0?'+':'')+change+unit+' since '+first.date);
+  }
+  el.innerHTML='<p style="margin-bottom:8px">'+review.from+' – '+review.to+' · '+review.complete_days+'/7 days complete · '+review.partial_days+' partial · '+review.unlogged_days+' unlogged</p>'+
+    '<p style="margin-bottom:8px">'+(review.average?'Complete-day average: <b>'+Math.round(review.average.cal)+' kcal</b> · '+Math.round(review.average.prot)+'g protein':'Mark finished food-log days complete to calculate a reliable average.')+
+    (review.average_target?' · recorded target '+review.average_target+' kcal':'')+'</p>'+
+    '<p>'+observed('weight','kg')+'<br>'+observed('waist','cm')+'</p>'+
+    '<p style="margin-top:8px;font-size:12px;color:var(--text2)">Compare consistent weight and waist readings across several weeks. BIA readings vary with hydration and recovery; this review does not change your calorie target.</p>';
+}
+function updateReferenceLabel(){
+  const unit=document.getElementById('cf-unit').value;
+  document.getElementById('cf-cal-label').textContent='Kcal / '+(['g','ml'].includes(unit)?'100'+unit:'1 '+unit);
+}
+function copyPhotoPrompt(){
+  const prompt='Use Nutrilog to log this food photo for '+state.currentDate+'. First identify the food and search my live registry. Ask for the meal, portion and raw/cooked basis if unclear. Prefer a visible label or matching registry values. Mark photo-based estimates estimated and explain assumptions. Show the proposed entry before saving if portion or nutrition is uncertain.';
+  navigator.clipboard.writeText(prompt).then(()=>showToast('Photo prompt copied — paste with your photo in ChatGPT',4000)).catch(()=>window.prompt('Paste this alongside your food photo in ChatGPT:',prompt));
+}
+function refreshExperienceView(){
+  if(foodEditSnapshot)return;
+  const view=state.activeView||'dash';
+  if(view==='dash')renderDash();
+  if(view==='log'){state.selected=new Set();renderLog();}
+  if(view==='summary')renderSummaryPage();
+  if(view==='measurements')switchMeasurementArea(state.measurementArea||'body');
+  if(view==='custom'&&editingFoodIndex===null)renderCustomList();
+  renderSaturdayReview();
+}
+async function pullOnReturn(force=false){
+  if(!state.gistToken||!state.gistId||!state.gistEncryptionKey||navigator.onLine===false||document.visibilityState==='hidden')return;
+  if(!force&&Date.now()-experienceLastCheck<15000)return;
+  experienceLastCheck=Date.now();
+  return serializeSync(async()=>{
+    const start=Date.now();showSyncStatus('syncing');
+    try{
+      const response=await fetchGistWithTimeout('https://api.github.com/gists/'+state.gistId,{headers:{Authorization:'token '+state.gistToken,'Cache-Control':'no-cache'}});
+      if(!response.ok)throw new Error('GitHub returned '+response.status);
+      const gist=await response.json();
+      const p=JSON.parse(await decryptGistText(await readGistFileContent(gist.files['nutrilog.json']),state.gistEncryptionKey));
+      await mergeConnectorFoodEdits(p,gist);
+      const remoteLog=NutritionExperience.signature(Object.values(p.log||{}).flat());
+      const remoteFoods=JSON.stringify(NutritionExperience.mergeFoods(p.customFoods,[],p.customFoodTombstones).sort((a,b)=>a.id.localeCompare(b.id)));
+      const remoteDays=JSON.stringify(p.dayStatus||{});
+      applyRemotePayload(p);
+      if(remoteLog!==NutritionExperience.signature(Object.values(state.log).flat())||
+        remoteFoods!==JSON.stringify([...state.customFoods].sort((a,b)=>a.id.localeCompare(b.id)))||
+        remoteDays!==JSON.stringify(state.dayStatus)){experiencePending=true;lsSet('nl_sync_pending',true);}
+
+      if(gist.files['foods.csv']){
+        const foods=parseCSVText(await decryptGistText(await readGistFileContent(gist.files['foods.csv']),state.gistEncryptionKey));
+        if(foods.length){DB=foods;DB_LOADED=true;lsSet('nl_foods_csv',foods);}
+      }
+      recordSyncSuccess('return',start);refreshExperienceView();showSyncStatus(experiencePending?'pending':'synced');
+      if(experiencePending){clearTimeout(autoSyncTimer);autoSyncTimer=setTimeout(()=>silentPush(),0);}
+    }catch(e){showSyncStatus('error');const el=document.getElementById('sync-status');if(el)el.title=e.message;}
+  });
+}
+function initExperience(){
+  state.customFoods=NutritionExperience.mergeFoods(state.customFoods,[],state.customFoodTombstones);
+  persist('custom');
+  const log=document.getElementById('log-body');
+  log.insertAdjacentHTML('beforebegin','<div id="day-completion" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:0 16px 12px"></div>');
+  document.querySelector('.log-toolbar-left').insertAdjacentHTML('beforeend','<button class="tb-btn" id="undo-food-btn" onclick="undoFood()">Undo</button>');
+  document.getElementById('view-summary').insertAdjacentHTML('afterbegin','<div class="add-form" style="margin:0 0 16px"><h2 class="section-hd">Saturday review</h2><div class="form-field"><label for="review-date">Review date (Saturday)</label><input type="date" id="review-date" onchange="renderSaturdayReview()"></div><div id="saturday-review" style="margin-top:12px;font-size:14px;line-height:1.6"></div></div>');
+  document.getElementById('view-add').insertAdjacentHTML('afterbegin','<details class="advanced-recovery"><summary>Log food from a photo</summary><p style="font-size:14px;line-height:1.6;margin-bottom:10px">Attach a meal photo or nutrition label in ChatGPT with Nutrilog enabled. Include portion weight and raw/cooked basis when known. Photo estimates are labelled in your diary and can be corrected or undone.</p><button class="tb-btn" onclick="copyPhotoPrompt()">Copy photo logging prompt</button></details>');
+  const sourceOptions='<option value="label">Nutrition label</option><option value="database">Food database</option><option value="estimated">Estimated</option><option value="user">Entered by me</option>';
+  const basisOptions='<option value="unspecified">Unspecified</option><option value="raw">Raw</option><option value="cooked">Cooked</option><option value="as_sold">As sold</option>';
+  document.getElementById('cf-save-btn').insertAdjacentHTML('beforebegin','<div class="form-row"><div class="form-field"><label for="cf-unit">Reference unit</label><select id="cf-unit" onchange="updateReferenceLabel()"><option value="g">Per 100g</option><option value="ml">Per 100ml</option><option value="piece">Per piece</option><option value="serving">Per serving</option><option value="slice">Per slice</option><option value="scoop">Per scoop</option><option value="tsp">Per teaspoon</option><option value="tbsp">Per tablespoon</option></select></div><div class="form-field"><label for="cf-source">Nutrition source</label><select id="cf-source">'+sourceOptions+'</select></div><div class="form-field"><label for="cf-basis">Weight basis</label><select id="cf-basis">'+basisOptions+'</select></div></div><div class="form-field" style="margin-bottom:12px"><label for="cf-note">Source or estimation assumptions</label><input id="cf-note" maxlength="1000"></div>');
+  document.getElementById('cf-source').value='user';
+  document.body.insertAdjacentHTML('beforeend','<div id="food-editor" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="food-editor-title"><div class="modal-box" style="max-height:90vh;overflow:auto"><h2 class="modal-title" id="food-editor-title">Edit food entry</h2><div class="form-field"><label for="fe-name">Food</label><input id="fe-name" maxlength="200"></div><div class="form-row"><div class="form-field"><label for="fe-meal">Meal</label><select id="fe-meal"><option>Breakfast</option><option>Lunch</option><option>Dinner</option><option>Snack</option></select></div><div class="form-field"><label for="fe-amount">Portion label</label><input id="fe-amount" maxlength="100"></div><div class="form-field"><label for="fe-scale">Scale original portion by</label><input id="fe-scale" type="number" min="0.01" max="100" step="0.1" oninput="scaleFoodEditor()"></div></div><div class="form-row">'+['cal','prot','carb','fat','fiber'].map(k=>'<div class="form-field"><label for="fe-'+k+'">'+({cal:'Calories',prot:'Protein (g)',carb:'Carbs (g)',fat:'Fat (g)',fiber:'Fiber (g)'}[k])+'</label><input type="number" id="fe-'+k+'" min="0" step="0.1"></div>').join('')+'</div><p style="font-size:12px;color:var(--text2);margin-bottom:12px">Nutrition totals apply to the whole portion. Scale first, or edit values directly.</p><div class="form-row"><div class="form-field"><label for="fe-source">Nutrition source</label><select id="fe-source">'+sourceOptions+'</select></div><div class="form-field"><label for="fe-basis">Weight basis</label><select id="fe-basis">'+basisOptions+'</select></div></div><div class="form-field"><label for="fe-note">Source note</label><input id="fe-note" maxlength="1000"></div><div class="modal-actions"><button class="modal-cancel" onclick="closeFoodEditor()">Cancel</button><button class="btn-primary" onclick="saveFoodEntryEdit()">Save changes</button></div></div></div>');
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pullOnReturn();});
+  window.addEventListener('focus',()=>pullOnReturn());
+  window.addEventListener('online',()=>pullOnReturn(true));
+  setInterval(()=>pullOnReturn(),60000);
+  showSyncStatus(experiencePending?'pending':'synced');renderSaturdayReview();
+}
+
 // ---- INIT ----
 function initApp(){
   try{
@@ -3577,33 +3898,9 @@ function initApp(){
     document.getElementById('r-date').value=todayISO();
     loadTargetsForm();
     loadFoodsCSV();
+    initExperience();
     switchView('dash');
-    // Auto-pull on startup if configured
-    if(state.gistToken&&state.gistId){
-      setTimeout(async()=>{
-        const syncStart=Date.now();
-        showSyncStatus('syncing');
-        const headers={'Authorization':'token '+state.gistToken};
-        try{
-          const resp=await fetchGistWithTimeout('https://api.github.com/gists/'+state.gistId,{headers});
-          if(!resp.ok)throw new Error('GitHub returned '+resp.status);
-          {
-            const data=await resp.json();
-            const encryptedContent=await readGistFileContent(data.files['nutrilog.json']);
-            const raw=await decryptGistText(encryptedContent,state.gistEncryptionKey,!state.gistEncryptionKey);
-            const p=JSON.parse(raw);
-            if(!p.targets)throw new Error('Cloud backup is missing nutrition data.');
-            {
-              await mergeConnectorFoodEdits(p,data);
-              applyRemotePayload(p);
-              recordSyncSuccess('startup',syncStart);
-              renderDash();loadTargetsForm();
-            }
-            showSyncStatus('synced');
-          }
-        }catch(e){showSyncStatus('error');const el=document.getElementById('sync-status');if(el)el.title=e.message;}
-      },1000);
-    }
+    setTimeout(()=>pullOnReturn(true),1000);
   }catch(e){
     document.body.innerHTML='<div style="padding:32px;font-family:system-ui;color:#c0392b"><b>Error:</b> '+e.message+'</div>';
   }

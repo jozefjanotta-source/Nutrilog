@@ -112,7 +112,7 @@ test("dailyNutrition returns only the deliberately reduced schema", () => {
   const serialized = JSON.stringify(result);
   for (const forbidden of [
     "updatedAt",
-    "weight",
+    '"weight":',
     "measurements",
     "recovery",
     "sleepHours",

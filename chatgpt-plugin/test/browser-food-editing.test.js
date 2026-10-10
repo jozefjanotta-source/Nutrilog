@@ -15,6 +15,9 @@ function context(){
     ENCRYPTED_GIST_FORMAT:'nutrilog-encrypted',ENCRYPTED_GIST_VERSION:1,document:{getElementById:id=>elements[id]},
     state:{log:{},tombstones:{},gistToken:'ghp_fixtureTokenOnly',gistId:'abc123',gistEncryptionKey:key},persist(){},lsSet(){},lsGet:()=> '[]',showSyncStatus(){},recordSyncSuccess(){},mergeBodyMeasurements(){},mergeRecoveryData(){},
   });
+  vm.runInContext(range('const NutritionExperience =','const SK='),ctx);
+  vm.runInContext(range('let experienceSyncQueue=','function foodSourceLabel'),ctx);
+  ctx.navigator={onLine:true};ctx.refreshExperienceView=()=>{};ctx.mergeTargetHistory=()=>{};ctx.updateCurrentTargetsFromHistory=()=>{};ctx.saveTargetHistory=()=>{};
   vm.runInContext(range('function bytesToBase64Url(bytes)','function todayISO()'),ctx);
   vm.runInContext(range('function createLogEntryId()','state.log=normalizeLogData(state.log)'),ctx);
   vm.runInContext(range('function mergeLogData(local','function showSyncStatus(status)'),ctx);

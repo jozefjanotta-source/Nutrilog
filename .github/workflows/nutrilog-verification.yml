@@ -1,0 +1,23 @@
+name: Nutrilog verification
+on:
+  pull_request:
+  push:
+    branches: [main, codex/nutrilog-experience-cloud]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test app and encrypted connector
+        run: node --test chatgpt-plugin/test/*.test.js
+      - name: Build connector
+        working-directory: chatgpt-plugin
+        run: npm run build
+      - name: Validate connector artifact
+        working-directory: chatgpt-plugin
+        run: npm run validate
