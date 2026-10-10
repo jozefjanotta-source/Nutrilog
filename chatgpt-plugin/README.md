@@ -59,6 +59,8 @@ The connector stores no GitHub token. It performs unauthenticated `GET` requests
 
 On another device, expand **Connect this device to an existing encrypted backup**, enter the new Gist ID and recovery key, save the connection, and Pull.
 
+Large encrypted files may be marked `truncated` by GitHub's Gist API. Nutrilog follows only GitHub's expected `gist.githubusercontent.com` raw-file URL to retrieve the complete file, without forwarding the GitHub token to that host.
+
 ## Local verification
 
 No dependencies are required. With Node.js 20 or newer:
