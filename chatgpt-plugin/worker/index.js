@@ -61,7 +61,7 @@ const NutritionExperience = (() => {
     return out;
   }
   function foodId(f, prefix='custom') {
-    return f.id || prefix + '-legacy:' + encodeURIComponent(JSON.stringify([f.name,f.unit || 'g',f.cal,f.prot,f.carb,f.fat,f.fiber || 0]));
+    return f.id || prefix + '-legacy:' + encodeURIComponent(JSON.stringify(prefix==='db'?[f.name,f.unit || 'g',f.sourceId || '']:[f.name,f.unit || 'g',f.cal,f.prot,f.carb,f.fat,f.fiber || 0]));
   }
   function normalizeFood(f, prefix='custom') {
     return {...f, id:foodId(f,prefix), updatedAt:f.updatedAt || '1970-01-01T00:00:00.000Z',
@@ -778,7 +778,10 @@ export function registryCSV(csv) {
 async function liveRegistry(snapshot,config,fetchImpl) {
   const csvFile=snapshot.gist.files?.["foods.csv"];
   const db=csvFile ? registryCSV(await decryptGistTextForRegistry(csvFile,config,fetchImpl)) : [];
-  return [...NutritionExperience.mergeFoods(snapshot.payload.customFoods,[],snapshot.payload.customFoodTombstones),...db];
+  const custom=NutritionExperience.mergeFoods(snapshot.payload.customFoods,[],snapshot.payload.customFoodTombstones);
+  const all=new Map(custom.map(f=>[f.id,f]));
+  for(const f of db)if(!all.has(f.id)&&!snapshot.payload.customFoodTombstones?.[f.id])all.set(f.id,f);
+  return [...all.values()];
 }
 async function decryptGistTextForRegistry(file,config,fetchImpl) {
   const envelope=JSON.parse(await gistFileText(file,config,fetchImpl));

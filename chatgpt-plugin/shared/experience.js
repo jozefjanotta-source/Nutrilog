@@ -15,7 +15,7 @@ const NutritionExperience = (() => {
     return out;
   }
   function foodId(f, prefix='custom') {
-    return f.id || prefix + '-legacy:' + encodeURIComponent(JSON.stringify([f.name,f.unit || 'g',f.cal,f.prot,f.carb,f.fat,f.fiber || 0]));
+    return f.id || prefix + '-legacy:' + encodeURIComponent(JSON.stringify(prefix==='db'?[f.name,f.unit || 'g',f.sourceId || '']:[f.name,f.unit || 'g',f.cal,f.prot,f.carb,f.fat,f.fiber || 0]));
   }
   function normalizeFood(f, prefix='custom') {
     return {...f, id:foodId(f,prefix), updatedAt:f.updatedAt || '1970-01-01T00:00:00.000Z',

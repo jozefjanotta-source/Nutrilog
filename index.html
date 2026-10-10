@@ -906,7 +906,7 @@ const NutritionExperience = (() => {
     return out;
   }
   function foodId(f, prefix='custom') {
-    return f.id || prefix + '-legacy:' + encodeURIComponent(JSON.stringify([f.name,f.unit || 'g',f.cal,f.prot,f.carb,f.fat,f.fiber || 0]));
+    return f.id || prefix + '-legacy:' + encodeURIComponent(JSON.stringify(prefix==='db'?[f.name,f.unit || 'g',f.sourceId || '']:[f.name,f.unit || 'g',f.cal,f.prot,f.carb,f.fat,f.fiber || 0]));
   }
   function normalizeFood(f, prefix='custom') {
     return {...f, id:foodId(f,prefix), updatedAt:f.updatedAt || '1970-01-01T00:00:00.000Z',
@@ -1675,10 +1675,16 @@ function handleSearch(q){
   document.getElementById('add-panel').style.display='none';state.pendingFood=null;
   if(!ql){document.getElementById('search-results').innerHTML='';document.getElementById('search-status').textContent='';return;}
   if(!DB_LOADED){document.getElementById('search-status').textContent='Loading food database...';return;}
-  const all=[
-    ...state.customFoods.map((f,i)=>({...f,_src:'custom',_index:i})).filter(f=>f.name.toLowerCase().includes(ql)),
-    ...DB.map((f,i)=>({...f,_src:'builtin',_index:i})).filter(f=>f.name.toLowerCase().includes(ql))
+  const combined=[
+    ...state.customFoods.map((f,i)=>({...f,_src:'custom',_index:i})),
+    ...DB.map((f,i)=>({...f,_src:'builtin',_index:i}))
   ];
+  const seen=new Set();
+  const all=combined.filter(f=>{
+    const id=NutritionExperience.foodId(f,f._src==='custom'?'custom':'db');
+    if(seen.has(id)||state.customFoodTombstones[id])return false;
+    seen.add(id);return true;
+  }).filter(f=>f.name.toLowerCase().includes(ql));
   if(!all.length){document.getElementById('search-results').innerHTML='<div class="no-results">No results for "'+escHtml(q)+'". Add it under My foods.</div>';document.getElementById('search-status').textContent='';return;}
   document.getElementById('search-status').textContent=all.length+' result'+(all.length!==1?'s':'');
   document.getElementById('search-results').innerHTML='<div class="results-list">'+all.map(f=>{
@@ -1790,7 +1796,7 @@ function resetCustomFoodForm(){
 function saveCustomFood(){
   const name=document.getElementById('cf-name').value.trim();if(!name)return;
   const original=editingFoodSource==='builtin'?DB[editingFoodIndex]:editingFoodIndex!==null?state.customFoods[editingFoodIndex]:null;
-  const food={...(original||{}),id:original?NutritionExperience.foodId(original):'custom-'+createLogEntryId(),updatedAt:new Date().toISOString(),name,nutritionSource:document.getElementById('cf-source').value,weightBasis:document.getElementById('cf-basis').value,sourceNote:document.getElementById('cf-note').value.trim(),
+  const food={...(original||{}),id:original?NutritionExperience.foodId(original,editingFoodSource==='builtin'?'db':'custom'):'custom-'+createLogEntryId(),updatedAt:new Date().toISOString(),name,nutritionSource:document.getElementById('cf-source').value,weightBasis:document.getElementById('cf-basis').value,sourceNote:document.getElementById('cf-note').value.trim(),
     cal:parseFloat(document.getElementById('cf-cal').value)||0,
     prot:parseFloat(document.getElementById('cf-prot').value)||0,
     carb:parseFloat(document.getElementById('cf-carb').value)||0,
@@ -1804,7 +1810,10 @@ function saveCustomFood(){
   const source=editingFoodSource;
   if(source==='builtin'){
     DB[editingFoodIndex]=food;
-    saveFoodDatabase();
+    // Registry edits are timestamped overrides in the encrypted diary. They
+    // merge across devices even when a cached base CSV is older.
+    state.customFoods=NutritionExperience.mergeFoods([food],state.customFoods,state.customFoodTombstones);
+    persist('custom');lsSet('nl_foods_csv',DB);scheduleAutoSync();
   }else if(isEdit)state.customFoods[editingFoodIndex]=food;
   else state.customFoods.push(food);
   if(source!=='builtin'){persist('custom');scheduleAutoSync();}

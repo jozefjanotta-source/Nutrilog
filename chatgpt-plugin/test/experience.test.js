@@ -139,3 +139,14 @@ test('app and connector embed identical completion rules and all app code compil
     if(path.endsWith('html'))for(const match of text.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))new vm.Script(match[1]);
   }
 });
+
+test('registry identifiers survive nutrition changes and custom overrides hide stale base records',async()=>{
+  const original=registryCSV(csv)[1],changed=registryCSV(csv.replace('Milk;200;ml;100','Milk;200;ml;200'))[1];
+  assert.equal(original.id,changed.id);
+  const c=await cloud();
+  const overridden={...original,cal:90,nutritionSource:'label',updatedAt:'2026-10-10T12:00:00Z'};
+  c.files['nutrilog.json'].content=JSON.stringify(await encryptNutrilogPayload({...payload,customFoods:[overridden]},key));
+  const result=await call(c,'search_food_registry',{query:'milk'});
+  assert.equal(result.structuredContent.foods.length,1);
+  assert.equal(result.structuredContent.foods[0].calories,90);
+});
