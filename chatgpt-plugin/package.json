@@ -1,0 +1,15 @@
+{
+  "name": "nutrilog-chatgpt-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Read-only ChatGPT connector for a private Nutrilog Gist",
+  "scripts": {
+    "test": "node --test",
+    "build": "bash scripts/build.sh",
+    "validate": "node scripts/validate-artifact.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
