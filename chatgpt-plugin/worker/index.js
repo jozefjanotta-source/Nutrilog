@@ -4,6 +4,7 @@ const MAX_GIST_BYTES = 5 * 1024 * 1024;
 const MAX_ITEMS_PER_DAY = 500;
 const ENCRYPTED_FORMAT = "nutrilog-encrypted";
 const ENCRYPTED_VERSION = 1;
+const GIST_OWNER = "jozefjanotta-source";
 
 const TOOL = {
   name: "get_daily_nutrition",
@@ -282,9 +283,11 @@ function authorize(request, ownerEmail) {
 }
 
 async function fetchTextWithLimit(url, headers, fetchImpl) {
-  const response = await fetchImpl(url, { method: "GET", headers, redirect: "error" });
+  const response = await fetchImpl(url, { method: "GET", headers, redirect: "manual" });
   if (!response.ok) {
-    throw new Error(`GitHub returned ${response.status} while reading the Nutrilog Gist.`);
+    const error = new Error(`GitHub returned ${response.status} while reading the Nutrilog Gist.`);
+    error.status = response.status;
+    throw error;
   }
   const declaredLength = number(response.headers.get("content-length"));
   if (declaredLength > MAX_GIST_BYTES) throw new Error("The Nutrilog Gist is too large to read safely.");
@@ -302,7 +305,22 @@ export async function readNutrilogGist(config, fetchImpl = fetch) {
     "x-github-api-version": "2022-11-28",
   };
   const apiUrl = `https://api.github.com/gists/${encodeURIComponent(config.gistId)}`;
-  const rawGist = await fetchTextWithLimit(apiUrl, headers, fetchImpl);
+  let rawGist;
+  try {
+    rawGist = await fetchTextWithLimit(apiUrl, headers, fetchImpl);
+  } catch (error) {
+    if (error.status !== 403 && error.status !== 429) throw error;
+    const rawUrl = `https://gist.githubusercontent.com/${GIST_OWNER}/${encodeURIComponent(config.gistId)}/raw/nutrilog.json`;
+    const content = await fetchTextWithLimit(rawUrl, { "user-agent": headers["user-agent"] }, fetchImpl);
+    let envelope;
+    try {
+      envelope = JSON.parse(content);
+    } catch {
+      throw new Error("nutrilog.json is not valid JSON.");
+    }
+    const payload = await decryptNutrilogPayload(envelope, config.encryptionKey);
+    return { payload, updatedAt: null };
+  }
   let gist;
   try {
     gist = JSON.parse(rawGist);
