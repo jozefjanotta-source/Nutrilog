@@ -664,10 +664,12 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
       <div class="form-field" style="margin-top:10px">
         <label>Encrypted Gist ID</label>
         <input type="password" id="gist-id-input" autocomplete="off" style="padding:10px 12px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs-sm);outline:none;width:100%;margin-top:6px">
+        <button class="btn-sm" style="margin-top:6px" onclick="copyEncryptedConnectionValue('gist-id-input','Encrypted Gist ID')">Copy encrypted Gist ID</button>
       </div>
       <div class="form-field" style="margin-top:10px">
         <label>Recovery key</label>
         <input type="password" id="gist-key-input" autocomplete="off" style="padding:10px 12px;border-radius:var(--radius-sm);border:.5px solid var(--border2);background:var(--bg);color:var(--text);font-size:var(--fs-sm);outline:none;width:100%;margin-top:6px">
+        <button class="btn-sm" style="margin-top:6px" onclick="copyEncryptedConnectionValue('gist-key-input','Recovery key')">Copy recovery key</button>
       </div>
       <button class="btn-sm" style="margin-top:10px" onclick="saveEncryptedGistConnection()">Save connection on this device</button>
     </details>
@@ -1857,6 +1859,19 @@ function saveEncryptedGistConnection(){
   document.getElementById('gist-id-display').textContent='Gist ID: '+gistId;
   renderGistPrivacy();
   msg.style.color='var(--accent)';msg.textContent='Encrypted backup connection saved on this device. Tap Pull to verify it.';
+}
+
+async function copyEncryptedConnectionValue(inputId,label){
+  const input=document.getElementById(inputId);
+  if(!input||!input.value){showToast(label+' is empty',2500);return}
+  try{
+    await navigator.clipboard.writeText(input.value);
+  }catch(e){
+    input.focus();input.select();
+    if(!document.execCommand('copy')){showToast('Copy failed',2500);return}
+    input.setSelectionRange(0,0);
+  }
+  showToast(label+' copied',2000);
 }
 function saveTargets(){
   const effectiveDate=document.getElementById('t-effective-date').value||todayISO();
