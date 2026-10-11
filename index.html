@@ -9,6 +9,7 @@
 <title>NutriLog</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <style>
 :root{
   --bg:#f7f7f5;--surface:#fff;--surface2:#f2f1ef;
@@ -151,6 +152,12 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .barcode-grid .form-field{min-width:0}
 #barcode-modal .modal-box{max-height:calc(100vh - 40px);overflow-y:auto}
 #label-modal .modal-box{max-height:calc(100vh - 40px);overflow-y:auto}
+.label-photo-box{background:var(--surface2);border:.5px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px}
+.label-photo-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.label-photo-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 13px;border-radius:var(--radius-sm);background:var(--accent);color:#fff;font-size:var(--fs-sm);font-weight:600;cursor:pointer}
+.label-photo-preview{display:none;width:100%;max-height:180px;object-fit:contain;background:#fff;border-radius:var(--radius-sm);margin-top:10px}
+.label-photo-note{font-size:var(--fs-xs);color:var(--text3);line-height:1.4;margin-top:8px}
+.label-photo-progress{font-size:var(--fs-sm);color:var(--text2);line-height:1.4;margin-top:8px;min-height:18px}
 @media(max-width:430px){.food-source-actions{grid-template-columns:1fr}}
 .results-list{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);overflow:hidden;max-height:50vh;overflow-y:auto}
 .result-item{padding:13px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;border-bottom:.5px solid var(--border)}
@@ -405,7 +412,17 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
   <div class="modal-box" onclick="event.stopPropagation()">
     <div class="modal-title">Add from nutrition label</div>
     <div id="label-entry-form">
-      <div class="barcode-status">Enter the values printed per 100 g or per 100 ml. Use kcal, not kJ.</div>
+      <div class="label-photo-box">
+        <div class="label-photo-actions">
+          <label class="label-photo-button" for="lf-photo"><span aria-hidden="true">&#128247;</span> Take photo of label</label>
+          <input id="lf-photo" type="file" accept="image/*" capture="environment" style="display:none" onchange="scanNutritionLabelPhoto(this.files[0])">
+          <span class="barcode-product-meta">or choose an existing photo</span>
+        </div>
+        <img id="lf-photo-preview" class="label-photo-preview" alt="Nutrition label preview">
+        <div id="lf-photo-status" class="label-photo-progress" role="status" aria-live="polite">The photo is read on this device. It is not saved with the food.</div>
+        <div class="label-photo-note">For best results, photograph the nutrition table straight-on in good light. The first scan can take longer while the reader loads. You will review every detected value before saving.</div>
+      </div>
+      <div class="barcode-status">You can also type the values printed per 100 g or per 100 ml.</div>
       <div class="form-row">
         <div class="form-field" style="min-width:100%"><label for="lf-name">Product name</label><input id="lf-name" type="text" autocomplete="off" placeholder="For example Cottage cheese"></div>
       </div>
@@ -1684,6 +1701,9 @@ let barcodeScanLocked=false;
 let barcodeCandidate=null;
 let barcodeSession=0;
 let labelCandidate=null;
+let labelOcrWorker=null;
+let labelOcrSession=0;
+let labelPhotoUrl='';
 
 function normalizeBarcode(value){
   return String(value||'').replace(/\D/g,'');
@@ -1767,8 +1787,23 @@ function foodByBarcode(code){
   if(databaseIndex>=0)return{...DB[databaseIndex],_src:'builtin',_index:databaseIndex,_existing:true};
   return null;
 }
+function resetLabelPhoto(){
+  labelOcrSession++;
+  if(labelOcrWorker){
+    try{labelOcrWorker.terminate()}catch(e){}
+    labelOcrWorker=null;
+  }
+  if(labelPhotoUrl){URL.revokeObjectURL(labelPhotoUrl);labelPhotoUrl=''}
+  const input=document.getElementById('lf-photo');
+  const preview=document.getElementById('lf-photo-preview');
+  if(input)input.value='';
+  if(preview){preview.removeAttribute('src');preview.style.display='none'}
+  const status=document.getElementById('lf-photo-status');
+  if(status){status.textContent='The photo is read on this device. It is not saved with the food.';status.style.color='var(--text2)'}
+}
 function openLabelEntry(barcode=''){
   if(document.getElementById('barcode-modal').style.display!=='none')closeBarcodeScanner();
+  resetLabelPhoto();
   ['lf-name','lf-brand','lf-piece','lf-cal','lf-prot','lf-carb','lf-fat','lf-fiber'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('lf-barcode').value=normalizeBarcode(barcode);
   document.getElementById('lf-unit').value='g';
@@ -1782,6 +1817,7 @@ function openLabelEntry(barcode=''){
 }
 function closeLabelEntry(event){
   if(event&&event.target!==document.getElementById('label-modal'))return;
+  resetLabelPhoto();
   document.getElementById('label-modal').style.display='none';
   labelCandidate=null;
 }
@@ -1795,6 +1831,117 @@ function labelNumber(id,required){
   if(raw==='')return required?null:0;
   const value=Number(raw);
   return Number.isFinite(value)&&value>=0?value:null;
+}
+function normalizeNutritionOcr(text){
+  return String(text||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/,/g,'.').replace(/[|]/g,' ');
+}
+function nutritionLineNumber(line,keywordEnd){
+  const tail=line.slice(keywordEnd).replace(/(?:per|na)\s*100\s*(?:g|ml)/g,' ');
+  const grams=[...tail.matchAll(/<?\s*(\d{1,4}(?:\.\d{1,2})?)\s*g\b/g)].map(match=>Number(match[1]));
+  if(grams.length)return grams[0];
+  const plain=tail.match(/<?\s*(\d{1,4}(?:\.\d{1,2})?)/);
+  return plain?Number(plain[1]):null;
+}
+function nutritionValueFromLines(lines,pattern,excludePattern){
+  for(let i=0;i<lines.length;i++){
+    const match=lines[i].match(pattern);
+    if(!match||(excludePattern&&excludePattern.test(lines[i])))continue;
+    let value=nutritionLineNumber(lines[i],match.index+match[0].length);
+    if(value===null&&i+1<lines.length&&!/[a-z]{3,}/.test(lines[i+1]))value=nutritionLineNumber(lines[i+1],0);
+    if(value!==null&&Number.isFinite(value)&&value>=0)return value;
+  }
+  return null;
+}
+function parseNutritionLabelText(text){
+  const normalized=normalizeNutritionOcr(text);
+  const lines=normalized.split(/\r?\n/).map(line=>line.replace(/\s+/g,' ').trim()).filter(Boolean);
+  const compact=lines.join(' ');
+  const kcalBefore=compact.match(/(\d{1,4}(?:\.\d{1,2})?)\s*kcal\b/);
+  const kcalAfter=compact.match(/\bkcal\s*(\d{1,4}(?:\.\d{1,2})?)/);
+  const kjBefore=compact.match(/(\d{1,5}(?:\.\d{1,2})?)\s*kj\b/);
+  let cal=kcalBefore?Number(kcalBefore[1]):kcalAfter?Number(kcalAfter[1]):null;
+  if(cal===null&&kjBefore)cal=Math.round(Number(kjBefore[1])/4.184*10)/10;
+  const prot=nutritionValueFromLines(lines,/\b(?:bielkov\w*|bilkov\w*|protein\w*|eiweiss\w*)\b/);
+  const carb=nutritionValueFromLines(lines,/\b(?:sacharid\w*|carbohyd\w*|kohlenhyd\w*)\b/);
+  const fat=nutritionValueFromLines(lines,/\b(?:tuky|tuk|fat|fats|fett)\b/,/(?:nasyt|satur|mastn.*kyselin)/);
+  const fiber=nutritionValueFromLines(lines,/\b(?:vlaknin\w*|fibre|fiber|ballaststoff\w*)\b/);
+  const unit=/\b(?:per|na)\s*100\s*ml\b/.test(compact)?'ml':'g';
+  return{cal,prot,carb,fat,fiber,unit};
+}
+function labelOcrProgress(message,progress){
+  const labels={
+    'loading tesseract core':'Loading photo reader',
+    'initializing tesseract':'Starting photo reader',
+    'loading language traineddata':'Loading text recognition',
+    'initializing api':'Preparing recognition',
+    'recognizing text':'Reading the nutrition table'
+  };
+  const label=labels[message]||'Reading label';
+  const percent=Number.isFinite(progress)?' '+Math.round(progress*100)+'%':'';
+  const status=document.getElementById('lf-photo-status');
+  if(status)status.textContent=label+percent+'...';
+}
+async function prepareNutritionLabelImage(file){
+  if(!window.createImageBitmap)return file;
+  const bitmap=await createImageBitmap(file);
+  const longest=Math.max(bitmap.width,bitmap.height);
+  const scale=Math.min(1,1800/longest);
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(bitmap.width*scale));
+  canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+  const context=canvas.getContext('2d');
+  context.filter='grayscale(1) contrast(1.25)';
+  context.drawImage(bitmap,0,0,canvas.width,canvas.height);
+  bitmap.close();
+  return canvas;
+}
+async function scanNutritionLabelPhoto(file){
+  const status=document.getElementById('lf-photo-status');
+  if(!file)return;
+  if(!file.type.startsWith('image/')){status.textContent='Choose a photo of the nutrition label.';status.style.color='var(--danger)';return}
+  if(file.size>15*1024*1024){status.textContent='This photo is too large. Choose one smaller than 15 MB.';status.style.color='var(--danger)';return}
+  if(!window.Tesseract){status.textContent='The photo reader could not load. You can still enter the values manually.';status.style.color='var(--danger)';return}
+  const session=++labelOcrSession;
+  if(labelOcrWorker){try{labelOcrWorker.terminate()}catch(e){}labelOcrWorker=null}
+  status.style.color='var(--text2)';
+  status.textContent='Preparing the photo...';
+  if(labelPhotoUrl)URL.revokeObjectURL(labelPhotoUrl);
+  labelPhotoUrl=URL.createObjectURL(file);
+  const preview=document.getElementById('lf-photo-preview');
+  preview.src=labelPhotoUrl;
+  preview.style.display='block';
+  let worker=null;
+  try{
+    worker=await Tesseract.createWorker('eng',1,{logger:event=>{if(session===labelOcrSession)labelOcrProgress(event.status,event.progress)}});
+    if(session!==labelOcrSession){await worker.terminate();return}
+    labelOcrWorker=worker;
+    const image=await prepareNutritionLabelImage(file);
+    const result=await worker.recognize(image);
+    await worker.terminate();
+    if(labelOcrWorker===worker)labelOcrWorker=null;
+    if(session!==labelOcrSession)return;
+    const values=parseNutritionLabelText(result.data.text);
+    const fields={cal:'lf-cal',prot:'lf-prot',carb:'lf-carb',fat:'lf-fat',fiber:'lf-fiber'};
+    let found=0;
+    Object.entries(fields).forEach(([key,id])=>{if(values[key]!==null){document.getElementById(id).value=values[key];found++}});
+    document.getElementById('lf-unit').value=values.unit;
+    updateLabelUnitText();
+    if(found){
+      status.textContent='Photo read: '+found+' nutrition value'+(found===1?'':'s')+' filled in. Check every value against the label.';
+      status.style.color='var(--accent)';
+    }else{
+      status.textContent='I could not identify the nutrition values. Try a closer, straighter photo or enter them manually.';
+      status.style.color='var(--danger)';
+    }
+  }catch(e){
+    if(session!==labelOcrSession)return;
+    if(worker){try{await worker.terminate()}catch(_e){}}
+    if(labelOcrWorker===worker)labelOcrWorker=null;
+    status.textContent='The photo could not be read. Try again or enter the values manually.';
+    status.style.color='var(--danger)';
+  }finally{
+    const input=document.getElementById('lf-photo');if(input)input.value='';
+  }
 }
 function readLabelFood(){
   const name=document.getElementById('lf-name').value.trim();
