@@ -6,14 +6,16 @@ This folder contains the first small ChatGPT integration for Nutrilog. Nutrilog 
 - `get_latest_measurements`: latest synced body record, optionally on or before `to`.
 - `get_measurement_history`: dated body records with optional `from`/`to` filters and `limit`/`offset` pagination.
 - `get_weight_progress`: dated first/last values and changes for each body metric in the requested range.
+- `search_food_database`: searches only matching reusable database and custom-food records, including their saved provenance.
 
 Food editing is optional and disabled until the owner enables it in Nutrilog Settings. The additional tools are:
 
 - `get_food_editing_status`: reports whether food editing is enabled, without returning credentials.
 - `add_food_log`: adds one dated entry with the food, meal, portion and explicit nutrition totals.
 - `update_food_log`: edits one stable entry ID after checking the revision from a fresh daily read. A portion multiplier scales all nutrition totals.
+- `add_food_to_database`: adds one sourced, reusable food after an exact-name duplicate check. Values can be supplied per 100 g/ml or per supported item unit.
 
-These tools do not delete entries or change targets, measurements, recovery or the food database.
+These tools do not delete entries or change targets, measurements or recovery. Database additions require the same explicit editing opt-in as diary changes.
 
 ## What the source inspection found
 
@@ -61,13 +63,21 @@ Reads use one fixed Gist ID. When the owner taps **Enable ChatGPT food editing**
 
 ## Food edits and device sync
 
-Each request writes only one encrypted `nutrilog-food-edit-<operation_id>.json` file. It never overwrites `nutrilog.json` or `foods.csv`. The journal preserves the entry's stable ID and adds a revision timestamp; new entries use `chatgpt-<operation_id>`. The operation ID and request hash make retries idempotent. A conflicting reuse of an operation ID is rejected. Updates require the expected SHA-256 revision, so already stale reads are rejected; this is not a distributed lock against simultaneous edits.
+Each diary request writes only one encrypted `nutrilog-food-edit-<operation_id>.json` file. It never overwrites `nutrilog.json` or `foods.csv`. The journal preserves the entry's stable ID and adds a revision timestamp; new entries use `chatgpt-<operation_id>`. The operation ID and request hash make retries idempotent. A conflicting reuse of an operation ID is rejected. Updates require the expected SHA-256 revision, so already stale reads are rejected; this is not a distributed lock against simultaneous edits.
 
 Both the connector and updated main app overlay these files by stable ID and latest timestamp. Deleted entries remain excluded by app tombstones, which the app now retains. Later app edits and moves win over older journal changes. The main app merges the journal during startup sync, Pull, manual Push and automatic Push. A failed remote read or journal decrypt stops a Push instead of overwriting a backup with incomplete state. ChatGPT returns updated daily totals after verifying the saved encrypted change; the device receives it on its next sync.
 
 Concurrent updates of the same row still follow the app's latest-timestamp policy. All separate encrypted operations remain in the Gist; the tool does not claim a globally atomic compare-and-swap. The journal is bounded to 1,000 files and incomplete GitHub file lists fail clearly. No new storage service or database is used.
 
 For 'log this food' requests, resolve ambiguous dates, foods, meals or portions before writing. Nutrition values are totals for the logged portion, not per 100g; disclose any estimates. The server validates text, dates, meal categories, numeric ranges, unexpected fields and portion scaling. Logging requests need a new unique operation ID; uncertain retries must reuse the exact same ID and arguments.
+
+## Reusable food database
+
+Search the encrypted database before using the web or proposing a new food. Search returns only matching normalized rows rather than the raw file. When no exact food exists, `add_food_to_database` appends a single row to encrypted `foods.csv` and writes an encrypted operation receipt in the same Gist update. The receipt and request hash make retries idempotent; exact duplicate names are rejected across both the main database and personal custom foods.
+
+Every new reusable food must include a provenance label and source identifier, such as a manufacturer label, product code, authoritative database record, or clearly identified recipe estimate. Nutrition numbers describe the supplied `basis_amount` and `unit`; Nutrilog normalizes gram- and millilitre-based values and preserves supported per-item units. The connector verifies both the encrypted receipt and the appended database row before reporting success. Pull or reopen Nutrilog to receive the updated database.
+
+The database update is a narrow read-modify-write operation on `foods.csv`, not a general Gist editor. It does not expose the raw database, credentials, diary, or recovery key. As with the existing diary journal, users should avoid editing the same food database simultaneously from another device during the short save window.
 
 ## Safe migration from the old Gist
 

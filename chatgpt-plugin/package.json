@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Private ChatGPT connector for an encrypted Nutrilog Gist",
   "scripts": {
-    "test": "node --test test/worker.test.js test/measurements.test.js test/food-editing.test.js",
+    "test": "node --test test/worker.test.js test/measurements.test.js test/food-editing.test.js test/food-database.test.js",
     "build": "bash scripts/build.sh",
     "validate": "node scripts/validate-artifact.mjs"
   },
