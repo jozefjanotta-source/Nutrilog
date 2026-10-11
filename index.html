@@ -138,6 +138,8 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .search-clear{position:absolute;right:11px;top:50%;transform:translateY(-50%);background:var(--surface2);border:none;border-radius:50%;width:22px;height:22px;font-size:13px;cursor:pointer;color:var(--text2);display:none;align-items:center;justify-content:center}
 .barcode-start{width:100%;padding:12px 14px;margin-bottom:12px;border-radius:var(--radius);border:.5px solid var(--border2);background:var(--surface);color:var(--text);font-size:var(--fs);font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
 .barcode-start:active{background:var(--surface2)}
+.food-source-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.food-source-actions .barcode-start{margin-bottom:0;min-width:0}
 .barcode-video{width:100%;max-height:42vh;aspect-ratio:4/3;object-fit:cover;background:#000;border-radius:var(--radius-sm);margin-bottom:12px}
 .barcode-status{font-size:var(--fs-sm);color:var(--text2);line-height:1.45;min-height:20px;margin-bottom:12px}
 .barcode-review{border:.5px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-top:12px}
@@ -148,6 +150,8 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 .barcode-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .barcode-grid .form-field{min-width:0}
 #barcode-modal .modal-box{max-height:calc(100vh - 40px);overflow-y:auto}
+#label-modal .modal-box{max-height:calc(100vh - 40px);overflow-y:auto}
+@media(max-width:430px){.food-source-actions{grid-template-columns:1fr}}
 .results-list{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);overflow:hidden;max-height:50vh;overflow-y:auto}
 .result-item{padding:13px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;border-bottom:.5px solid var(--border)}
 .result-item:last-child{border-bottom:none}
@@ -357,7 +361,10 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
 
 <!-- ADD FOOD -->
 <div id="view-add" class="page">
-  <button class="barcode-start" onclick="openBarcodeScanner()"><span aria-hidden="true">&#128247;</span> Scan product barcode</button>
+  <div class="food-source-actions">
+    <button class="barcode-start" onclick="openBarcodeScanner()"><span aria-hidden="true">&#128247;</span> Scan barcode</button>
+    <button class="barcode-start" onclick="openLabelEntry()"><span aria-hidden="true">&#128196;</span> Add from label</button>
+  </div>
   <div class="search-wrap">
     <span class="search-icon">&#128269;</span>
     <input class="search-input" id="search-input" type="text" placeholder="Search food..." oninput="handleSearch(this.value)" autocomplete="off"/>
@@ -390,6 +397,37 @@ body{display:flex;flex-direction:column;max-width:680px;margin:0 auto}
       <div class="preview-row" id="af-preview"></div>
       <button class="btn-primary" onclick="addToLog()">Add to log</button>
     </div>
+  </div>
+</div>
+
+<!-- NUTRITION LABEL ENTRY -->
+<div id="label-modal" class="modal-overlay" style="display:none" onclick="closeLabelEntry(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title">Add from nutrition label</div>
+    <div id="label-entry-form">
+      <div class="barcode-status">Enter the values printed per 100 g or per 100 ml. Use kcal, not kJ.</div>
+      <div class="form-row">
+        <div class="form-field" style="min-width:100%"><label for="lf-name">Product name</label><input id="lf-name" type="text" autocomplete="off" placeholder="For example Cottage cheese"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label for="lf-brand">Brand (optional)</label><input id="lf-brand" type="text" autocomplete="off"></div>
+        <div class="form-field"><label for="lf-barcode">Barcode (optional)</label><input id="lf-barcode" type="text" inputmode="numeric" autocomplete="off"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label for="lf-unit">Label values are per</label><select id="lf-unit" onchange="updateLabelUnitText()"><option value="g">100 g</option><option value="ml">100 ml</option></select></div>
+        <div class="form-field"><label for="lf-piece" id="lf-piece-label">Package size in g (optional)</label><input id="lf-piece" type="number" min="0" step="0.1"></div>
+      </div>
+      <div class="barcode-grid">
+        <div class="form-field"><label for="lf-cal" id="lf-cal-label">Calories / 100 g</label><input id="lf-cal" type="number" min="0" step="0.1"></div>
+        <div class="form-field"><label for="lf-prot">Protein (g)</label><input id="lf-prot" type="number" min="0" step="0.1"></div>
+        <div class="form-field"><label for="lf-carb">Carbohydrates (g)</label><input id="lf-carb" type="number" min="0" step="0.1"></div>
+        <div class="form-field"><label for="lf-fat">Fat (g)</label><input id="lf-fat" type="number" min="0" step="0.1"></div>
+        <div class="form-field"><label for="lf-fiber">Fibre (g, optional)</label><input id="lf-fiber" type="number" min="0" step="0.1"></div>
+      </div>
+      <div id="label-error" class="barcode-status" style="color:var(--danger);margin-top:12px;margin-bottom:0"></div>
+      <div class="modal-actions"><button class="modal-cancel" onclick="closeLabelEntry()">Cancel</button><button class="btn-primary" style="flex:1" onclick="reviewLabelFood()">Review food</button></div>
+    </div>
+    <div id="label-review" class="barcode-review" style="display:none"></div>
   </div>
 </div>
 
@@ -1645,6 +1683,7 @@ let barcodeLookupBusy=false;
 let barcodeScanLocked=false;
 let barcodeCandidate=null;
 let barcodeSession=0;
+let labelCandidate=null;
 
 function normalizeBarcode(value){
   return String(value||'').replace(/\D/g,'');
@@ -1728,6 +1767,97 @@ function foodByBarcode(code){
   if(databaseIndex>=0)return{...DB[databaseIndex],_src:'builtin',_index:databaseIndex,_existing:true};
   return null;
 }
+function openLabelEntry(barcode=''){
+  if(document.getElementById('barcode-modal').style.display!=='none')closeBarcodeScanner();
+  ['lf-name','lf-brand','lf-piece','lf-cal','lf-prot','lf-carb','lf-fat','lf-fiber'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('lf-barcode').value=normalizeBarcode(barcode);
+  document.getElementById('lf-unit').value='g';
+  document.getElementById('label-error').textContent='';
+  document.getElementById('label-entry-form').style.display='block';
+  document.getElementById('label-review').style.display='none';
+  document.getElementById('label-modal').style.display='flex';
+  labelCandidate=null;
+  updateLabelUnitText();
+  setTimeout(()=>document.getElementById('lf-name').focus(),0);
+}
+function closeLabelEntry(event){
+  if(event&&event.target!==document.getElementById('label-modal'))return;
+  document.getElementById('label-modal').style.display='none';
+  labelCandidate=null;
+}
+function updateLabelUnitText(){
+  const unit=document.getElementById('lf-unit').value==='ml'?'ml':'g';
+  document.getElementById('lf-cal-label').textContent='Calories / 100 '+unit;
+  document.getElementById('lf-piece-label').textContent='Package size in '+unit+' (optional)';
+}
+function labelNumber(id,required){
+  const raw=document.getElementById(id).value.trim();
+  if(raw==='')return required?null:0;
+  const value=Number(raw);
+  return Number.isFinite(value)&&value>=0?value:null;
+}
+function readLabelFood(){
+  const name=document.getElementById('lf-name').value.trim();
+  const brand=document.getElementById('lf-brand').value.trim();
+  const barcode=normalizeBarcode(document.getElementById('lf-barcode').value);
+  const cal=labelNumber('lf-cal',true),prot=labelNumber('lf-prot',true),carb=labelNumber('lf-carb',true),fat=labelNumber('lf-fat',true);
+  const fiber=labelNumber('lf-fiber',false),piece=labelNumber('lf-piece',false);
+  if(!name)return{error:'Enter the product name.'};
+  if(document.getElementById('lf-barcode').value.trim()&&(barcode.length<8||barcode.length>14))return{error:'The barcode must contain 8 to 14 digits.'};
+  if([cal,prot,carb,fat,fiber,piece].some(value=>value===null))return{error:'Enter valid non-negative calories, protein, carbohydrates and fat values.'};
+  const storedName=brand&&!name.toLowerCase().includes(brand.toLowerCase())?brand+' '+name:name;
+  return{food:{name:storedName,cal,prot,carb,fat,fiber,piece:piece||null,unit:document.getElementById('lf-unit').value==='ml'?'ml':'g',source:'Nutrition label',sourceId:barcode},brand,barcode};
+}
+function reviewLabelFood(){
+  const result=readLabelFood();
+  const error=document.getElementById('label-error');
+  if(result.error){error.textContent=result.error;return;}
+  error.textContent='';
+  labelCandidate=result.food;
+  const food=result.food,unit=food.unit;
+  const sourceLine=(result.brand?'Brand: '+escHtml(result.brand)+' · ':'')+(result.barcode?'Barcode: '+escHtml(result.barcode):'No barcode');
+  const review=document.getElementById('label-review');
+  review.innerHTML=
+    '<div class="barcode-product-name">'+escHtml(food.name)+'</div><div class="barcode-product-meta">'+sourceLine+'</div>'+
+    '<div class="barcode-product-meta" style="margin-top:12px">Per 100 '+unit+': <b>'+fmt(food.cal)+' kcal</b> · P '+fmt(food.prot)+'g · C '+fmt(food.carb)+'g · F '+fmt(food.fat)+'g · Fibre '+fmt(food.fiber)+'g'+(food.piece?' · Package '+fmt(food.piece)+unit:'')+'</div>'+
+    '<div class="barcode-product-meta" style="margin-top:10px">Check this summary against the package before saving.</div>'+
+    '<div class="modal-actions"><button class="modal-cancel" onclick="editLabelFood()">Back</button><button class="btn-primary" style="flex:1" onclick="confirmLabelFood()">Confirm, save & use</button></div>';
+  document.getElementById('label-entry-form').style.display='none';
+  review.style.display='block';
+}
+function editLabelFood(){
+  document.getElementById('label-review').style.display='none';
+  document.getElementById('label-entry-form').style.display='block';
+}
+async function confirmLabelFood(){
+  if(!labelCandidate)return;
+  let food={...labelCandidate};
+  const barcode=normalizeBarcode(food.sourceId);
+  const existing=barcode?foodByBarcode(barcode):null;
+  if(existing){
+    closeLabelEntry();
+    pickFood(existing);
+    showToast('This barcode is already in your food database');
+    return;
+  }
+  if(!barcode&&DB.some(item=>String(item.name||'').trim().toLowerCase()===food.name.toLowerCase())){
+    editLabelFood();
+    document.getElementById('label-error').textContent='A database food with this name already exists. Use a more specific product name.';
+    return;
+  }
+  DB.push(food);
+  const saved=await saveFoodDatabase();
+  food={...food,_src:'builtin',_index:DB.length-1,_existing:true};
+  closeLabelEntry();
+  pickFood(food);
+  showToast(saved?'Label food confirmed and saved':'Saved on this device; cloud food sync failed',saved?2200:3500);
+}
+function offerLabelEntry(code,message){
+  barcodeStatus(message,true);
+  const review=document.getElementById('barcode-review');
+  review.innerHTML='<div class="barcode-product-meta" style="margin-bottom:12px">You can enter the calories and macros directly from the package.</div><button class="btn-primary" onclick="openLabelEntry(\''+escHtml(code)+'\')">Enter values from label</button>';
+  review.style.display='block';
+}
 function finiteNutrient(value){
   const n=Number(value);
   return Number.isFinite(n)?Math.max(0,n):0;
@@ -1792,14 +1922,14 @@ async function lookupBarcode(rawCode){
     if(!response.ok)throw new Error('lookup failed');
     const product=openFoodFactsToFood(await response.json(),code);
     if(!product){
-      barcodeStatus('This barcode was not found with usable nutrition data. Add the product manually under My foods.',true);
+      offerLabelEntry(code,'This barcode was not found with usable nutrition data.');
       return;
     }
     barcodeCandidate=product;
     barcodeStatus('Product found. Check the values against the package before saving.');
     renderBarcodeReview(product,false);
   }catch(e){
-    barcodeStatus('The product lookup is temporarily unavailable. Try again or add it manually under My foods.',true);
+    offerLabelEntry(code,'The product lookup is temporarily unavailable.');
   }finally{
     barcodeLookupBusy=false;
   }
