@@ -7,7 +7,10 @@ const ENCRYPTED_VERSION = 1;
 const GIST_OWNER = "jozefjanotta-source";
 const ACCESS_FILE = "nutrilog-connector-access.json";
 const EDIT_PREFIX = "nutrilog-food-edit-";
+const DATABASE_OPERATION_PREFIX = "nutrilog-food-database-";
 const MAX_EDIT_FILES = 1000;
+const MAX_DATABASE_OPERATION_FILES = 1000;
+const MAX_DATABASE_ROWS = 10000;
 const MEALS = ["Breakfast", "Lunch", "Dinner", "Snack"];
 const NUTRITION_FIELDS = { calories: "cal", protein_g: "prot", carbs_g: "carb", fat_g: "fat", fiber_g: "fiber" };
 const FOOD_FIELDS = {
@@ -17,6 +20,11 @@ const FOOD_FIELDS = {
   ...Object.fromEntries(Object.keys(NUTRITION_FIELDS).map(key => [key, { type: "number", minimum: 0, maximum: key === "calories" ? 20000 : 5000, description: "Total for the logged portion, not per 100g. Use supplied values or a verified label; disclose estimates." }])),
 };
 const OPERATION_PROPERTY = { type: "string", pattern: "^[A-Za-z0-9_-]{8,64}$", description: "Unique operation ID. Reuse the identical ID and arguments when retrying an uncertain save; use a new ID for a new user request." };
+const DATABASE_UNITS = ["g", "ml", "pc", "piece", "slice", "scoop", "tsp", "tbsp"];
+const DATABASE_NUTRITION_FIELDS = Object.fromEntries(Object.keys(NUTRITION_FIELDS).map(key => [key, {
+  type: "number", minimum: 0, maximum: key === "calories" ? 20000 : 5000,
+  description: "Total for the stated database amount, not automatically per 100g. Use a verified label or source and disclose estimates.",
+}]));
 
 const TOOL = {
   name: "get_daily_nutrition",
@@ -68,6 +76,28 @@ const TOOLS = [
     inputSchema: { type: "object", additionalProperties: false, properties: {} },
   },
   {
+    name: "search_food_database",
+    description: "Search the owner's encrypted Nutrilog food database and personal custom foods before looking nutrition up elsewhere or proposing a new reusable food. Returns only matching food records, never the raw database file.",
+    inputSchema: { type: "object", additionalProperties: false, properties: {
+      query: { type: "string", minLength: 1, maxLength: 100 },
+      limit: { type: "integer", minimum: 1, maximum: 50, default: 20 },
+    }, required: ["query"] },
+  },
+  {
+    name: "add_food_to_database",
+    description: "Add one reusable food to the owner's encrypted Nutrilog food database ONLY after searching for an existing exact match and receiving the user's explicit request. Nutrition values are totals for basis_amount and unit. Prefer manufacturer labels or authoritative sources; disclose estimates. Exact duplicate names are rejected. Reuse operation_id on retries.",
+    inputSchema: { type: "object", additionalProperties: false, properties: {
+      operation_id: OPERATION_PROPERTY,
+      name: { type: "string", minLength: 1, maxLength: 200 },
+      basis_amount: { type: "number", exclusiveMinimum: 0, maximum: 10000, description: "Amount the supplied nutrition totals describe, e.g. 100 for values per 100g or 1 for values per item." },
+      unit: { type: "string", enum: DATABASE_UNITS },
+      ...DATABASE_NUTRITION_FIELDS,
+      source: { type: "string", minLength: 1, maxLength: 200, description: "Provenance label, e.g. manufacturer label, USDA, or user recipe estimate." },
+      source_id: { type: "string", minLength: 1, maxLength: 500, description: "Source URL, product identifier, label description, or recipe reference. Never include credentials." },
+    }, required: ["operation_id", "name", "basis_amount", "unit", "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "source", "source_id"] },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  {
     name: "add_food_log",
     description: "Add one food entry to the owner's encrypted Nutrilog diary ONLY when the user asks to log food. All nutrition numbers are totals for the stated portion. Ask about ambiguous food, date, portion or nutrition; disclose estimates. Saves an encrypted change that appears in Nutrilog on its next Pull or auto-sync. Reuse operation_id on retries to prevent duplicates. Does not change targets, measurements, the food database or existing entries.",
     inputSchema: { type: "object", additionalProperties: false, properties: {
@@ -109,7 +139,7 @@ const page = `<!doctype html>
     <main>
       <h1>Nutrilog private connector</h1>
       <p><strong>Nutrilog remains the primary application.</strong></p>
-      <p>This private connector lets ChatGPT read diary days, body measurements and progress. When you enable food editing in Nutrilog Settings, ChatGPT can also add or change food entries you request. Updates appear in Nutrilog on its next sync.</p>
+      <p>This private connector lets ChatGPT read diary days, body measurements and progress. When you enable food editing in Nutrilog Settings, ChatGPT can also add or change requested diary entries, search your reusable foods, and add verified foods to your encrypted database. Updates appear in Nutrilog on its next sync.</p>
     </main>
   </body>
 </html>`;
@@ -180,12 +210,12 @@ async function importEncryptionKey(encodedKey, usage) {
   return crypto.subtle.importKey("raw", rawKey, { name: "AES-GCM" }, false, [usage]);
 }
 
-export async function encryptNutrilogPayload(payload, encodedKey, randomValues = crypto.getRandomValues.bind(crypto)) {
+export async function encryptNutrilogText(plaintext, encodedKey, randomValues = crypto.getRandomValues.bind(crypto)) {
   const key = await importEncryptionKey(encodedKey, "encrypt");
   const iv = new Uint8Array(12);
   randomValues(iv);
-  const plaintext = new TextEncoder().encode(JSON.stringify(payload));
-  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext);
+  const bytes = new TextEncoder().encode(plaintext);
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, bytes);
   return {
     format: ENCRYPTED_FORMAT,
     version: ENCRYPTED_VERSION,
@@ -195,7 +225,7 @@ export async function encryptNutrilogPayload(payload, encodedKey, randomValues =
   };
 }
 
-export async function decryptNutrilogPayload(envelope, encodedKey) {
+export async function decryptNutrilogText(envelope, encodedKey) {
   if (
     !envelope ||
     envelope.format !== ENCRYPTED_FORMAT ||
@@ -213,9 +243,24 @@ export async function decryptNutrilogPayload(envelope, encodedKey) {
       key,
       base64UrlToBytes(envelope.ciphertext),
     );
-    return JSON.parse(new TextDecoder().decode(plaintext));
+    return new TextDecoder().decode(plaintext);
   } catch {
     throw new Error("Unable to decrypt Nutrilog. Check the encryption key and Gist ID.");
+  }
+}
+
+export async function encryptNutrilogPayload(payload, encodedKey, randomValues = crypto.getRandomValues.bind(crypto)) {
+  return encryptNutrilogText(JSON.stringify(payload), encodedKey, randomValues);
+}
+
+export async function decryptNutrilogPayload(envelope, encodedKey) {
+  let plaintext;
+  try {
+    plaintext = await decryptNutrilogText(envelope, encodedKey);
+    return JSON.parse(plaintext);
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new Error("The encrypted Nutrilog payload is not valid JSON.");
+    throw error;
   }
 }
 
@@ -435,6 +480,129 @@ function legacyFoodKey(date, item) {
   return [item.date || date, item.name || "", item.meal || "", item.amountLabel || "",
     item.cal ?? "", item.prot ?? "", item.carb ?? "", item.fat ?? "", item.fiber ?? ""].join("|");
 }
+
+function csvLine(line, delimiter) {
+  const values = [];
+  let value = "", quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const character = line[i];
+    if (character === '"') {
+      if (quoted && line[i + 1] === '"') { value += '"'; i++; }
+      else quoted = !quoted;
+    } else if (character === delimiter && !quoted) {
+      values.push(value.trim()); value = "";
+    } else value += character;
+  }
+  values.push(value.trim());
+  return values;
+}
+
+function csvValue(value, delimiter) {
+  const string = String(value ?? "");
+  return string.includes(delimiter) || /["\r\n]/.test(string) ? '"' + string.replace(/"/g, '""') + '"' : string;
+}
+
+function databaseNameKey(name) {
+  return text(name).toLocaleLowerCase("en").replace(/\s+/g, " ");
+}
+
+export function parseFoodDatabase(csv) {
+  if (typeof csv !== "string") throw new Error("The encrypted food database is invalid.");
+  const lines = csv.replace(/^\uFEFF/, "").split(/\r?\n/).filter(line => line.trim());
+  if (!lines.length) return { delimiter: ";", header: ["Food list", "Amount", "Unit", "Calories", "Fats", "Carbs", "Prots", "Fiber", "Source", "Source ID"], rows: [] };
+  const headerIndex = lines.findIndex(line => /food list|food/i.test(line));
+  if (headerIndex < 0) throw new Error("The food database header is missing.");
+  const delimiter = lines[headerIndex].includes(";") ? ";" : ",";
+  const header = csvLine(lines[headerIndex], delimiter);
+  const index = {};
+  header.forEach((column, position) => {
+    const key = column.toLowerCase().trim();
+    if (key === "food list" || key === "food") index.name = position;
+    else if (key === "amount") index.amount = position;
+    else if (key === "unit") index.unit = position;
+    else if (key === "calories" || key === "cal") index.calories = position;
+    else if (key === "fats" || key === "fat") index.fat_g = position;
+    else if (key === "carbs" || key === "carb") index.carbs_g = position;
+    else if (key === "prots" || key === "prot" || key === "protein") index.protein_g = position;
+    else if (key === "fiber" || key === "fibre") index.fiber_g = position;
+    else if (key === "source") index.source = position;
+    else if (key === "source id" || key === "sourceid") index.source_id = position;
+  });
+  for (const required of ["name", "amount", "unit", "calories", "fat_g", "carbs_g", "protein_g"]) {
+    if (index[required] === undefined) throw new Error(`The food database is missing its ${required} column.`);
+  }
+  const rows = [];
+  const seen = new Set();
+  for (const line of lines.slice(headerIndex + 1)) {
+    const columns = csvLine(line, delimiter);
+    const name = text(columns[index.name]);
+    const nameKey = databaseNameKey(name);
+    const amount = number(columns[index.amount]);
+    const unit = text(columns[index.unit], 20).toLowerCase() || "g";
+    const calories = number(columns[index.calories]);
+    if (!name || seen.has(nameKey) || amount <= 0 || calories <= 0) continue;
+    seen.add(nameKey);
+    const nutrition = {
+      calories: round(calories),
+      protein_g: round(columns[index.protein_g]),
+      carbs_g: round(columns[index.carbs_g]),
+      fat_g: round(columns[index.fat_g]),
+      fiber_g: round(index.fiber_g === undefined ? 0 : columns[index.fiber_g]),
+    };
+    const gramBased = unit === "g" || unit === "ml";
+    const factor = gramBased ? 100 / amount : 1 / amount;
+    rows.push({
+      name, source_type: "database", basis_amount: gramBased ? 100 : 1,
+      unit, ...Object.fromEntries(Object.entries(nutrition).map(([key, value]) => [key, round(value * factor)])),
+      source: text(index.source === undefined ? "" : columns[index.source]),
+      source_id: text(index.source_id === undefined ? "" : columns[index.source_id], 500),
+    });
+  }
+  if (rows.length > MAX_DATABASE_ROWS) throw new Error("The food database contains too many rows to use safely.");
+  return { delimiter, header, rows };
+}
+
+function databaseFoodFromCustom(food) {
+  const unit = text(food?.unit, 20).toLowerCase() || "g";
+  return {
+    name: text(food?.name), source_type: "custom", basis_amount: unit === "g" || unit === "ml" ? 100 : 1, unit,
+    calories: round(food?.cal), protein_g: round(food?.prot), carbs_g: round(food?.carb), fat_g: round(food?.fat), fiber_g: round(food?.fiber),
+    source: text(food?.source), source_id: text(food?.sourceId, 500),
+  };
+}
+
+export function searchFoodDatabase(databaseRows, customFoods, query, limit = 20) {
+  const normalized = databaseNameKey(query);
+  const matches = [...(Array.isArray(customFoods) ? customFoods.map(databaseFoodFromCustom) : []), ...databaseRows]
+    .filter(food => food.name && databaseNameKey(food.name).includes(normalized))
+    .sort((a, b) => {
+      const aName = databaseNameKey(a.name), bName = databaseNameKey(b.name);
+      const rank = name => name === normalized ? 0 : name.startsWith(normalized) ? 1 : 2;
+      return rank(aName) - rank(bName) || aName.localeCompare(bName);
+    });
+  const unique = [];
+  const seen = new Set();
+  for (const food of matches) {
+    const key = databaseNameKey(food.name);
+    if (seen.has(key)) continue;
+    seen.add(key); unique.push(food);
+    if (unique.length >= limit) break;
+  }
+  return unique;
+}
+
+function appendFoodDatabaseRow(csv, parsed, args) {
+  const values = {
+    "food list": args.name.trim(), food: args.name.trim(), amount: args.basis_amount, unit: args.unit,
+    calories: args.calories, cal: args.calories, fats: args.fat_g, fat: args.fat_g,
+    carbs: args.carbs_g, carb: args.carbs_g, prots: args.protein_g, prot: args.protein_g,
+    protein: args.protein_g, fiber: args.fiber_g, fibre: args.fiber_g,
+    source: args.source.trim(), "source id": args.source_id.trim(), sourceid: args.source_id.trim(),
+  };
+  const columns = parsed.header.map(column => values[column.toLowerCase().trim()] ?? "");
+  const separator = csv.endsWith("\n") || !csv ? "" : "\n";
+  return csv + separator + columns.map(value => csvValue(value, parsed.delimiter)).join(parsed.delimiter) + "\n";
+}
 function normalizedFood(item, date, index) {
   return { ...item, date: item.date || date, id: item.id || "legacy:" + legacyFoodKey(date, item) + "|" + index };
 }
@@ -491,6 +659,34 @@ export function validateFoodArgs(name, args) {
     if (typeof fields.portion_multiplier !== "number" || !Number.isFinite(fields.portion_multiplier) || fields.portion_multiplier <= 0 || fields.portion_multiplier > 100 || !fields.amount || Object.keys(NUTRITION_FIELDS).some(k => fields[k] !== undefined)) throw new Error("portion_multiplier must be greater than 0 and at most 100, requires amount, and cannot accompany explicit nutrition totals.");
   }
 }
+function validateDatabaseSearchArgs(args) {
+  exactObject(args, ["query", "limit"], "Unexpected food-database search arguments.");
+  strictText(args.query, 100, "query");
+  if (args.limit !== undefined && (!Number.isInteger(args.limit) || args.limit < 1 || args.limit > 50)) {
+    throw new Error("limit must be an integer from 1 to 50.");
+  }
+}
+function validateDatabaseFoodArgs(args) {
+  const allowed = ["operation_id", "name", "basis_amount", "unit", ...Object.keys(DATABASE_NUTRITION_FIELDS), "source", "source_id"];
+  exactObject(args, allowed, "Unexpected food-database arguments.");
+  if (typeof args.operation_id !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(args.operation_id)) {
+    throw new Error("operation_id must contain 8–64 letters, digits, underscores or hyphens.");
+  }
+  strictText(args.name, 200, "name");
+  strictText(args.source, 200, "source");
+  strictText(args.source_id, 500, "source_id");
+  if (typeof args.basis_amount !== "number" || !Number.isFinite(args.basis_amount) || args.basis_amount <= 0 || args.basis_amount > 10000) {
+    throw new Error("basis_amount must be greater than 0 and at most 10000.");
+  }
+  if (!DATABASE_UNITS.includes(args.unit)) throw new Error(`unit must be one of: ${DATABASE_UNITS.join(", ")}.`);
+  for (const key of Object.keys(DATABASE_NUTRITION_FIELDS)) {
+    const value = args[key], max = key === "calories" ? 20000 : 5000;
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > max) {
+      throw new Error(`${key} must be a number from 0 to ${max}, for the stated database amount.`);
+    }
+  }
+  if (args.calories <= 0) throw new Error("calories must be greater than 0.");
+}
 async function gistFileText(file, config, fetchImpl, headers = {}) {
   if (!file) throw new Error("The requested encrypted connector file is missing.");
   if (!file.truncated && typeof file.content === "string") return file.content;
@@ -502,6 +698,15 @@ async function gistFileText(file, config, fetchImpl, headers = {}) {
 }
 async function decodedGistFile(file, config, fetchImpl) {
   return decryptNutrilogPayload(JSON.parse(await gistFileText(file, config, fetchImpl)), config.encryptionKey);
+}
+async function decodedGistText(file, config, fetchImpl) {
+  return decryptNutrilogText(JSON.parse(await gistFileText(file, config, fetchImpl)), config.encryptionKey);
+}
+async function foodDatabaseSnapshot(snapshot, config, fetchImpl) {
+  const file = snapshot.gist?.files?.["foods.csv"];
+  if (!file) throw new Error("Nutrilog has no synced food database. Upload foods.csv in Nutrilog Settings first.");
+  const csv = await decodedGistText(file, config, fetchImpl);
+  return { csv, parsed: parseFoodDatabase(csv) };
 }
 export function applyFoodEdits(payload, edits) {
   payload.log ||= {};
@@ -600,6 +805,62 @@ async function saveFoodEdit(config, snapshot, name, args, fetchImpl) {
   const saved = verified.gist?.files?.[filename];
   if (!saved || (await decodedGistFile(saved, config, fetchImpl)).request_hash !== requestHash) throw new Error("Save could not be verified. Retry with the same operation_id and identical arguments.");
   return foodEditResult(verified.payload, args.date, entry, false, verified.updatedAt);
+}
+async function saveDatabaseFood(config, snapshot, args, fetchImpl) {
+  const token = await writeAccess(config, snapshot, fetchImpl);
+  const fieldNames = ["name", "basis_amount", "unit", ...Object.keys(DATABASE_NUTRITION_FIELDS), "source", "source_id"];
+  const requestHash = await digest(JSON.stringify(fieldNames.map(key => [key, args[key]])));
+  const filename = DATABASE_OPERATION_PREFIX + args.operation_id + ".json";
+  const previous = snapshot.gist.files[filename];
+  if (previous) {
+    const operation = await decodedGistFile(previous, config, fetchImpl);
+    if (operation.request_hash !== requestHash) throw new Error("This operation_id was already used for different changes. Use a new operation_id.");
+    return databaseFoodResult(operation.food, true, snapshot.updatedAt);
+  }
+  if (Object.keys(snapshot.gist.files).filter(name => name.startsWith(DATABASE_OPERATION_PREFIX)).length >= MAX_DATABASE_OPERATION_FILES) {
+    throw new Error("The connector food-database change history is full. No data was modified.");
+  }
+  const { csv, parsed } = await foodDatabaseSnapshot(snapshot, config, fetchImpl);
+  const exactName = databaseNameKey(args.name);
+  const duplicate = [...parsed.rows, ...(Array.isArray(snapshot.payload.customFoods) ? snapshot.payload.customFoods.map(databaseFoodFromCustom) : [])]
+    .find(food => databaseNameKey(food.name) === exactName);
+  if (duplicate) throw new Error(`A food named "${duplicate.name}" already exists. Search the database and use the existing food or choose a more specific product name.`);
+  if (parsed.rows.length >= MAX_DATABASE_ROWS) throw new Error("The food database is full. No data was modified.");
+
+  const updatedCsv = appendFoodDatabaseRow(csv, parsed, args);
+  const normalized = parseFoodDatabase(updatedCsv).rows.find(food => databaseNameKey(food.name) === exactName);
+  if (!normalized) throw new Error("The new food could not be represented safely in the Nutrilog database.");
+  const operation = { format: "nutrilog-food-database-operation", version: 1, action: "add_food_to_database",
+    operation_id: args.operation_id, request_hash: requestHash, created_at: new Date().toISOString(), food: normalized };
+  const files = {
+    "foods.csv": { content: JSON.stringify(await encryptNutrilogText(updatedCsv, config.encryptionKey)) },
+    [filename]: { content: JSON.stringify(await encryptNutrilogPayload(operation, config.encryptionKey)) },
+  };
+  const response = await fetchImpl(`https://api.github.com/gists/${encodeURIComponent(config.gistId)}`, {
+    method: "PATCH", redirect: "manual", signal: AbortSignal.timeout(20000),
+    headers: { accept: "application/vnd.github+json", "content-type": "application/json", authorization: "Bearer " + token,
+      "user-agent": "nutrilog-private-chatgpt-connector", "x-github-api-version": "2022-11-28" },
+    body: JSON.stringify({ files }),
+  });
+  if (!response.ok) throw new Error(response.status === 401 || response.status === 403
+    ? "GitHub refused the database save. Check that your token has gist permission, then enable ChatGPT editing again in Nutrilog Settings."
+    : `GitHub returned ${response.status}. Retry with the same operation_id and identical arguments to avoid duplicates.`);
+
+  const verified = await readNutrilogGist(config, fetchImpl);
+  const savedOperationFile = verified.gist?.files?.[filename];
+  if (!savedOperationFile || (await decodedGistFile(savedOperationFile, config, fetchImpl)).request_hash !== requestHash) {
+    throw new Error("Database save could not be verified. Retry with the same operation_id and identical arguments.");
+  }
+  const verifiedDatabase = await foodDatabaseSnapshot(verified, config, fetchImpl);
+  const savedFood = verifiedDatabase.parsed.rows.find(food => databaseNameKey(food.name) === exactName);
+  if (!savedFood) throw new Error("The food database operation was saved but the food row could not be verified. Pull Nutrilog before retrying.");
+  return databaseFoodResult(savedFood, false, verified.updatedAt);
+}
+function databaseFoodResult(food, replayed, updatedAt) {
+  return {
+    content: [{ type: "text", text: `${replayed ? "Already saved" : "Saved"} reusable food: ${food.name}. Open or Pull Nutrilog to sync the updated database to your device.` }],
+    structuredContent: { saved: true, replayed, food, source_updated_at: updatedAt, sync: "encrypted_food_database", device_sync_required: true },
+  };
 }
 async function foodEditResult(payload, date, entry, replayed, updatedAt) {
   const data = await dailyNutritionWithRevisions(payload, date, updatedAt);
@@ -758,7 +1019,9 @@ async function mcp(request, env, fetchImpl) {
       }
     } else if (name === "get_food_editing_status") {
       if (!args || typeof args !== "object" || Array.isArray(args) || Object.keys(args).length) throw new Error("Unexpected editing status arguments.");
-    } else if (name === "add_food_log" || name === "update_food_log") validateFoodArgs(name, args);
+    } else if (name === "search_food_database") validateDatabaseSearchArgs(args);
+    else if (name === "add_food_to_database") validateDatabaseFoodArgs(args);
+    else if (name === "add_food_log" || name === "update_food_log") validateFoodArgs(name, args);
     else validateMeasurementArgs(name, args);
   } catch (error) {
     return rpcResult(body.id, toolFailure(error.message));
@@ -773,6 +1036,13 @@ async function mcp(request, env, fetchImpl) {
       const enabled = !!snapshot.gist?.files?.[ACCESS_FILE];
       return rpcResult(body.id, { content: [{ type: "text", text: enabled ? "Food editing is enabled." : "Open Nutrilog Settings and tap Enable ChatGPT food editing first." }], structuredContent: { enabled } });
     }
+    if (name === "search_food_database") {
+      const database = await foodDatabaseSnapshot(snapshot, config, fetchImpl);
+      const items = searchFoodDatabase(database.parsed.rows, payload.customFoods, args.query, args.limit ?? 20);
+      return rpcResult(body.id, { content: [{ type: "text", text: items.length ? `${items.length} matching reusable food${items.length === 1 ? "" : "s"}.` : `No reusable foods match "${args.query}".` }],
+        structuredContent: { query: args.query, count: items.length, items, source_updated_at: updatedAt } });
+    }
+    if (name === "add_food_to_database") return rpcResult(body.id, await saveDatabaseFood(config, snapshot, args, fetchImpl));
     if (name === "add_food_log" || name === "update_food_log") return rpcResult(body.id, await saveFoodEdit(config, snapshot, name, args, fetchImpl));
     if (name === TOOL.name) return rpcResult(body.id, toolSuccess(await dailyNutritionWithRevisions(payload, args.date, updatedAt)));
     const operation = { get_latest_measurements: latestMeasurements, get_measurement_history: measurementHistory, get_weight_progress: weightProgress }[name];
