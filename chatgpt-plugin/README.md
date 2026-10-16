@@ -116,13 +116,10 @@ Connector and device-sync tests use invented fixture data. They do not contact G
 
 Do not publish the Site to a wider audience. If access is intentionally shared later, replace the single-email check with a reviewed per-user data design before sharing any diary data.
 
-## Meal-photo estimates
+## Meal-photo estimates through ChatGPT
 
-Nutrilog supports two review-before-save paths:
+Attach a meal photo in ChatGPT and ask for a Nutrilog estimate. ChatGPT uses its own image understanding to identify likely ingredients and estimate portions, calories, protein, carbohydrates, fat and fiber for the whole portion. It presents the estimate and assumptions, resolves material ambiguity (especially portion size, cooking oil and sauces), and receives confirmation before calling the existing `add_food_log` tool. The food name includes `(photo estimate)` so the diary clearly identifies estimates.
 
-- **In Nutrilog:** open Add food → Estimate meal from photo. Supply an OpenAI API key, take or choose a photo, optionally describe ingredients/portion, and select Estimate with OpenAI. Review the assumptions and edit the portion and all nutrition totals before confirming the date and meal. Entries are marked `(photo estimate)` and use the existing encrypted diary sync; they are not added to the reusable food database.
-- **In ChatGPT:** attach a meal photo and ask for a Nutrilog estimate. ChatGPT uses its own image understanding, explains estimated ingredients, portions and uncertain oil/sauce, and asks for confirmation before calling the existing `add_food_log` tool. Resolve the local date, meal and portion. ChatGPT food editing must already be enabled in Nutrilog Settings. Pull/auto-sync receives the saved entry. The connector itself does not process images or require an OpenAI API key for this path.
+Resolve the user's local date, meal category and portion before logging. ChatGPT food editing must already be enabled in Nutrilog Settings. Pull or auto-sync receives the saved encrypted journal entry. The connector accepts nutrition totals only: it does not receive, analyze or store the photo. Photo handling stays in ChatGPT. No OpenAI API key or separate API billing is needed for this workflow; normal ChatGPT plan limits apply.
 
-The in-app path uses `gpt-4o-mini` through the OpenAI API, billed separately from a ChatGPT subscription. The API key exists only in the dialog on the current page and is cleared when it closes; it is never written to local storage, the repository, the Gist, or the connector. An image is decoded and resized to a maximum 1280px dimension, then re-encoded as JPEG before sending directly to OpenAI with the optional meal details. Photo data is not saved in the diary. OpenAI handles the submitted data under the user's API account terms. Use only a trusted device/browser for API credentials. A hosted server-side proxy can replace this personal-key flow later.
-
-Photo estimates cannot measure exact quantities or reveal hidden ingredients. A review is required; changing the portion text does not automatically recalculate nutrition. Use weights or recipe/label data when precision matters. Local tests mock the image-model response; real API access, billing, model availability and estimate accuracy require a live account check after deployment.
+Photo estimates cannot measure exact quantities or reveal hidden ingredients. Use weights or recipe/label data when precision matters. The main Nutrilog app has no meal-photo API integration; its existing on-device nutrition-label photo reader remains available.
