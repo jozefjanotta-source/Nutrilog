@@ -115,3 +115,11 @@ Connector and device-sync tests use invented fixture data. They do not contact G
 7. Test with: **“What have I eaten today?”** ChatGPT should call `get_daily_nutrition` with the user's local `YYYY-MM-DD` date.
 
 Do not publish the Site to a wider audience. If access is intentionally shared later, replace the single-email check with a reviewed per-user data design before sharing any diary data.
+
+## Meal-photo estimates through ChatGPT
+
+Attach a meal photo in ChatGPT and ask for a Nutrilog estimate. ChatGPT uses its own image understanding to identify likely ingredients and estimate portions, calories, protein, carbohydrates, fat and fiber for the whole portion. It presents the estimate and assumptions, resolves material ambiguity (especially portion size, cooking oil and sauces), and receives confirmation before calling the existing `add_food_log` tool. The food name includes `(photo estimate)` so the diary clearly identifies estimates.
+
+Resolve the user's local date, meal category and portion before logging. ChatGPT food editing must already be enabled in Nutrilog Settings. Pull or auto-sync receives the saved encrypted journal entry. The connector accepts nutrition totals only: it does not receive, analyze or store the photo. Photo handling stays in ChatGPT. No OpenAI API key or separate API billing is needed for this workflow; normal ChatGPT plan limits apply.
+
+Photo estimates cannot measure exact quantities or reveal hidden ingredients. Use weights or recipe/label data when precision matters. The main Nutrilog app has no meal-photo API integration; its existing on-device nutrition-label photo reader remains available.

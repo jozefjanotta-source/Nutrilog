@@ -99,7 +99,7 @@ const TOOLS = [
   },
   {
     name: "add_food_log",
-    description: "Add one food entry to the owner's encrypted Nutrilog diary ONLY when the user asks to log food. All nutrition numbers are totals for the stated portion. Ask about ambiguous food, date, portion or nutrition; disclose estimates. Saves an encrypted change that appears in Nutrilog on its next Pull or auto-sync. Reuse operation_id on retries to prevent duplicates. Does not change targets, measurements, the food database or existing entries.",
+    description: "Add one food entry to the owner's encrypted Nutrilog diary ONLY when the user asks to log food. All nutrition numbers are totals for the stated portion. For a user meal photo, use ChatGPT vision to identify ingredients and estimate portions and nutrition; this tool itself does not analyze images. Present the estimate and assumptions first, ask about material ambiguity (especially portion, oil or sauce), and receive confirmation before logging. Include (photo estimate) in the food name for photo estimates. Ask about ambiguous food, date, portion or nutrition; disclose estimates. Saves an encrypted change that appears in Nutrilog on its next Pull or auto-sync. Reuse operation_id on retries to prevent duplicates. Does not change targets, measurements, the food database or existing entries.",
     inputSchema: { type: "object", additionalProperties: false, properties: {
       date: RANGE_PROPERTIES.from, operation_id: OPERATION_PROPERTY, ...FOOD_FIELDS,
     }, required: ["date", "operation_id", "name", "meal", "amount", "calories", "protein_g", "carbs_g", "fat_g", "fiber_g"] },
