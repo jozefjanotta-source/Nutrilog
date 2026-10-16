@@ -9,7 +9,7 @@ function setup(fetchImpl){
   const elements=new Map();
   const el=id=>{if(!elements.has(id)){let value='';elements.set(id,{get value(){return value},set value(v){value=String(v)},style:{display:'none'},textContent:'',disabled:false,files:[]})}return elements.get(id)};
   const state={currentDate:'2026-10-16',log:{}};
-  const context=vm.createContext({document:{getElementById:el},state,AbortController,setTimeout,clearTimeout,fetch:fetchImpl,createLogEntryId:()=> 'new-id',persist:()=>{},scheduleAutoSync:()=>{},switchView:()=>{},showToast:()=>{}});
+  const context=vm.createContext({document:{getElementById:el},state,AbortController,setTimeout,clearTimeout,fetch:fetchImpl,createLogEntryId:()=> 'new-id',persist:()=>{},scheduleAutoSync:()=>{},jumpToDate:date=>{state.currentDate=date},switchView:()=>{},showToast:()=>{}});
   vm.runInContext(source,context);
   vm.runInContext("prepareMealPhoto=async ()=> 'data:image/jpeg;base64,fixture'",context);
   el('mp-key').value='test-session-key';
