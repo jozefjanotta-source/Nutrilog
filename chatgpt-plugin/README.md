@@ -8,14 +8,20 @@ This folder contains the first small ChatGPT integration for Nutrilog. Nutrilog 
 - `get_weight_progress`: dated first/last values and changes for each body metric in the requested range.
 - `search_food_database`: searches only matching reusable database and custom-food records, including their saved provenance.
 
-Food editing is optional and disabled until the owner enables it in Nutrilog Settings. The additional tools are:
+ChatGPT editing is optional and disabled until the owner enables it in Nutrilog Settings. The additional tools are:
 
 - `get_food_editing_status`: reports whether food editing is enabled, without returning credentials.
 - `add_food_log`: adds one dated entry with the food, meal, portion and explicit nutrition totals.
 - `update_food_log`: edits one stable entry ID after checking the revision from a fresh daily read. A portion multiplier scales all nutrition totals.
 - `add_food_to_database`: adds one sourced, reusable food after an exact-name duplicate check. Values can be supplied per 100 g/ml or per supported item unit.
 
-These tools do not delete entries or change targets, measurements or recovery. Database additions require the same explicit editing opt-in as diary changes.
+These tools do not delete entries or change recovery or body-weight goals. All writes require the same editing opt-in as diary changes.
+
+- `add_body_measurement`: saves explicitly supplied weight, waist, body fat, fat mass, muscle, water and/or visceral-fat values for a date.
+- `get_nutrition_targets`: reads the targets applicable on a date and their revision.
+- `set_nutrition_targets`: sets requested calories/macros effective on a date using that revision; unspecified fields are preserved, including when changing only calories. Earlier history and future targets remain available.
+
+Measurement and target writes use separate encrypted `nutrilog-profile-edit-<operation_id>.json` journal files. Retries reuse the exact operation ID and arguments. Target writes reject stale revisions; concurrent writes retain the existing latest-timestamp policy rather than claiming a distributed lock. New measurements have stable IDs and respect device edits and deletion tombstones. Pull, startup sync and automatic/manual Push overlay the journal. Refresh every Nutrilog device to receive the updated sync code. Existing editing connections remain valid; the Settings label is now **Enable ChatGPT editing**.
 
 ## What the source inspection found
 
@@ -41,7 +47,7 @@ The exposed `get_daily_nutrition` tool returns only:
 - the applicable nutrition target;
 - the Gist update time, so ChatGPT can warn when data may be stale.
 
-The daily nutrition response still omits weight and measurements. The measurement tools explicitly return only dated weight, waist, body fat, fat mass, muscle mass, body water and recorded visceral fat. Missing values are null; no value is inferred. Nutrilog currently does not have a visceral-fat input, so this is normally null. Legacy weight-only diary dates are included when no body record exists for that date. Deleted measurement records are excluded, and duplicate IDs use the latest revision. Daily food reads include stable entry IDs and SHA-256 revisions so edits can identify an exact row. Measurement reads continue to omit IDs. All tools omit comments, recovery, goals, decision settings, custom foods, tombstones and raw backup data. Each metric in the progress response has its own dated endpoints and sample count; fewer than two samples yield a null change. Historical data is from the synced backup, with its update time returned when available. Tests enforce these boundaries.
+The daily nutrition response still omits weight and measurements. The measurement tools explicitly return only dated weight, waist, body fat, fat mass, muscle mass, body water and recorded visceral fat. Missing values are null; no value is inferred. Nutrilog currently does not have a visceral-fat input, so this is normally null. Legacy weight-only diary dates are included when no body record exists for that date. Deleted measurement records are excluded, and duplicate IDs use the latest revision. Daily food reads include stable entry IDs and SHA-256 revisions so edits can identify an exact row. Measurement reads continue to omit IDs. Nutrition-target reads return an opaque revision for edits. All tools omit comments, recovery, goals, decision settings, tombstones and raw backup data. Each metric in the progress response has its own dated endpoints and sample count; fewer than two samples yield a null change. Historical data is from the synced backup, with its update time returned when available. Tests enforce these boundaries.
 
 ## Authentication and secrets
 

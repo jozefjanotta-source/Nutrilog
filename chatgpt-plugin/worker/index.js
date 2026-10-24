@@ -1,3 +1,5 @@
+import { applyProfileEdits } from './profile.js';
+const PROFILE_PREFIX = 'nutrilog-profile-edit-';
 const MCP_VERSION = "2026-07-28";
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_GIST_BYTES = 5 * 1024 * 1024;
@@ -51,6 +53,24 @@ const RANGE_PROPERTIES = {
 };
 const TOOLS = [
   TOOL,
+  {
+    name: 'add_body_measurement',
+    description: 'Save one dated body measurement ONLY when the user asks. Use kg, cm and percentages; convert explicitly supplied units and never guess missing values. Omitted metrics remain missing. Requires ChatGPT editing enabled in Nutrilog. Saves an encrypted change received on next Pull or auto-sync. Reuse operation_id and identical arguments on retries.',
+    inputSchema: {type:'object', additionalProperties:false, required:['date','operation_id','measurements'], properties:{date:RANGE_PROPERTIES.from, operation_id:OPERATION_PROPERTY, measurements:{type:'object',additionalProperties:false,minProperties:1,properties:Object.fromEntries(['weight_kg','waist_cm','body_fat_percent','fat_mass_kg','muscle_mass_kg','body_water_percent','visceral_fat'].map(k=>[k,{type:'number',exclusiveMinimum:0,maximum:k.endsWith('_percent')?100:1000}]))}}},
+    annotations: {readOnlyHint:false,destructiveHint:false,idempotentHint:true},
+  },
+  {
+    name:'get_nutrition_targets',
+    description:'Read saved calorie and macro targets applicable on a date, with a revision required for changes. Use the user local date for today. Read before set_nutrition_targets; does not return diary or credentials.',
+    inputSchema:{type:'object',additionalProperties:false,required:['date'],properties:{date:RANGE_PROPERTIES.from}},
+    annotations:{readOnlyHint:true},
+  },
+  {
+    name:'set_nutrition_targets',
+    description:'Set or modify calorie and macro targets ONLY on explicit user request. First read get_nutrition_targets for effective_date and use its revision. Supply only requested fields; unspecified fields keep their existing values. Effective dates preserve earlier history and may be future dates. These are nutrition targets, not body-weight goals. Reuse operation_id and identical arguments on retries. Changes arrive in Nutrilog on its next sync.',
+    inputSchema:{type:'object',additionalProperties:false,required:['effective_date','expected_revision','operation_id','targets'],properties:{effective_date:RANGE_PROPERTIES.from,expected_revision:{type:'string',pattern:'^[a-f0-9]{64}$'},operation_id:OPERATION_PROPERTY,targets:{type:'object',additionalProperties:false,minProperties:1,properties:Object.fromEntries(Object.keys(NUTRITION_FIELDS).map(k=>[k,{type:'number',minimum:k==='calories'?1:0,maximum:k==='calories'?20000:5000}]))}}},
+    annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true},
+  },
   {
     name: "get_latest_measurements",
     description: "Read the latest synced body measurement on or before an optional date. Returns weight in kg, waist in cm, body fat and water percentages, fat and muscle mass in kg, and visceral fat only if recorded. Missing values are null; includes the measurement date and backup update time. Read-only.",
@@ -139,7 +159,7 @@ const page = `<!doctype html>
     <main>
       <h1>Nutrilog private connector</h1>
       <p><strong>Nutrilog remains the primary application.</strong></p>
-      <p>This private connector lets ChatGPT read diary days, body measurements and progress. When you enable food editing in Nutrilog Settings, ChatGPT can also add or change requested diary entries, search your reusable foods, and add verified foods to your encrypted database. Updates appear in Nutrilog on its next sync.</p>
+      <p>This private connector lets ChatGPT read diary days, body measurements and progress. When you enable ChatGPT editing in Nutrilog Settings, ChatGPT can also add or change requested diary entries, search your reusable foods, add verified foods to your encrypted database, log body measurements, and set calorie and macro targets. Updates appear in Nutrilog on its next sync.</p>
     </main>
   </body>
 </html>`;
@@ -746,9 +766,77 @@ async function applyGistFoodEdits(payload, gist, encryptionKey, fetchImpl) {
   applyFoodEdits(payload, edits);
 }
 async function writeAccess(config, snapshot, fetchImpl) {
-  if (!snapshot.gist?.files?.[ACCESS_FILE]) throw new Error("Food editing is not enabled. In Nutrilog Settings, tap Enable ChatGPT food editing, then retry.");
+  if (!snapshot.gist?.files?.[ACCESS_FILE]) throw new Error("ChatGPT editing is not enabled. In Nutrilog Settings, tap Enable ChatGPT editing, then retry.");
   const access = await decodedGistFile(snapshot.gist.files[ACCESS_FILE], config, fetchImpl);
   return accessToken(access, config);
+}
+function validateProfileArgs(name, args) {
+  const allowed = name === 'add_body_measurement' ? ['date','operation_id','measurements'] : name === 'get_nutrition_targets' ? ['date'] : ['effective_date','expected_revision','operation_id','targets'];
+  if (!args || typeof args !== 'object' || Array.isArray(args) || Object.keys(args).some(k=>!allowed.includes(k)) || allowed.some(k=>args[k] === undefined)) throw new Error('Unexpected or missing measurement/target arguments.');
+  if (!validDate(args.date ?? args.effective_date)) throw new Error('Use a real date in YYYY-MM-DD form.');
+  if (name === 'get_nutrition_targets') return;
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(args.operation_id || '')) throw new Error('Invalid operation_id.');
+  if (name === 'set_nutrition_targets' && !/^[a-f0-9]{64}$/.test(args.expected_revision || '')) throw new Error('Read get_nutrition_targets first for its revision.');
+  const values = name === 'add_body_measurement' ? args.measurements : args.targets;
+  const fields = name === 'add_body_measurement' ? METRICS : NUTRITION_FIELDS;
+  if (!values || typeof values !== 'object' || Array.isArray(values) || !Object.keys(values).length || Object.keys(values).some(k=>!Object.hasOwn(fields,k))) throw new Error('Supply at least one supported measurement or nutrition target.');
+  for (const [key,value] of Object.entries(values)) {
+    const minimum = name === 'add_body_measurement' ? Number.MIN_VALUE : key === 'calories' ? 1 : 0;
+    const maximum = name === 'add_body_measurement' ? key.endsWith('_percent') ? 100 : 1000 : key === 'calories' ? 20000 : 5000;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum || value > maximum) throw new Error('A measurement or target is outside the supported numeric range.');
+  }
+}
+async function nutritionTargetState(payload, date, updatedAt) {
+  const target = targetForDate(payload, date);
+  return {date, target, revision:await digest(JSON.stringify([date,target])), source_updated_at:updatedAt};
+}
+async function applyGistProfileEdits(payload, gist, config, fetchImpl) {
+  const names = Object.keys(gist.files || {}).filter(name=>name.startsWith(PROFILE_PREFIX) && name.endsWith('.json'));
+  if (gist.truncated || names.length > MAX_EDIT_FILES) throw new Error('Incomplete or excessive profile change history. Sync stopped.');
+  const edits=[];
+  for(let i=0;i<names.length;i+=10) edits.push(...await Promise.all(names.slice(i,i+10).map(name=>decodedGistFile(gist.files[name],config,fetchImpl))));
+  applyProfileEdits(payload, edits);
+}
+async function profileEditResult(snapshot, edit, replayed) {
+  const data = edit.action === 'add_body_measurement'
+    ? {measurement:{date:edit.entry.date,...Object.fromEntries(Object.entries(METRICS).map(([field,key])=>[field,edit.entry[key] ?? null]))}}
+    : await nutritionTargetState(snapshot.payload, edit.entry.effectiveDate, snapshot.updatedAt);
+  return {content:[{type:'text',text:`${replayed ? 'Already saved' : 'Saved'}. Nutrilog receives this change on its next Pull or auto-sync.`}],structuredContent:{saved:true,replayed,...data}};
+}
+async function saveProfileEdit(config, snapshot, name, args, fetchImpl) {
+  const token = await writeAccess(config,snapshot,fetchImpl);
+  const fields = name === 'add_body_measurement' ? args.measurements : args.targets;
+  const hash = await digest(JSON.stringify([name,args.date ?? args.effective_date,args.expected_revision ?? null,Object.keys(fields).sort().map(k=>[k,fields[k]])]));
+  const filename = PROFILE_PREFIX + args.operation_id + '.json';
+  if (snapshot.gist.files[filename]) {
+    const previous = await decodedGistFile(snapshot.gist.files[filename],config,fetchImpl);
+    if (previous.request_hash !== hash) throw new Error('This operation_id was already used for different changes. Use a new operation_id.');
+    return profileEditResult(snapshot,previous,true);
+  }
+  if (Object.keys(snapshot.gist.files).filter(k=>k.startsWith(PROFILE_PREFIX)).length >= MAX_EDIT_FILES) throw new Error('Profile change history is full. No data was modified.');
+  let entry, createdAt = new Date().toISOString();
+  if (name === 'add_body_measurement') {
+    entry = {id:'chatgpt-body-'+args.operation_id,date:args.date,updatedAt:createdAt};
+    for (const [field,value] of Object.entries(fields)) entry[METRICS[field]]=value;
+  } else {
+    const current = await nutritionTargetState(snapshot.payload,args.effective_date,snapshot.updatedAt);
+    if (current.revision !== args.expected_revision) throw new Error('The targets changed since they were read. Read get_nutrition_targets again before editing.');
+    const values = {...current.target,...fields};
+    if (!(values.calories > 0)) throw new Error('Supply calories when creating the first nutrition target.');
+    const latest = [...(snapshot.payload.targetHistory || []),...(snapshot.payload.calorieTargetHistory || []),...(snapshot.payload.decision?.targetHistory || [])].map(normalizeTargetEntry).filter(Boolean).reduce((n,t)=>Math.max(n,t.timestamp),0);
+    const timestamp = Math.max(Date.now(),latest+1);
+    createdAt = new Date(timestamp).toISOString();
+    entry={effectiveDate:args.effective_date,calories:values.calories,protein:values.protein_g ?? 0,carbs:values.carbs_g ?? 0,fat:values.fat_g ?? 0,fiber:values.fiber_g ?? 0,timestamp};
+  }
+  const edit={format:'nutrilog-profile-edit',version:1,action:name,operation_id:args.operation_id,request_hash:hash,created_at:createdAt,entry};
+  applyProfileEdits(structuredClone(snapshot.payload),[edit]);
+  const content=JSON.stringify(await encryptNutrilogPayload(edit,config.encryptionKey));
+  const response=await fetchImpl(`https://api.github.com/gists/${encodeURIComponent(config.gistId)}`,{method:'PATCH',redirect:'manual',signal:AbortSignal.timeout(20000),headers:{accept:'application/vnd.github+json','content-type':'application/json',authorization:'Bearer '+token,'user-agent':'nutrilog-private-chatgpt-connector','x-github-api-version':'2022-11-28'},body:JSON.stringify({files:{[filename]:{content}}})});
+  if (!response.ok) throw new Error(`GitHub refused the save (${response.status}). Retry with the same operation_id and identical arguments.`);
+  const verified=await readNutrilogGist(config,fetchImpl);
+  const file=verified.gist?.files?.[filename];
+  if (!file || (await decodedGistFile(file,config,fetchImpl)).request_hash !== hash) throw new Error('Save could not be verified. Retry with the same operation_id and identical arguments.');
+  return profileEditResult(verified,edit,false);
 }
 function accessToken(access, config) {
   if (!access || access.format !== "nutrilog-connector-access" || access.version !== 1 || access.gist_id !== config.gistId || typeof access.token !== "string" || !/^(ghp_|github_pat_)[A-Za-z0-9_]+$/.test(access.token) || access.token.length > 255) throw new Error("ChatGPT food editing connection is invalid. Enable it again in Nutrilog Settings.");
@@ -958,6 +1046,7 @@ export async function readNutrilogGist(config, fetchImpl = fetch) {
   }
   const payload = await decryptNutrilogPayload(envelope, config.encryptionKey);
   await applyGistFoodEdits(payload, gist, config.encryptionKey, fetchImpl);
+  await applyGistProfileEdits(payload, gist, config, fetchImpl);
   return { payload, updatedAt: text(gist.updated_at, 40) || null, gist };
 }
 
@@ -1021,6 +1110,7 @@ async function mcp(request, env, fetchImpl) {
       if (!args || typeof args !== "object" || Array.isArray(args) || Object.keys(args).length) throw new Error("Unexpected editing status arguments.");
     } else if (name === "search_food_database") validateDatabaseSearchArgs(args);
     else if (name === "add_food_to_database") validateDatabaseFoodArgs(args);
+    else if (['add_body_measurement','get_nutrition_targets','set_nutrition_targets'].includes(name)) validateProfileArgs(name,args);
     else if (name === "add_food_log" || name === "update_food_log") validateFoodArgs(name, args);
     else validateMeasurementArgs(name, args);
   } catch (error) {
@@ -1032,6 +1122,8 @@ async function mcp(request, env, fetchImpl) {
     authorize(request, config.ownerEmail);
     const snapshot = await readNutrilogGist(config, fetchImpl);
     const { payload, updatedAt } = snapshot;
+    if (name === 'get_nutrition_targets') return rpcResult(body.id,{content:[{type:'text',text:'Saved nutrition targets for '+args.date+'.'}],structuredContent:await nutritionTargetState(payload,args.date,updatedAt)});
+    if (name === 'add_body_measurement' || name === 'set_nutrition_targets') return rpcResult(body.id,await saveProfileEdit(config,snapshot,name,args,fetchImpl));
     if (name === "get_food_editing_status") {
       const enabled = !!snapshot.gist?.files?.[ACCESS_FILE];
       return rpcResult(body.id, { content: [{ type: "text", text: enabled ? "Food editing is enabled." : "Open Nutrilog Settings and tap Enable ChatGPT food editing first." }], structuredContent: { enabled } });

@@ -19,11 +19,21 @@ function context(){
   vm.runInContext(range('function createLogEntryId()','state.log=normalizeLogData(state.log)'),ctx);
   vm.runInContext(range('function mergeLogData(local','function showSyncStatus(status)'),ctx);
   vm.runInContext(range('// ChatGPT saves each change separately','function applyRemotePayload(p)'),ctx);
-  ctx.dataPayload=()=>({targets:{cal:2100},log:ctx.state.log,tombstones:ctx.state.tombstones});
+  vm.runInContext(range('function targetHistoryKey(item)','let chartCal='),ctx);
+  vm.runInContext(range('function getTargetHistoryEntries()','function getCalorieTargetSeries(dates)'),ctx);
+  vm.runInContext(range('function targetEntryToTargets(entry)','function loadTargetsForm()'),ctx);
+  vm.runInContext(range('function measurementKey(item)','function saveBodyMeasurements()'),ctx);
+  ctx.todayISO=()=> '2026-10-24';
+  ctx.state.measurements=[];ctx.state.targetHistory=[];ctx.state.targets={cal:2100};
+  ctx.dataPayload=()=>({targets:ctx.state.targets,targetHistory:ctx.state.targetHistory,measurements:ctx.state.measurements,measurementTombstones:ctx.state.measurementTombstones,log:ctx.state.log,tombstones:ctx.state.tombstones});
   return {ctx,elements};
 }
 async function gist(){return {files:{'nutrilog.json':{content:JSON.stringify(await encryptNutrilogPayload({targets:{cal:2100},log:{'2026-10-10':[base]}},key))},'nutrilog-food-edit-test-edit-0001.json':{content:JSON.stringify(await encryptNutrilogPayload(edit,key))}}};}
 test('all inline scripts compile',()=>{for(const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))new vm.Script(match[1]);});
+test('device and worker embed identical profile merge rules',async()=>{
+  const source=await readFile(new URL('../worker/profile.js',import.meta.url),'utf8');
+  assert.ok(html.includes(source.replace('export function','function')));
+});
 test('app imports encrypted connector edit once and respects later local edits and deletions',async()=>{
   const {ctx}=context();const cloud=await gist();
   let p={log:{'2026-10-10':[base]}};
@@ -59,4 +69,18 @@ test('auto push stops rather than overwriting data when remote read or edit decr
     ctx.fetch=async(url,options)=>{if(options.method==='PATCH')patched=true;return new Response(JSON.stringify(cloud),{status:bad==='http'?403:200});};
     await ctx.silentPush();assert.equal(patched,false);
   }
+});
+test('auto push preserves ChatGPT body records and nutrition targets alongside later device changes',async()=>{
+  const {ctx}=context();const cloud=await gist();let written;
+  const stamp='2026-10-24T08:00:00.000Z';
+  const body={format:'nutrilog-profile-edit',version:1,action:'add_body_measurement',operation_id:'body-sync-test',created_at:stamp,entry:{id:'chatgpt-body-body-sync-test',date:'2026-10-24',weight:104,updatedAt:stamp}};
+  const target={format:'nutrilog-profile-edit',version:1,action:'set_nutrition_targets',operation_id:'target-sync-test',created_at:stamp,entry:{effectiveDate:'2026-10-24',calories:1900,protein:130,carbs:250,fat:65,fiber:30,timestamp:Date.parse(stamp)}};
+  for(const edit of [body,target])cloud.files['nutrilog-profile-edit-'+edit.operation_id+'.json']={content:JSON.stringify(await encryptNutrilogPayload(edit,key))};
+  ctx.fetch=async(url,options)=>{if(options.method==='PATCH'){written=JSON.parse(options.body);return new Response('{}');}return new Response(JSON.stringify(cloud));};
+  await ctx.silentPush();assert.ok(written);
+  let p=await decryptNutrilogPayload(JSON.parse(written.files['nutrilog.json'].content),key);assert.equal(p.targets.cal,1900);assert.equal(p.measurements[0].weight,104);
+  ctx.state.measurements[0].weight=103;ctx.state.measurements[0].updatedAt='2026-10-24T09:00:00Z';
+  ctx.state.targetHistory.push({...target.entry,calories:1850,timestamp:Date.parse('2026-10-24T09:00:00Z')});
+  await ctx.silentPush();p=await decryptNutrilogPayload(JSON.parse(written.files['nutrilog.json'].content),key);assert.equal(p.targets.cal,1850);assert.equal(p.measurements.length,1);assert.equal(p.measurements[0].weight,103);
+  cloud.files['nutrilog-profile-edit-bad-file.json']={content:'{"bad":true}'};written=null;await ctx.silentPush();assert.equal(written,null);
 });
