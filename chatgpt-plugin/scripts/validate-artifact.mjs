@@ -7,6 +7,7 @@ const hosting = JSON.parse(
 );
 
 assert.match(worker, /POST \/mcp|pathname === "\/mcp"/);
+assert.match(await readFile(new URL('../dist/server/profile.js',import.meta.url),'utf8'), /export function applyProfileEdits/);
 assert.ok(hosting.capabilities.includes("mcp"));
 assert.equal(hosting.d1, null);
 assert.equal(hosting.r2, null);
